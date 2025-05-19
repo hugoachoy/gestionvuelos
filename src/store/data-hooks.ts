@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry } from '@/types';
@@ -108,4 +109,24 @@ export function useScheduleStore() {
   };
 
   return { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, setScheduleEntries };
+}
+
+// Daily Observations Store
+export type DailyObservations = Record<string, string>; // Key: YYYY-MM-DD, Value: observation text
+
+export function useDailyObservationsStore() {
+  const [dailyObservations, setDailyObservations] = useLocalStorageState<DailyObservations>('dailyObservations', {});
+
+  const getObservation = (date: string): string | undefined => {
+    return dailyObservations[date];
+  };
+
+  const updateObservation = (date: string, text: string) => {
+    setDailyObservations(prev => ({
+      ...prev,
+      [date]: text,
+    }));
+  };
+
+  return { dailyObservations, getObservation, updateObservation, setDailyObservations };
 }

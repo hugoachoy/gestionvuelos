@@ -23,6 +23,7 @@ import 'jspdf-autotable';
 interface ShareButtonProps {
   scheduleDate: Date;
   entries: ScheduleEntry[];
+  observationText?: string;
 }
 
 // Extend jsPDF with autoTable - this is a common way to type it for TypeScript
@@ -32,7 +33,7 @@ declare module 'jspdf' {
   }
 }
 
-export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
+export function ShareButton({ scheduleDate, entries, observationText }: ShareButtonProps) {
   const { toast } = useToast();
   const { getPilotName } = usePilotsStore(); 
   const { getCategoryName } = usePilotCategoriesStore();
@@ -61,7 +62,12 @@ export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
   };
 
   const generateShareText = () => {
-    let text = `Agenda de Vuelo - ${format(scheduleDate, "PPP", { locale: es })}\n\n`;
+    let text = `Agenda de Vuelo - ${format(scheduleDate, "PPP", { locale: es })}\n`;
+    if (observationText) {
+      text += `\nObservaciones:\n${observationText}\n`;
+    }
+    text += "\n";
+
     if (entries.length === 0) {
       text += "No hay turnos programados para esta fecha.";
     } else {
@@ -105,13 +111,21 @@ export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
 
   const handleExportCsv = () => {
     const formattedEntries = getFormattedEntries();
+    let csvContent = `Fecha: ${format(scheduleDate, "yyyy-MM-dd", { locale: es })}\n`;
+    if (observationText) {
+      // Escape double quotes in observation text for CSV
+      const escapedObservationText = observationText.replace(/"/g, '""');
+      csvContent += `Observaciones: "${escapedObservationText}"\n`;
+    }
+    csvContent += "\n"; // Add a blank line before headers
+
     const headers = ["Hora", "Piloto", "Categoría", "Remolcador Disponible", "Tipo de Vuelo", "Aeronave"];
-    let csvContent = headers.join(",") + "\n";
+    csvContent += headers.join(",") + "\n";
 
     formattedEntries.forEach(entry => {
       const row = [
         entry.time,
-        `"${entry.pilot.replace(/"/g, '""')}"`, // Handle potential commas/quotes in names
+        `"${entry.pilot.replace(/"/g, '""')}"`, 
         `"${entry.category.replace(/"/g, '""')}"`,
         entry.towAvailable,
         `"${entry.flightType.replace(/"/g, '""')}"`,
@@ -120,7 +134,7 @@ export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
       csvContent += row.join(",") + "\n";
     });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); // Adding BOM for Excel
     const link = document.createElement("a");
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
@@ -139,10 +153,30 @@ export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
   const handleExportPdf = () => {
     const doc = new jsPDF({ orientation: 'landscape' });
     const formattedEntries = getFormattedEntries();
-    
+    const pageTitle = `Agenda de Vuelo - ${format(scheduleDate, "PPP", { locale: es })}`;
+    let currentY = 15;
+
     doc.setFontSize(16);
-    doc.text(`Agenda de Vuelo - ${format(scheduleDate, "PPP", { locale: es })}`, 14, 15);
-    doc.setFontSize(10);
+    doc.text(pageTitle, 14, currentY);
+    currentY += 10;
+
+    if (observationText) {
+      doc.setFontSize(10);
+      // Split observationText into lines that fit page width
+      const observationLines = doc.splitTextToSize(observationText, doc.internal.pageSize.getWidth() - 28); // 14 margin left/right
+      doc.text("Observaciones:", 14, currentY);
+      currentY += 5;
+      observationLines.forEach((line: string) => {
+        if (currentY > doc.internal.pageSize.getHeight() - 20) { // check for page break
+            doc.addPage();
+            currentY = 15;
+        }
+        doc.text(line, 14, currentY);
+        currentY += 5;
+      });
+      currentY += 5; // Extra space after observations
+    }
+
 
     const tableColumn = ["Hora", "Piloto", "Categoría", "Rem. Disp.", "Tipo Vuelo", "Aeronave"];
     const tableRows: (string | null)[][] = [];
@@ -152,7 +186,7 @@ export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
         entry.time,
         entry.pilot,
         entry.category,
-        entry.towAvailable || '-', // Show '-' if no status
+        entry.towAvailable || '-', 
         entry.flightType,
         entry.aircraft,
       ];
@@ -162,14 +196,22 @@ export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
     doc.autoTable({
       head: [tableColumn],
       body: tableRows,
-      startY: 20,
+      startY: currentY, // Start table after title and observations
       theme: 'grid',
-      headStyles: { fillColor: [22, 160, 133] }, // Example header color
+      headStyles: { fillColor: [22, 160, 133] }, 
       styles: { fontSize: 8, cellPadding: 1.5 },
       columnStyles: {
-        // Example: set specific column widths if needed
-        // 0: { cellWidth: 20 }, 
-        // 1: { cellWidth: 'auto' },
+         0: { cellWidth: 20 }, // Hora
+         1: { cellWidth: 'auto' }, // Piloto
+         2: { cellWidth: 35 }, // Categoría
+         3: { cellWidth: 25 }, // Rem. Disp.
+         4: { cellWidth: 30 }, // Tipo Vuelo
+         5: { cellWidth: 'auto' }, // Aeronave
+      },
+      didDrawPage: (data) => {
+        // If you need to repeat title on new pages (optional)
+        // doc.setFontSize(16);
+        // doc.text(pageTitle, 14, 15);
       }
     });
     
@@ -204,4 +246,3 @@ export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
     </DropdownMenu>
   );
 }
-

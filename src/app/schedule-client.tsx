@@ -7,29 +7,63 @@ import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/common/page-header';
 import { AvailabilityForm, type AvailabilityFormData } from '@/components/schedule/availability-form';
 import { ScheduleDisplay } from '@/components/schedule/schedule-display';
 import { ShareButton } from '@/components/schedule/share-button';
 import { DeleteDialog } from '@/components/common/delete-dialog';
-import { usePilotsStore, usePilotCategoriesStore, useAircraftStore, useScheduleStore } from '@/store/data-hooks';
+import { usePilotsStore, usePilotCategoriesStore, useAircraftStore, useScheduleStore, useDailyObservationsStore } from '@/store/data-hooks';
 import type { ScheduleEntry, PilotCategory } from '@/types';
-import { PlusCircle, CalendarIcon } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from "@/hooks/use-toast";
+
 
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const { toast } = useToast();
   
   const { pilots } = usePilotsStore();
   const { categories, getCategoryName } = usePilotCategoriesStore();
   const { aircraft } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry } = useScheduleStore();
+  const { getObservation, updateObservation } = useDailyObservationsStore();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ScheduleEntry | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<ScheduleEntry | null>(null);
+  
+  const [observationInput, setObservationInput] = useState('');
+
+  const formattedSelectedDate = useMemo(() => {
+    return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+  }, [selectedDate]);
+
+  const savedObservation = useMemo(() => {
+    return formattedSelectedDate ? getObservation(formattedSelectedDate) : undefined;
+  }, [formattedSelectedDate, getObservation]);
+
+
+  useEffect(() => {
+    if (selectedDate) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      setObservationInput(getObservation(dateStr) || '');
+    } else {
+      setObservationInput('');
+    }
+  }, [selectedDate, getObservation]);
+
+  const handleSaveObservation = () => {
+    if (selectedDate) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      updateObservation(dateStr, observationInput);
+      toast({ title: "Observaciones guardadas", description: "Las observaciones para el día han sido guardadas." });
+    }
+  };
+
 
   const handleAddEntry = () => {
     setEditingEntry(undefined);
@@ -122,8 +156,12 @@ export function ScheduleClient() {
         title="Agenda de Vuelos"
         action={
           <div className="flex gap-2">
-            {selectedDate && filteredAndSortedEntries.length > 0 && (
-              <ShareButton scheduleDate={selectedDate} entries={filteredAndSortedEntries} />
+            {selectedDate && (filteredAndSortedEntries.length > 0 || savedObservation) && (
+              <ShareButton 
+                scheduleDate={selectedDate} 
+                entries={filteredAndSortedEntries} 
+                observationText={savedObservation}
+              />
             )}
             <Button onClick={handleAddEntry} disabled={!selectedDate}>
               <PlusCircle className="mr-2 h-4 w-4" /> Agregar Turno
@@ -162,6 +200,27 @@ export function ScheduleClient() {
           </div>
         </CardContent>
       </Card>
+
+      {selectedDate && (
+        <Card className="mb-6 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl">Observaciones del Día</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              placeholder="Escribe observaciones generales para la agenda de este día..."
+              value={observationInput}
+              onChange={(e) => setObservationInput(e.target.value)}
+              rows={3}
+              className="mb-3"
+            />
+            <Button onClick={handleSaveObservation} size="sm">
+              <Save className="mr-2 h-4 w-4" />
+              Guardar Observaciones
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       
       {selectedDate && (
         <ScheduleDisplay 
