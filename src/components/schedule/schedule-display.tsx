@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ScheduleEntry, Pilot, PilotCategory, Aircraft, FlightType } from '@/types';
@@ -25,7 +26,7 @@ const FlightTypeIcon: React.FC<{ typeId: FlightType['id'] }> = ({ typeId }) => {
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
   const { getPilotName } = usePilotsStore();
-  const { getCategoryName, categories } = usePilotCategoriesStore(); // Correctly get categories here
+  const { getCategoryName } = usePilotCategoriesStore();
   const { getAircraftName } = useAircraftStore();
 
   if (entries.length === 0) {
@@ -59,9 +60,11 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
               <div className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="hover:text-primary">
                     <Edit className="h-4 w-4" />
+                    <span className="sr-only">Editar</span>
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => onDelete(entry)} className="hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Eliminar</span>
                   </Button>
                 </div>
             </div>
@@ -72,12 +75,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraftId)}
               </div>
             )}
-            {categories.find(c => c.id === entry.pilotCategoryId)?.name === 'Piloto remolcador' && (
+            {getCategoryName(entry.pilotCategoryId) === 'Piloto remolcador' && (
               <div className="flex items-center">
-                {entry.isTowPilotAvailable ? 
+                {!!entry.isTowPilotAvailable ? 
                   <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
                   <XCircle className="h-4 w-4 mr-2 text-red-500" />}
-                Remolcador Disponible: {entry.isTowPilotAvailable ? 'Sí' : 'No'}
+                Remolcador Disponible: {!!entry.isTowPilotAvailable ? 'Sí' : 'No'}
               </div>
             )}
           </CardContent>
