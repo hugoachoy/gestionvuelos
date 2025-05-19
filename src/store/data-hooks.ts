@@ -3,6 +3,7 @@
 
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry } from '@/types';
 import useLocalStorageState from '@/hooks/use-local-storage-state';
+import { useCallback } from 'react'; // Added useCallback import
 
 const generateId = () => crypto.randomUUID();
 
@@ -10,24 +11,24 @@ const generateId = () => crypto.randomUUID();
 export function usePilotsStore() {
   const [pilots, setPilots] = useLocalStorageState<Pilot[]>('pilots', []);
 
-  const addPilot = (pilotData: Omit<Pilot, 'id' | 'categoryIds'> & { categoryIds?: string[] }) => {
+  const addPilot = useCallback((pilotData: Omit<Pilot, 'id' | 'categoryIds'> & { categoryIds?: string[] }) => {
     const newPilot: Pilot = { ...pilotData, categoryIds: pilotData.categoryIds || [], id: generateId() };
     setPilots(prev => [...prev, newPilot]);
     return newPilot;
-  };
+  }, [setPilots]);
 
-  const updatePilot = (updatedPilot: Pilot) => {
+  const updatePilot = useCallback((updatedPilot: Pilot) => {
     setPilots(prev => prev.map(p => p.id === updatedPilot.id ? updatedPilot : p));
-  };
+  }, [setPilots]);
 
-  const deletePilot = (pilotId: string) => {
+  const deletePilot = useCallback((pilotId: string) => {
     setPilots(prev => prev.filter(p => p.id !== pilotId));
-  };
+  }, [setPilots]);
   
-  const getPilotName = (pilotId: string): string => {
+  const getPilotName = useCallback((pilotId: string): string => {
     const pilot = pilots.find(p => p.id === pilotId);
     return pilot ? `${pilot.firstName} ${pilot.lastName}` : 'Unknown Pilot';
-  };
+  }, [pilots]);
 
   return { pilots, addPilot, updatePilot, deletePilot, getPilotName, setPilots };
 }
@@ -41,24 +42,24 @@ export function usePilotCategoriesStore() {
     { id: generateId(), name: 'Piloto planeador' },
   ]);
 
-  const addCategory = (categoryData: Omit<PilotCategory, 'id'>) => {
+  const addCategory = useCallback((categoryData: Omit<PilotCategory, 'id'>) => {
     const newCategory = { ...categoryData, id: generateId() };
     setCategories(prev => [...prev, newCategory]);
     return newCategory;
-  };
+  }, [setCategories]);
 
-  const updateCategory = (updatedCategory: PilotCategory) => {
+  const updateCategory = useCallback((updatedCategory: PilotCategory) => {
     setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c));
-  };
+  }, [setCategories]);
 
-  const deleteCategory = (categoryId: string) => {
+  const deleteCategory = useCallback((categoryId: string) => {
     setCategories(prev => prev.filter(c => c.id !== categoryId));
-  };
+  }, [setCategories]);
 
-  const getCategoryName = (categoryId: string): string => {
+  const getCategoryName = useCallback((categoryId: string): string => {
     const category = categories.find(c => c.id === categoryId);
     return category ? category.name : 'Unknown Category';
-  };
+  }, [categories]);
   
   return { categories, addCategory, updateCategory, deleteCategory, getCategoryName, setCategories };
 }
@@ -67,25 +68,25 @@ export function usePilotCategoriesStore() {
 export function useAircraftStore() {
   const [aircraft, setAircraft] = useLocalStorageState<Aircraft[]>('aircraft', []);
 
-  const addAircraft = (aircraftData: Omit<Aircraft, 'id'>) => {
+  const addAircraft = useCallback((aircraftData: Omit<Aircraft, 'id'>) => {
     const newAircraft = { ...aircraftData, id: generateId() };
     setAircraft(prev => [...prev, newAircraft]);
     return newAircraft;
-  };
+  }, [setAircraft]);
 
-  const updateAircraft = (updatedAircraft: Aircraft) => {
+  const updateAircraft = useCallback((updatedAircraft: Aircraft) => {
     setAircraft(prev => prev.map(a => a.id === updatedAircraft.id ? updatedAircraft : a));
-  };
+  }, [setAircraft]);
 
-  const deleteAircraft = (aircraftId: string) => {
+  const deleteAircraft = useCallback((aircraftId: string) => {
     setAircraft(prev => prev.filter(a => a.id !== aircraftId));
-  };
+  }, [setAircraft]);
   
-  const getAircraftName = (aircraftId?: string): string => {
+  const getAircraftName = useCallback((aircraftId?: string): string => {
     if (!aircraftId) return 'N/A';
     const ac = aircraft.find(a => a.id === aircraftId);
     return ac ? ac.name : 'Unknown Aircraft';
-  };
+  }, [aircraft]);
 
   return { aircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName, setAircraft };
 }
@@ -94,19 +95,19 @@ export function useAircraftStore() {
 export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useLocalStorageState<ScheduleEntry[]>('scheduleEntries', []);
 
-  const addScheduleEntry = (entryData: Omit<ScheduleEntry, 'id'>) => {
+  const addScheduleEntry = useCallback((entryData: Omit<ScheduleEntry, 'id'>) => {
     const newEntry = { ...entryData, id: generateId() };
     setScheduleEntries(prev => [...prev, newEntry]);
     return newEntry;
-  };
+  }, [setScheduleEntries]);
 
-  const updateScheduleEntry = (updatedEntry: ScheduleEntry) => {
+  const updateScheduleEntry = useCallback((updatedEntry: ScheduleEntry) => {
     setScheduleEntries(prev => prev.map(e => e.id === updatedEntry.id ? updatedEntry : e));
-  };
+  }, [setScheduleEntries]);
 
-  const deleteScheduleEntry = (entryId: string) => {
+  const deleteScheduleEntry = useCallback((entryId: string) => {
     setScheduleEntries(prev => prev.filter(e => e.id !== entryId));
-  };
+  }, [setScheduleEntries]);
 
   return { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, setScheduleEntries };
 }
@@ -117,16 +118,16 @@ export type DailyObservations = Record<string, string>; // Key: YYYY-MM-DD, Valu
 export function useDailyObservationsStore() {
   const [dailyObservations, setDailyObservations] = useLocalStorageState<DailyObservations>('dailyObservations', {});
 
-  const getObservation = (date: string): string | undefined => {
+  const getObservation = useCallback((date: string): string | undefined => {
     return dailyObservations[date];
-  };
+  }, [dailyObservations]);
 
-  const updateObservation = (date: string, text: string) => {
+  const updateObservation = useCallback((date: string, text: string) => {
     setDailyObservations(prev => ({
       ...prev,
       [date]: text,
     }));
-  };
+  }, [setDailyObservations]);
 
   return { dailyObservations, getObservation, updateObservation, setDailyObservations };
 }
