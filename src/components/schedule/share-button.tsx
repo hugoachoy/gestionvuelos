@@ -17,9 +17,9 @@ interface ShareButtonProps {
 
 export function ShareButton({ scheduleDate, entries }: ShareButtonProps) {
   const { toast } = useToast();
-  const { getPilotName } = usePilotsStore.getState(); // Access store state directly for non-reactive parts
-  const { getCategoryName } = usePilotCategoriesStore.getState();
-  const { getAircraftName } = useAircraftStore.getState();
+  const { getPilotName } = usePilotsStore(); 
+  const { getCategoryName } = usePilotCategoriesStore();
+  const { getAircraftName } = useAircraftStore();
 
 
   const generateShareText = () => {

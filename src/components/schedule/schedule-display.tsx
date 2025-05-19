@@ -25,7 +25,7 @@ const FlightTypeIcon: React.FC<{ typeId: FlightType['id'] }> = ({ typeId }) => {
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
   const { getPilotName } = usePilotsStore();
-  const { getCategoryName } = usePilotCategoriesStore();
+  const { getCategoryName, categories } = usePilotCategoriesStore(); // Correctly get categories here
   const { getAircraftName } = useAircraftStore();
 
   if (entries.length === 0) {
@@ -86,9 +86,3 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
-
-// Dummy categories data needed for the condition, should be passed or fetched from store
-// This is a temporary fix. Ideally, usePilotCategoriesStore would be used here.
-// For now, let's assume categories are available globally or passed down.
-// This component is client-side, so it can use hooks.
-const { categories } = usePilotCategoriesStore.getState(); // Example, not ideal to call getState directly in render path
