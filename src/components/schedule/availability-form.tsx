@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ScheduleEntry, Pilot, PilotCategory, Aircraft, FlightType } from '@/types';
@@ -38,11 +39,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CalendarIcon, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -93,11 +95,17 @@ export function AvailabilityForm({
         },
   });
 
+  const [medicalWarning, setMedicalWarning] = useState<string | null>(null);
+
   useEffect(() => {
     if (selectedDate && !entry) {
       form.setValue('date', selectedDate);
     }
-  }, [selectedDate, form, entry]);
+     // Reset warning when form opens/closes or entry changes
+    if (!open) {
+      setMedicalWarning(null);
+    }
+  }, [selectedDate, form, entry, open]);
 
   const watchedPilotId = form.watch('pilotId');
   const watchedPilotCategoryId = form.watch('pilotCategoryId');
@@ -106,6 +114,27 @@ export function AvailabilityForm({
   const pilotCategories = pilotDetails?.categoryIds.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
   const selectedCategoryDetails = categories.find(c => c.id === watchedPilotCategoryId);
   const isTowPilotCategorySelected = selectedCategoryDetails?.name === 'Piloto remolcador';
+
+  useEffect(() => {
+    if (open && watchedPilotId && pilotDetails?.medicalExpiry) {
+      const medicalExpiryDate = parseISO(pilotDetails.medicalExpiry);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize today's date
+
+      const daysUntilExpiry = differenceInDays(medicalExpiryDate, today);
+
+      if (isBefore(medicalExpiryDate, today)) {
+        setMedicalWarning(`¡Atención! El psicofísico de ${pilotDetails.firstName} ${pilotDetails.lastName} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
+      } else if (daysUntilExpiry <= 30) {
+        setMedicalWarning(`Advertencia: El psicofísico de ${pilotDetails.firstName} ${pilotDetails.lastName} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
+      } else {
+        setMedicalWarning(null);
+      }
+    } else if (open) { // Clear warning if pilot is unselected or has no medical data while form is open
+      setMedicalWarning(null);
+    }
+  }, [watchedPilotId, pilotDetails, open]);
+
 
   const handleSubmit = (data: AvailabilityFormData) => {
     onSubmit(data, entry?.id);
@@ -126,11 +155,52 @@ export function AvailabilityForm({
     if (watchedPilotId && pilotDetails && !pilotDetails.categoryIds.includes(form.getValues('pilotCategoryId'))) {
       form.setValue('pilotCategoryId', '');
     }
+     // Also reset the medical warning if the pilot changes
+    if (!watchedPilotId) {
+        setMedicalWarning(null);
+    }
   }, [watchedPilotId, pilotDetails, form]);
 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      onOpenChange(isOpen);
+      if (!isOpen) {
+        form.reset({ // Ensure form resets to appropriate defaults when closing
+          date: selectedDate || new Date(),
+          startTime: '',
+          pilotId: '',
+          pilotCategoryId: '',
+          isTowPilotAvailable: false,
+          flightTypeId: '',
+          aircraftId: '',
+        });
+        setMedicalWarning(null); // Clear warning on close
+      } else {
+        // Re-evaluate medical warning if opening with an existing entry or selected pilot
+        if (entry?.pilotId || form.getValues('pilotId')) {
+           const currentPilotId = entry?.pilotId || form.getValues('pilotId');
+           const currentPilotDetails = pilots.find(p => p.id === currentPilotId);
+           if (currentPilotDetails?.medicalExpiry) {
+              const medicalExpiryDate = parseISO(currentPilotDetails.medicalExpiry);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const daysUntilExpiry = differenceInDays(medicalExpiryDate, today);
+              if (isBefore(medicalExpiryDate, today)) {
+                setMedicalWarning(`¡Atención! El psicofísico de ${currentPilotDetails.firstName} ${currentPilotDetails.lastName} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
+              } else if (daysUntilExpiry <= 30) {
+                setMedicalWarning(`Advertencia: El psicofísico de ${currentPilotDetails.firstName} ${currentPilotDetails.lastName} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
+              } else {
+                setMedicalWarning(null);
+              }
+           } else {
+             setMedicalWarning(null);
+           }
+        } else {
+          setMedicalWarning(null);
+        }
+      }
+    }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{entry ? 'Editar Turno' : 'Agregar Disponibilidad'}</DialogTitle>
@@ -214,6 +284,15 @@ export function AvailabilityForm({
                 </FormItem>
               )}
             />
+
+            {medicalWarning && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Alerta de Psicofísico</AlertTitle>
+                <AlertDescription>{medicalWarning}</AlertDescription>
+              </Alert>
+            )}
+
             {watchedPilotId && (
                <FormField
                 control={form.control}
@@ -305,7 +384,18 @@ export function AvailabilityForm({
               )}
             />
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => {form.reset(); onOpenChange(false);}}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => {
+                form.reset({
+                  date: selectedDate || new Date(),
+                  startTime: '',
+                  pilotId: '',
+                  pilotCategoryId: '',
+                  isTowPilotAvailable: false,
+                  flightTypeId: '',
+                  aircraftId: '',
+                }); 
+                onOpenChange(false);
+                }}>Cancelar</Button>
               <Button type="submit">{entry ? 'Guardar Cambios' : 'Agregar Turno'}</Button>
             </DialogFooter>
           </form>

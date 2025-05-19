@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -21,7 +22,7 @@ export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
   const { pilots } = usePilotsStore();
-  const { categories } = usePilotCategoriesStore();
+  const { categories, getCategoryName } = usePilotCategoriesStore();
   const { aircraft } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry } = useScheduleStore();
 
@@ -70,34 +71,42 @@ export function ScheduleClient() {
     if (!selectedDate) return [];
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     
+    const categoryOrderValues: Record<string, number> = {
+      'Piloto remolcador': 1,
+      'Instructor': 2,
+    };
+
     return scheduleEntries
       .filter(entry => entry.date === dateStr)
       .sort((a, b) => {
-        // Primary sort: Pilot Category Name
-        const catA = categories.find(c => c.id === a.pilotCategoryId)?.name || '';
-        const catB = categories.find(c => c.id === b.pilotCategoryId)?.name || '';
-        if (catA < catB) return -1;
-        if (catA > catB) return 1;
+        const catA_Name = getCategoryName(a.pilotCategoryId);
+        const catB_Name = getCategoryName(b.pilotCategoryId);
 
-        // Secondary sort (within category)
-        const isTowPilotCatA = catA === 'Piloto remolcador';
-        
-        if (isTowPilotCatA) {
-          // Sort for "Piloto remolcador"
+        const orderA = categoryOrderValues[catA_Name] || 3; // Other categories are 3
+        const orderB = categoryOrderValues[catB_Name] || 3;
+
+        // 1. Sort by specific category order
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+
+        // 2. If category is 'Piloto remolcador', sort by availability
+        if (catA_Name === 'Piloto remolcador') {
           if (a.isTowPilotAvailable && !b.isTowPilotAvailable) return -1;
           if (!a.isTowPilotAvailable && b.isTowPilotAvailable) return 1;
         }
-
-        // Tertiary sort: Flight Type (Deportivo first)
+        
+        // 3. Prioritize 'Deportivo' flight type
         const isSportA = a.flightTypeId === 'sport';
         const isSportB = b.flightTypeId === 'sport';
+
         if (isSportA && !isSportB) return -1;
         if (!isSportA && isSportB) return 1;
 
-        // Quaternary sort: Start Time
+        // 4. Finally, sort by start time
         return a.startTime.localeCompare(b.startTime);
       });
-  }, [selectedDate, scheduleEntries, categories]);
+  }, [selectedDate, scheduleEntries, categories, getCategoryName]);
   
   // Ensure selectedDate is initialized on client side
   useEffect(() => {
