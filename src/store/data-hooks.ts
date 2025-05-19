@@ -3,9 +3,16 @@
 
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry } from '@/types';
 import useLocalStorageState from '@/hooks/use-local-storage-state';
-import { useCallback } from 'react'; // Added useCallback import
+import { useCallback } from 'react'; 
 
 const generateId = () => crypto.randomUUID();
+
+// Define default pilot categories with STABLE, HARDCODED IDs
+const DEFAULT_PILOT_CATEGORIES: PilotCategory[] = [
+  { id: 'static-cat-tow-pilot', name: 'Piloto remolcador' },
+  { id: 'static-cat-instructor', name: 'Instructor' },
+  { id: 'static-cat-glider-pilot', name: 'Piloto planeador' },
+];
 
 // Pilots Store
 export function usePilotsStore() {
@@ -27,7 +34,7 @@ export function usePilotsStore() {
   
   const getPilotName = useCallback((pilotId: string): string => {
     const pilot = pilots.find(p => p.id === pilotId);
-    return pilot ? `${pilot.firstName} ${pilot.lastName}` : 'Unknown Pilot';
+    return pilot ? `${pilot.firstName} ${pilot.lastName}` : 'Piloto Desconocido'; // Changed default
   }, [pilots]);
 
   return { pilots, addPilot, updatePilot, deletePilot, getPilotName, setPilots };
@@ -35,14 +42,11 @@ export function usePilotsStore() {
 
 // Pilot Categories Store
 export function usePilotCategoriesStore() {
-  const [categories, setCategories] = useLocalStorageState<PilotCategory[]>('pilotCategories', [
-    // Initial default categories as per proposal
-    { id: generateId(), name: 'Piloto remolcador' },
-    { id: generateId(), name: 'Instructor' },
-    { id: generateId(), name: 'Piloto planeador' },
-  ]);
+  // Use the stable DEFAULT_PILOT_CATEGORIES for initialization
+  const [categories, setCategories] = useLocalStorageState<PilotCategory[]>('pilotCategories', DEFAULT_PILOT_CATEGORIES);
 
   const addCategory = useCallback((categoryData: Omit<PilotCategory, 'id'>) => {
+    // generateId() is fine here because this is a client-side user action
     const newCategory = { ...categoryData, id: generateId() };
     setCategories(prev => [...prev, newCategory]);
     return newCategory;
@@ -58,7 +62,7 @@ export function usePilotCategoriesStore() {
 
   const getCategoryName = useCallback((categoryId: string): string => {
     const category = categories.find(c => c.id === categoryId);
-    return category ? category.name : 'Unknown Category';
+    return category ? category.name : 'Categoría Desconocida'; // Changed default
   }, [categories]);
   
   return { categories, addCategory, updateCategory, deleteCategory, getCategoryName, setCategories };
@@ -85,7 +89,7 @@ export function useAircraftStore() {
   const getAircraftName = useCallback((aircraftId?: string): string => {
     if (!aircraftId) return 'N/A';
     const ac = aircraft.find(a => a.id === aircraftId);
-    return ac ? ac.name : 'Unknown Aircraft';
+    return ac ? ac.name : 'Aeronave Desconocida'; // Changed default
   }, [aircraft]);
 
   return { aircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName, setAircraft };
