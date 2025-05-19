@@ -116,7 +116,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   {!!entry.isTowPilotAvailable ? 
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
                     <XCircle className="h-4 w-4 mr-2 text-red-500" />}
-                  Remolcador Disponible: {!!entry.isTowPilotAvailable ? 'Sí' : 'No'}
+                  Remolcador: {!!entry.isTowPilotAvailable ? 'Disponible' : 'No Disponible'}
                 </div>
               )}
             </CardContent>
@@ -126,3 +126,4 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
+
