@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from 'react';
@@ -78,8 +79,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
           <SidebarTrigger className="md:hidden" />
-          <div className="flex-1">
-            {/* Breadcrumbs or page title can go here */}
+          <div className="flex-1 text-center text-lg font-semibold text-primary">
+            Aeroclub 9 de Julio
           </div>
           {/* Optional: User Avatar/Menu */}
         </header>
