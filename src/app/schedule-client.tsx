@@ -49,13 +49,14 @@ export function ScheduleClient() {
   }, [selectedDate]);
 
   // Effect for fetching schedule and observation data when selectedDate changes
-  useEffect(() => {
+   useEffect(() => {
     if (selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
     }
   }, [selectedDate, fetchScheduleEntries, fetchObservations]);
+
 
   // Memoize observation text for the selected date
   const savedObservationText = useMemo(() => {
@@ -158,8 +159,11 @@ export function ScheduleClient() {
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
     } else {
-        fetchScheduleEntries(); 
-        fetchObservations();
+        // Fallback if selectedDate is somehow null, fetch all or for today
+        // This path should ideally not be hit if selectedDate is always initialized
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        fetchScheduleEntries(todayStr); 
+        fetchObservations(todayStr);
     }
   }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
 
@@ -237,7 +241,7 @@ export function ScheduleClient() {
             <CardTitle className="text-xl">Observaciones del Día</CardTitle>
           </CardHeader>
           <CardContent>
-            {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-20 w-full" /> : ( // Improved skeleton condition
+            {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-20 w-full" /> : ( 
               <Textarea
                 placeholder="Escribe observaciones generales para la agenda de este día..."
                 value={observationInput}
@@ -277,12 +281,13 @@ export function ScheduleClient() {
         categories={categories}
         aircraft={aircraft}
         selectedDate={selectedDate}
+        existingEntries={scheduleEntries} // Pass existing entries for conflict checking
       />
       <DeleteDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         onConfirm={confirmDelete}
-        itemName={entryToDelete ? `el turno de las ${entryToDelete.start_time}` : 'este turno'}
+        itemName={entryToDelete ? `el turno de las ${entryToDelete.start_time.substring(0,5)}` : 'este turno'}
       />
     </>
   );
