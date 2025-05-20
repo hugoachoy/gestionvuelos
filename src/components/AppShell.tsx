@@ -17,7 +17,7 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar'; // Using the custom sidebar from ui
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, Settings, Feather, CalendarDays } from 'lucide-react';
+import { Home, Users, Tags, Plane, Settings, CalendarDays } from 'lucide-react'; // Removed Feather
 import { Toaster } from "@/components/ui/toaster";
 
 interface NavItemProps {
@@ -56,9 +56,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar>
         <SidebarHeader className="p-4">
           <Link href="/" className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10">
-              <Feather className="h-7 w-7" />
-            </Button>
+            {/* New SVG Logo */}
+            <svg
+              className="h-7 w-7 text-primary"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-label="TurnoVuelo Logo"
+            >
+              <path d="M3 12L3 21L21 12L3 3L3 10L16 12L3 14L3 12Z" />
+            </svg>
             <h1 className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden">
               TurnoVuelo
             </h1>
