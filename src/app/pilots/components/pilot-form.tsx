@@ -37,11 +37,12 @@ import { format, parseISO, parse, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
 
+// Schema uses snake_case matching the Type and DB
 const pilotSchema = z.object({
-  firstName: z.string().min(1, "El nombre es obligatorio."),
-  lastName: z.string().min(1, "El apellido es obligatorio."),
-  categoryIds: z.array(z.string()).min(1, "Seleccione al menos una categoría."),
-  medicalExpiry: z.date({ 
+  first_name: z.string().min(1, "El nombre es obligatorio."),
+  last_name: z.string().min(1, "El apellido es obligatorio."),
+  category_ids: z.array(z.string()).min(1, "Seleccione al menos una categoría."),
+  medical_expiry: z.date({ 
       required_error: "La fecha de vencimiento del psicofísico es obligatoria.",
       invalid_type_error: "Fecha inválida." 
     })
@@ -50,13 +51,14 @@ const pilotSchema = z.object({
     }),
 });
 
+// This FormData type will have snake_case fields
 type PilotFormData = z.infer<typeof pilotSchema>;
 
 interface PilotFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: PilotFormData, pilotId?: string) => void;
-  pilot?: Pilot;
+  onSubmit: (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => void;
+  pilot?: Pilot; // Pilot type has snake_case fields
   categories: PilotCategory[];
 }
 
@@ -64,38 +66,32 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   const form = useForm<PilotFormData>({
     resolver: zodResolver(pilotSchema),
     defaultValues: pilot
-      ? { ...pilot, medicalExpiry: pilot.medicalExpiry ? parseISO(pilot.medicalExpiry) : new Date() }
-      : { firstName: '', lastName: '', categoryIds: [], medicalExpiry: new Date() },
+      ? { ...pilot, medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date() }
+      : { first_name: '', last_name: '', category_ids: [], medical_expiry: new Date() },
   });
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  // Local state for the date input string
   const [medicalExpiryDateString, setMedicalExpiryDateString] = useState('');
 
-  // Sync react-hook-form field value with local dateString state
   useEffect(() => {
-    const medicalExpiryValue = form.getValues('medicalExpiry');
+    const medicalExpiryValue = form.getValues('medical_expiry');
     if (medicalExpiryValue && isValid(medicalExpiryValue)) {
       setMedicalExpiryDateString(format(medicalExpiryValue, "dd/MM/yyyy", { locale: es }));
-    } else if (pilot?.medicalExpiry) {
-      // if form value is not set yet, but pilot data exists
-      const parsedDate = parseISO(pilot.medicalExpiry);
+    } else if (pilot?.medical_expiry) {
+      const parsedDate = parseISO(pilot.medical_expiry);
       if (isValid(parsedDate)) {
          setMedicalExpiryDateString(format(parsedDate, "dd/MM/yyyy", { locale: es }));
       } else {
         setMedicalExpiryDateString('');
       }
-    } 
-     else {
-      // For new pilot, if default is new Date()
+    } else {
        const defaultDate = new Date();
         setMedicalExpiryDateString(format(defaultDate, "dd/MM/yyyy", { locale: es }));
-         if (!form.getValues('medicalExpiry')) { // Set default if not already set
-            form.setValue('medicalExpiry', defaultDate, {shouldValidate: true});
+         if (!form.getValues('medical_expiry')) { 
+            form.setValue('medical_expiry', defaultDate, {shouldValidate: true});
         }
     }
-  }, [form, form.getValues('medicalExpiry'), pilot]);
-
+  }, [form, pilot]); // Simplified dependencies
 
   const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>, fieldOnChange: (date: Date | undefined) => void) => {
     const textValue = e.target.value;
@@ -104,9 +100,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     if (isValid(parsedDate)) {
       fieldOnChange(parsedDate);
     } else {
-      // Pass undefined or an invalid marker if Zod should catch it as invalid_type_error
-      // For now, let RHF handle validation based on schema.
-      // If input is cleared or invalid, Zod rule should catch it.
       fieldOnChange(undefined); 
     }
   };
@@ -122,46 +115,47 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     setIsCalendarOpen(false);
   };
 
-
   const handleSubmit = (data: PilotFormData) => {
-    onSubmit(data, pilot?.id);
+    // Convert medical_expiry back to string for submission if needed by the hook, or let hook handle it
+    const dataToSubmit = {
+        ...data,
+        medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'), // Ensure string format for DB
+    };
+    onSubmit(dataToSubmit, pilot?.id);
     form.reset({ 
-        firstName: '', 
-        lastName: '', 
-        categoryIds: [], 
-        medicalExpiry: new Date() // Reset to default after submit
+        first_name: '', 
+        last_name: '', 
+        category_ids: [], 
+        medical_expiry: new Date()
     });
-    setMedicalExpiryDateString(format(new Date(), "dd/MM/yyyy", { locale: es })); // Reset date string
+    setMedicalExpiryDateString(format(new Date(), "dd/MM/yyyy", { locale: es }));
     onOpenChange(false);
   };
   
-  // Effect to reset date string when form is reset externally or pilot changes
   useEffect(() => {
-    if (open) { // only run when dialog is open
+    if (open) {
         const currentMedicalDate = pilot 
-            ? (pilot.medicalExpiry ? parseISO(pilot.medicalExpiry) : new Date())
+            ? (pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date())
             : new Date();
         if (isValid(currentMedicalDate)) {
             setMedicalExpiryDateString(format(currentMedicalDate, "dd/MM/yyyy", { locale: es }));
-            form.setValue('medicalExpiry', currentMedicalDate, { shouldValidate: true, shouldDirty: !!pilot });
+            form.setValue('medical_expiry', currentMedicalDate, { shouldValidate: true, shouldDirty: !!pilot });
         } else {
              setMedicalExpiryDateString('');
-             form.setValue('medicalExpiry', undefined as any, { shouldValidate: true, shouldDirty: !!pilot });
+             form.setValue('medical_expiry', undefined as any, { shouldValidate: true, shouldDirty: !!pilot });
         }
     }
-  }, [pilot, open, form.reset, form.setValue]);
-
+  }, [pilot, open, form]);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
         onOpenChange(isOpen);
         if (!isOpen) {
             form.reset(pilot
-              ? { ...pilot, medicalExpiry: pilot.medicalExpiry ? parseISO(pilot.medicalExpiry) : new Date() }
-              : { firstName: '', lastName: '', categoryIds: [], medicalExpiry: new Date() }
+              ? { ...pilot, medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date() }
+              : { first_name: '', last_name: '', category_ids: [], medical_expiry: new Date() }
             );
-             // Reset date string based on defaultValues when dialog closes
-            const defaultDateOnClose = pilot?.medicalExpiry ? parseISO(pilot.medicalExpiry) : new Date();
+            const defaultDateOnClose = pilot?.medical_expiry ? parseISO(pilot.medical_expiry) : new Date();
             setMedicalExpiryDateString(isValid(defaultDateOnClose) ? format(defaultDateOnClose, "dd/MM/yyyy", {locale: es}) : '');
         }
     }}>
@@ -176,7 +170,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="firstName"
+              name="first_name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nombre</FormLabel>
@@ -189,7 +183,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             />
             <FormField
               control={form.control}
-              name="lastName"
+              name="last_name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Apellido</FormLabel>
@@ -202,7 +196,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             />
             <FormField
               control={form.control}
-              name="categoryIds"
+              name="category_ids"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categorías</FormLabel>
@@ -265,7 +259,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             />
             <FormField
               control={form.control}
-              name="medicalExpiry"
+              name="medical_expiry"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Vencimiento Psicofísico (dd/MM/yyyy)</FormLabel>
@@ -278,7 +272,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                           value={medicalExpiryDateString}
                           onChange={(e) => handleDateInputChange(e, field.onChange)}
                           onFocus={() => setIsCalendarOpen(true)}
-                          className={cn(!isValid(field.value) && form.formState.touchedFields.medicalExpiry && "border-destructive focus-visible:ring-destructive")}
+                          className={cn(!isValid(field.value) && form.formState.touchedFields.medical_expiry && "border-destructive focus-visible:ring-destructive")}
                         />
                       </FormControl>
                       <PopoverTrigger asChild>
@@ -308,10 +302,10 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { 
                 form.reset(pilot
-                  ? { ...pilot, medicalExpiry: pilot.medicalExpiry ? parseISO(pilot.medicalExpiry) : new Date() }
-                  : { firstName: '', lastName: '', categoryIds: [], medicalExpiry: new Date() }
+                  ? { ...pilot, medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date() }
+                  : { first_name: '', last_name: '', category_ids: [], medical_expiry: new Date() }
                 );
-                const defaultDateOnCancel = pilot?.medicalExpiry ? parseISO(pilot.medicalExpiry) : new Date();
+                const defaultDateOnCancel = pilot?.medical_expiry ? parseISO(pilot.medical_expiry) : new Date();
                 setMedicalExpiryDateString(isValid(defaultDateOnCancel) ? format(defaultDateOnCancel, "dd/MM/yyyy", {locale: es}) : '');
                 onOpenChange(false);
               }}>Cancelar</Button>
@@ -323,4 +317,3 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     </Dialog>
   );
 }
-

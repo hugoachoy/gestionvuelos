@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { PilotCategory } from '@/types';
@@ -22,18 +23,21 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import React from 'react';
 
+// Schema uses snake_case matching the Type and DB
 const categorySchema = z.object({
   name: z.string().min(1, "El nombre de la categoría es obligatorio."),
 });
 
+// This FormData type will have snake_case fields
 type CategoryFormData = z.infer<typeof categorySchema>;
 
 interface CategoryFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: CategoryFormData, categoryId?: string) => void;
-  category?: PilotCategory;
+  category?: PilotCategory; // PilotCategory type has snake_case fields
 }
 
 export function CategoryForm({ open, onOpenChange, onSubmit, category }: CategoryFormProps) {
@@ -42,11 +46,19 @@ export function CategoryForm({ open, onOpenChange, onSubmit, category }: Categor
     defaultValues: category ? { name: category.name } : { name: '' },
   });
 
+  // data from form.handleSubmit will be CategoryFormData (snake_case)
   const handleSubmit = (data: CategoryFormData) => {
     onSubmit(data, category?.id);
-    form.reset();
+    form.reset(); // Reset with default structure
     onOpenChange(false);
   };
+
+  // When dialog opens or category changes, reset form with new defaultValues
+  React.useEffect(() => {
+    if (open) {
+      form.reset(category ? { name: category.name } : { name: '' });
+    }
+  }, [open, category, form]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,7 +73,7 @@ export function CategoryForm({ open, onOpenChange, onSubmit, category }: Categor
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="name"
+              name="name" // Corresponds to 'name' in categorySchema
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nombre de la Categoría</FormLabel>

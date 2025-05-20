@@ -4,7 +4,7 @@
 import type { ScheduleEntry, Pilot, PilotCategory, Aircraft, FlightType } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -42,31 +42,34 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CalendarIcon, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, differenceInDays, isBefore } from 'date-fns';
+import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useEffect, useState } from 'react';
 
+// Schema uses snake_case matching the Type and DB
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
-  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
-  pilotId: z.string().min(1, "Seleccione un piloto."),
-  pilotCategoryId: z.string().min(1, "Seleccione una categoría para este turno."),
-  isTowPilotAvailable: z.boolean().optional(),
-  flightTypeId: z.string().min(1, "Seleccione un tipo de vuelo."),
-  aircraftId: z.string().optional(),
+  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
+  pilot_id: z.string().min(1, "Seleccione un piloto."),
+  pilot_category_id: z.string().min(1, "Seleccione una categoría para este turno."),
+  is_tow_pilot_available: z.boolean().optional(),
+  flight_type_id: z.string().min(1, "Seleccione un tipo de vuelo."),
+  aircraft_id: z.string().optional().nullable(), // Allow null for Supabase compatibility
 });
 
+// This FormData type will have snake_case fields
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
 
 interface AvailabilityFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: AvailabilityFormData, entryId?: string) => void;
-  entry?: ScheduleEntry;
+  // Data submitted to the hook is Omit<ScheduleEntry, 'id' | 'created_at'>
+  onSubmit: (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => void;
+  entry?: ScheduleEntry; // ScheduleEntry type has snake_case fields
   pilots: Pilot[];
   categories: PilotCategory[];
   aircraft: Aircraft[];
-  selectedDate?: Date; // To prefill date from calendar
+  selectedDate?: Date; 
 }
 
 export function AvailabilityForm({
@@ -86,12 +89,12 @@ export function AvailabilityForm({
       ? { ...entry, date: entry.date ? parseISO(entry.date) : new Date() }
       : {
           date: selectedDate || new Date(),
-          startTime: '',
-          pilotId: '',
-          pilotCategoryId: '',
-          isTowPilotAvailable: false,
-          flightTypeId: '',
-          aircraftId: '',
+          start_time: '',
+          pilot_id: '',
+          pilot_category_id: '',
+          is_tow_pilot_available: false,
+          flight_type_id: '',
+          aircraft_id: '',
         },
   });
 
@@ -101,105 +104,112 @@ export function AvailabilityForm({
     if (selectedDate && !entry) {
       form.setValue('date', selectedDate);
     }
-     // Reset warning when form opens/closes or entry changes
     if (!open) {
       setMedicalWarning(null);
     }
   }, [selectedDate, form, entry, open]);
 
-  const watchedPilotId = form.watch('pilotId');
-  const watchedPilotCategoryId = form.watch('pilotCategoryId');
+  const watchedPilotId = form.watch('pilot_id');
+  const watchedPilotCategoryId = form.watch('pilot_category_id');
 
   const pilotDetails = pilots.find(p => p.id === watchedPilotId);
-  const pilotCategories = pilotDetails?.categoryIds.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
+  const pilotCategoriesForSelectedPilot = pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
   const selectedCategoryDetails = categories.find(c => c.id === watchedPilotCategoryId);
   const isTowPilotCategorySelected = selectedCategoryDetails?.name === 'Piloto remolcador';
 
   useEffect(() => {
-    if (open && watchedPilotId && pilotDetails?.medicalExpiry) {
-      const medicalExpiryDate = parseISO(pilotDetails.medicalExpiry);
+    if (open && watchedPilotId && pilotDetails?.medical_expiry) {
+      const medicalExpiryDate = parseISO(pilotDetails.medical_expiry);
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normalize today's date
+      today.setHours(0, 0, 0, 0); 
 
       const daysUntilExpiry = differenceInDays(medicalExpiryDate, today);
 
       if (isBefore(medicalExpiryDate, today)) {
-        setMedicalWarning(`¡Atención! El psicofísico de ${pilotDetails.firstName} ${pilotDetails.lastName} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
+        setMedicalWarning(`¡Atención! El psicofísico de ${pilotDetails.first_name} ${pilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
       } else if (daysUntilExpiry <= 30) {
-        setMedicalWarning(`Advertencia: El psicofísico de ${pilotDetails.firstName} ${pilotDetails.lastName} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
+        setMedicalWarning(`Advertencia: El psicofísico de ${pilotDetails.first_name} ${pilotDetails.last_name} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
       } else {
         setMedicalWarning(null);
       }
-    } else if (open) { // Clear warning if pilot is unselected or has no medical data while form is open
+    } else if (open) {
       setMedicalWarning(null);
     }
   }, [watchedPilotId, pilotDetails, open]);
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
-    onSubmit(data, entry?.id);
+    const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
+        ...data,
+        date: format(data.date, 'yyyy-MM-dd'), // Ensure string format for DB
+        aircraft_id: data.aircraft_id || undefined, // Ensure undefined if empty string, Supabase handles null
+    };
+    onSubmit(dataToSubmit, entry?.id);
     form.reset({
       date: selectedDate || new Date(),
-      startTime: '',
-      pilotId: '',
-      pilotCategoryId: '',
-      isTowPilotAvailable: false,
-      flightTypeId: '',
-      aircraftId: '',
+      start_time: '',
+      pilot_id: '',
+      pilot_category_id: '',
+      is_tow_pilot_available: false,
+      flight_type_id: '',
+      aircraft_id: '',
     });
     onOpenChange(false);
   };
   
   useEffect(() => {
-    // Reset pilotCategoryId if selected pilot changes and current category is not valid for new pilot
-    if (watchedPilotId && pilotDetails && !pilotDetails.categoryIds.includes(form.getValues('pilotCategoryId'))) {
-      form.setValue('pilotCategoryId', '');
+    if (watchedPilotId && pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
+      form.setValue('pilot_category_id', '');
     }
-     // Also reset the medical warning if the pilot changes
     if (!watchedPilotId) {
         setMedicalWarning(null);
     }
   }, [watchedPilotId, pilotDetails, form]);
 
 
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
-      onOpenChange(isOpen);
-      if (!isOpen) {
-        form.reset({ // Ensure form resets to appropriate defaults when closing
-          date: selectedDate || new Date(),
-          startTime: '',
-          pilotId: '',
-          pilotCategoryId: '',
-          isTowPilotAvailable: false,
-          flightTypeId: '',
-          aircraftId: '',
-        });
-        setMedicalWarning(null); // Clear warning on close
-      } else {
-        // Re-evaluate medical warning if opening with an existing entry or selected pilot
-        if (entry?.pilotId || form.getValues('pilotId')) {
-           const currentPilotId = entry?.pilotId || form.getValues('pilotId');
-           const currentPilotDetails = pilots.find(p => p.id === currentPilotId);
-           if (currentPilotDetails?.medicalExpiry) {
-              const medicalExpiryDate = parseISO(currentPilotDetails.medicalExpiry);
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const daysUntilExpiry = differenceInDays(medicalExpiryDate, today);
-              if (isBefore(medicalExpiryDate, today)) {
-                setMedicalWarning(`¡Atención! El psicofísico de ${currentPilotDetails.firstName} ${currentPilotDetails.lastName} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
-              } else if (daysUntilExpiry <= 30) {
-                setMedicalWarning(`Advertencia: El psicofísico de ${currentPilotDetails.firstName} ${currentPilotDetails.lastName} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
-              } else {
-                setMedicalWarning(null);
-              }
-           } else {
-             setMedicalWarning(null);
-           }
+  useEffect(() => {
+    if (open) {
+      const initialPilotId = entry?.pilot_id || form.getValues('pilot_id');
+      const currentPilotDetails = pilots.find(p => p.id === initialPilotId);
+      if (currentPilotDetails?.medical_expiry) {
+        const medicalExpiryDate = parseISO(currentPilotDetails.medical_expiry);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const daysUntilExpiry = differenceInDays(medicalExpiryDate, today);
+        if (isBefore(medicalExpiryDate, today)) {
+          setMedicalWarning(`¡Atención! El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
+        } else if (daysUntilExpiry <= 30) {
+          setMedicalWarning(`Advertencia: El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
         } else {
           setMedicalWarning(null);
         }
+      } else {
+        setMedicalWarning(null);
       }
+       // Reset form with correct defaults when opening
+       form.reset(entry
+        ? { ...entry, date: entry.date ? parseISO(entry.date) : new Date() }
+        : {
+            date: selectedDate || new Date(),
+            start_time: '',
+            pilot_id: '',
+            pilot_category_id: '',
+            is_tow_pilot_available: false,
+            flight_type_id: '',
+            aircraft_id: '',
+          });
+
+    } else {
+      setMedicalWarning(null); // Clear warning on close
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, entry, selectedDate, pilots]); // form.reset removed to avoid loop
+
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      onOpenChange(isOpen);
+      // Reset logic is handled by the useEffect above for 'open'
     }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -251,7 +261,7 @@ export function AvailabilityForm({
             />
              <FormField
               control={form.control}
-              name="startTime"
+              name="start_time"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Hora Inicial (HH:MM)</FormLabel>
@@ -264,11 +274,11 @@ export function AvailabilityForm({
             />
             <FormField
               control={form.control}
-              name="pilotId"
+              name="pilot_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Piloto</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar piloto" />
@@ -276,7 +286,7 @@ export function AvailabilityForm({
                     </FormControl>
                     <SelectContent>
                       {pilots.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -296,18 +306,18 @@ export function AvailabilityForm({
             {watchedPilotId && (
                <FormField
                 control={form.control}
-                name="pilotCategoryId"
+                name="pilot_category_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Categoría del Piloto para este Turno</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
-                        <SelectTrigger disabled={!pilotDetails || pilotCategories.length === 0}>
-                          <SelectValue placeholder={pilotCategories.length > 0 ? "Seleccionar categoría del piloto" : "Piloto no tiene categorías"} />
+                        <SelectTrigger disabled={!pilotDetails || pilotCategoriesForSelectedPilot.length === 0}>
+                          <SelectValue placeholder={pilotCategoriesForSelectedPilot.length > 0 ? "Seleccionar categoría del piloto" : "Piloto no tiene categorías"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {pilotCategories.map(cat => (
+                        {pilotCategoriesForSelectedPilot.map(cat => (
                           <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -320,7 +330,7 @@ export function AvailabilityForm({
             {isTowPilotCategorySelected && (
               <FormField
                 control={form.control}
-                name="isTowPilotAvailable"
+                name="is_tow_pilot_available"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                     <div className="space-y-0.5">
@@ -341,11 +351,11 @@ export function AvailabilityForm({
             )}
             <FormField
               control={form.control}
-              name="flightTypeId"
+              name="flight_type_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo de Vuelo</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar tipo de vuelo" />
@@ -363,17 +373,18 @@ export function AvailabilityForm({
             />
             <FormField
               control={form.control}
-              name="aircraftId"
+              name="aircraft_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Aeronave (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar aeronave" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value=""><em>Ninguna</em></SelectItem>
                       {aircraft.map(ac => (
                         <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
                       ))}
@@ -387,12 +398,12 @@ export function AvailabilityForm({
               <Button type="button" variant="outline" onClick={() => {
                 form.reset({
                   date: selectedDate || new Date(),
-                  startTime: '',
-                  pilotId: '',
-                  pilotCategoryId: '',
-                  isTowPilotAvailable: false,
-                  flightTypeId: '',
-                  aircraftId: '',
+                  start_time: '',
+                  pilot_id: '',
+                  pilot_category_id: '',
+                  is_tow_pilot_available: false,
+                  flight_type_id: '',
+                  aircraft_id: '',
                 }); 
                 onOpenChange(false);
                 }}>Cancelar</Button>

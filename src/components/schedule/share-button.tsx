@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Share2, FileSpreadsheet, FileText, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { ScheduleEntry } from "@/types";
+import type { ScheduleEntry } from "@/types"; // ScheduleEntry now has snake_case
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { FLIGHT_TYPES } from '@/types';
 import { format } from 'date-fns';
@@ -23,10 +23,9 @@ import 'jspdf-autotable';
 interface ShareButtonProps {
   scheduleDate: Date;
   entries: ScheduleEntry[];
-  observationText?: string;
+  observationText?: string; // This is already string | undefined
 }
 
-// Extend jsPDF with autoTable - this is a common way to type it for TypeScript
 declare module 'jspdf' {
   interface jsPDF {
     autoTable: (options: any) => jsPDF;
@@ -41,22 +40,21 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
 
   const getFormattedEntries = () => {
     return entries.map(entry => {
-      const pilotName = getPilotName(entry.pilotId);
-      const categoryName = getCategoryName(entry.pilotCategoryId);
-      const flightTypeName = FLIGHT_TYPES.find(ft => ft.id === entry.flightTypeId)?.name || 'N/A';
-      const aircraftText = entry.aircraftId ? getAircraftName(entry.aircraftId) : 'N/A';
+      const pilotName = getPilotName(entry.pilot_id);
+      const categoryName = getCategoryName(entry.pilot_category_id);
+      const flightTypeName = FLIGHT_TYPES.find(ft => ft.id === entry.flight_type_id)?.name || 'N/A';
+      const aircraftText = entry.aircraft_id ? getAircraftName(entry.aircraft_id) : 'N/A';
       let towPilotStatus = '';
       if (categoryName === 'Piloto remolcador') {
-        towPilotStatus = entry.isTowPilotAvailable ? 'Sí' : 'No';
+        towPilotStatus = entry.is_tow_pilot_available ? 'Sí' : 'No';
       }
       return {
-        time: entry.startTime,
+        time: entry.start_time, // snake_case
         pilot: pilotName,
         category: categoryName,
         towAvailable: towPilotStatus,
         flightType: flightTypeName,
         aircraft: aircraftText,
-        rawEntry: entry // keep raw entry for other uses if needed
       };
     });
   };
@@ -113,11 +111,10 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
     const formattedEntries = getFormattedEntries();
     let csvContent = `Fecha: ${format(scheduleDate, "yyyy-MM-dd", { locale: es })}\n`;
     if (observationText) {
-      // Escape double quotes in observation text for CSV
       const escapedObservationText = observationText.replace(/"/g, '""');
       csvContent += `Observaciones: "${escapedObservationText}"\n`;
     }
-    csvContent += "\n"; // Add a blank line before headers
+    csvContent += "\n"; 
 
     const headers = ["Hora", "Piloto", "Categoría", "Remolcador Disponible", "Tipo de Vuelo", "Aeronave"];
     csvContent += headers.join(",") + "\n";
@@ -134,7 +131,7 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
       csvContent += row.join(",") + "\n";
     });
 
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); // Adding BOM for Excel
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); 
     const link = document.createElement("a");
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
@@ -162,21 +159,19 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
 
     if (observationText) {
       doc.setFontSize(10);
-      // Split observationText into lines that fit page width
-      const observationLines = doc.splitTextToSize(observationText, doc.internal.pageSize.getWidth() - 28); // 14 margin left/right
+      const observationLines = doc.splitTextToSize(observationText, doc.internal.pageSize.getWidth() - 28); 
       doc.text("Observaciones:", 14, currentY);
       currentY += 5;
       observationLines.forEach((line: string) => {
-        if (currentY > doc.internal.pageSize.getHeight() - 20) { // check for page break
+        if (currentY > doc.internal.pageSize.getHeight() - 20) { 
             doc.addPage();
             currentY = 15;
         }
         doc.text(line, 14, currentY);
         currentY += 5;
       });
-      currentY += 5; // Extra space after observations
+      currentY += 5; 
     }
-
 
     const tableColumn = ["Hora", "Piloto", "Categoría", "Rem. Disp.", "Tipo Vuelo", "Aeronave"];
     const tableRows: (string | null)[][] = [];
@@ -196,29 +191,23 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
     doc.autoTable({
       head: [tableColumn],
       body: tableRows,
-      startY: currentY, // Start table after title and observations
+      startY: currentY, 
       theme: 'grid',
       headStyles: { fillColor: [22, 160, 133] }, 
       styles: { fontSize: 8, cellPadding: 1.5 },
       columnStyles: {
-         0: { cellWidth: 20 }, // Hora
-         1: { cellWidth: 'auto' }, // Piloto
-         2: { cellWidth: 35 }, // Categoría
-         3: { cellWidth: 25 }, // Rem. Disp.
-         4: { cellWidth: 30 }, // Tipo Vuelo
-         5: { cellWidth: 'auto' }, // Aeronave
+         0: { cellWidth: 20 }, 
+         1: { cellWidth: 'auto' }, 
+         2: { cellWidth: 35 }, 
+         3: { cellWidth: 25 }, 
+         4: { cellWidth: 30 }, 
+         5: { cellWidth: 'auto' }, 
       },
-      didDrawPage: (data) => {
-        // If you need to repeat title on new pages (optional)
-        // doc.setFontSize(16);
-        // doc.text(pageTitle, 14, 15);
-      }
     });
     
     doc.save(`agenda_${format(scheduleDate, "yyyy-MM-dd")}.pdf`);
     toast({ title: "PDF Exportado", description: "La agenda se ha exportado a PDF." });
   };
-
 
   return (
     <DropdownMenu>

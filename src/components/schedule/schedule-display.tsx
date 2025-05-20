@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ScheduleEntry, Pilot, PilotCategory, Aircraft, FlightType } from '@/types';
+import type { ScheduleEntry, Pilot } from '@/types'; // FlightType, Aircraft, PilotCategory no longer needed directly
 import { FLIGHT_TYPES } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,7 @@ interface ScheduleDisplayProps {
   onDelete: (entry: ScheduleEntry) => void;
 }
 
-const FlightTypeIcon: React.FC<{ typeId: FlightType['id'] }> = ({ typeId }) => {
+const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = ({ typeId }) => {
   switch (typeId) {
     case 'sport': return <Award className="h-4 w-4 text-yellow-500" />;
     case 'instruction': return <BookOpen className="h-4 w-4 text-blue-500" />;
@@ -27,7 +27,7 @@ const FlightTypeIcon: React.FC<{ typeId: FlightType['id'] }> = ({ typeId }) => {
 };
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
-  const { getPilotName, pilots } = usePilotsStore();
+  const { getPilotName, pilots } = usePilotsStore(); // pilots is used for medical_expiry
   const { getCategoryName } = usePilotCategoriesStore();
   const { getAircraftName } = useAircraftStore();
 
@@ -41,19 +41,19 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     );
   }
   
-  const getFlightTypeName = (id: FlightType['id']) => FLIGHT_TYPES.find(ft => ft.id === id)?.name || 'Desconocido';
+  const getFlightTypeName = (id: typeof FLIGHT_TYPES[number]['id']) => FLIGHT_TYPES.find(ft => ft.id === id)?.name || 'Desconocido';
 
   return (
     <div className="space-y-4 mt-6">
       {entries.map((entry) => {
-        const pilot = pilots.find(p => p.id === entry.pilotId);
+        const pilot = pilots.find(p => p.id === entry.pilot_id);
         let medicalWarningElement = null;
 
-        if (pilot && pilot.medicalExpiry) {
-          const medicalExpiryDate = parseISO(pilot.medicalExpiry);
+        if (pilot && pilot.medical_expiry) {
+          const medicalExpiryDate = parseISO(pilot.medical_expiry);
           if (isValid(medicalExpiryDate)) {
             const today = new Date();
-            const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate()); // Today at 00:00:00
+            const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
             const isExpired = isBefore(medicalExpiryDate, todayNormalized);
             const daysUntilExpiry = differenceInDays(medicalExpiryDate, todayNormalized);
@@ -67,14 +67,14 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
               );
             } else if (daysUntilExpiry <= 30) {
               medicalWarningElement = (
-                <Badge variant="default" className="ml-2 text-xs shrink-0">
+                <Badge variant="default" className="ml-2 text-xs shrink-0 bg-yellow-500 text-black">
                   <AlertTriangle className="h-3 w-3 mr-1" />
                   Psicofísico vence {format(medicalExpiryDate, "dd/MM/yy", { locale: es })} (en {daysUntilExpiry} días)
                 </Badge>
               );
             }
           } else {
-            console.warn(`Invalid medical expiry date for pilot ${pilot.id}: ${pilot.medicalExpiry}`);
+            console.warn(`Invalid medical expiry date for pilot ${pilot.id}: ${pilot.medical_expiry}`);
           }
         }
 
@@ -85,12 +85,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 <div>
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
-                    <span className="mr-1">{entry.startTime} - {getPilotName(entry.pilotId)}</span>
+                    <span className="mr-1">{entry.start_time} - {getPilotName(entry.pilot_id)}</span>
                     {medicalWarningElement}
                   </CardTitle>
                   <CardDescription className="flex items-center gap-2 mt-1">
-                    <Layers className="h-4 w-4 text-muted-foreground" /> {getCategoryName(entry.pilotCategoryId)}
-                    <FlightTypeIcon typeId={entry.flightTypeId} /> {getFlightTypeName(entry.flightTypeId)}
+                    <Layers className="h-4 w-4 text-muted-foreground" /> {getCategoryName(entry.pilot_category_id)}
+                    <FlightTypeIcon typeId={entry.flight_type_id} /> {getFlightTypeName(entry.flight_type_id)}
                   </CardDescription>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -106,17 +106,17 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
               </div>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-1 pt-2">
-              {entry.aircraftId && (
+              {entry.aircraft_id && (
                 <div className="flex items-center">
-                  <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraftId)}
+                  <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {getCategoryName(entry.pilotCategoryId) === 'Piloto remolcador' && (
+              {getCategoryName(entry.pilot_category_id) === 'Piloto remolcador' && (
                 <div className="flex items-center">
-                  {!!entry.isTowPilotAvailable ? 
+                  {!!entry.is_tow_pilot_available ? 
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
                     <XCircle className="h-4 w-4 mr-2 text-red-500" />}
-                  Remolcador: {!!entry.isTowPilotAvailable ? 'Disponible' : 'No Disponible'}
+                  Remolcador: {!!entry.is_tow_pilot_available ? 'Disponible' : 'No Disponible'}
                 </div>
               )}
             </CardContent>
@@ -126,4 +126,3 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
-

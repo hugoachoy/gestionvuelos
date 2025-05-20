@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -13,23 +13,29 @@ import { AvailabilityForm, type AvailabilityFormData } from '@/components/schedu
 import { ScheduleDisplay } from '@/components/schedule/schedule-display';
 import { ShareButton } from '@/components/schedule/share-button';
 import { DeleteDialog } from '@/components/common/delete-dialog';
-import { usePilotsStore, usePilotCategoriesStore, useAircraftStore, useScheduleStore, useDailyObservationsStore } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory } from '@/types';
-import { PlusCircle, CalendarIcon, Save } from 'lucide-react';
+import { 
+  usePilotsStore, 
+  usePilotCategoriesStore, 
+  useAircraftStore, 
+  useScheduleStore, 
+  useDailyObservationsStore 
+} from '@/store/data-hooks';
+import type { ScheduleEntry } from '@/types';
+import { PlusCircle, CalendarIcon, Save, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
-
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
   
-  const { pilots } = usePilotsStore();
-  const { categories, getCategoryName } = usePilotCategoriesStore();
-  const { aircraft } = useAircraftStore();
-  const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry } = useScheduleStore();
-  const { getObservation, updateObservation } = useDailyObservationsStore();
+  const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
+  const { categories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
+  const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore(); // Renamed fetchAircraft to fetchAircrafts to avoid conflict
+  const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries } = useScheduleStore();
+  const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ScheduleEntry | undefined>(undefined);
@@ -42,7 +48,7 @@ export function ScheduleClient() {
     return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
   }, [selectedDate]);
 
-  const savedObservation = useMemo(() => {
+  const savedObservationText = useMemo(() => {
     return formattedSelectedDate ? getObservation(formattedSelectedDate) : undefined;
   }, [formattedSelectedDate, getObservation]);
 
@@ -51,19 +57,21 @@ export function ScheduleClient() {
     if (selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       setObservationInput(getObservation(dateStr) || '');
+      fetchScheduleEntries(dateStr); // Fetch schedule for the selected date
+      fetchObservations(dateStr); // Fetch observations for the selected date
     } else {
       setObservationInput('');
     }
-  }, [selectedDate, getObservation]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, getObservation]); // fetchScheduleEntries, fetchObservations removed from deps to avoid loop on their identity change; they are called conditionally
 
-  const handleSaveObservation = () => {
+  const handleSaveObservation = async () => {
     if (selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      updateObservation(dateStr, observationInput);
+      await updateObservation(dateStr, observationInput);
       toast({ title: "Observaciones guardadas", description: "Las observaciones para el día han sido guardadas." });
     }
   };
-
 
   const handleAddEntry = () => {
     setEditingEntry(undefined);
@@ -80,75 +88,95 @@ export function ScheduleClient() {
     setIsDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (entryToDelete) {
-      removeEntry(entryToDelete.id);
+      await removeEntry(entryToDelete.id, entryToDelete.date);
     }
     setIsDeleteDialogOpen(false);
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = (data: AvailabilityFormData, entryId?: string) => {
-    const entryData = {
-      ...data,
-      date: format(data.date, 'yyyy-MM-dd'), // Store date as string
-    };
+  // AvailabilityFormData matches Omit<ScheduleEntry, 'id' | 'created_at' | 'date'> + {date: Date}
+  // The hook expects date as string 'yyyy-MM-dd'
+  const handleSubmitForm = async (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => {
+    // data.date is already a string 'yyyy-MM-dd' from availability-form
     if (entryId) {
-      updateScheduleEntry({ ...entryData, id: entryId });
+      await updateScheduleEntry({ ...data, id: entryId });
     } else {
-      addScheduleEntry(entryData);
+      await addScheduleEntry(data);
     }
     setIsFormOpen(false);
   };
 
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate) return [];
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    // scheduleEntries are already filtered by date by the fetchScheduleEntries call
+    // and sorted by the database query.
+    // We apply client-side sorting primarily for categories/flight types if DB doesn't handle it perfectly.
     
     const categoryOrderValues: Record<string, number> = {
       'Piloto remolcador': 1,
       'Instructor': 2,
     };
 
-    return scheduleEntries
-      .filter(entry => entry.date === dateStr)
+    return [...scheduleEntries] // Create a shallow copy before sorting
       .sort((a, b) => {
-        const catA_Name = getCategoryName(a.pilotCategoryId);
-        const catB_Name = getCategoryName(b.pilotCategoryId);
+        const catA_Name = getCategoryName(a.pilot_category_id);
+        const catB_Name = getCategoryName(b.pilot_category_id);
 
-        const orderA = categoryOrderValues[catA_Name] || 3; // Other categories are 3
+        const orderA = categoryOrderValues[catA_Name] || 3; 
         const orderB = categoryOrderValues[catB_Name] || 3;
 
-        // 1. Sort by specific category order
         if (orderA !== orderB) {
           return orderA - orderB;
         }
 
-        // 2. If category is 'Piloto remolcador', sort by availability
         if (catA_Name === 'Piloto remolcador') {
-          if (a.isTowPilotAvailable && !b.isTowPilotAvailable) return -1;
-          if (!a.isTowPilotAvailable && b.isTowPilotAvailable) return 1;
+          if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
+          if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
         }
         
-        // 3. Prioritize 'Deportivo' flight type
-        const isSportA = a.flightTypeId === 'sport';
-        const isSportB = b.flightTypeId === 'sport';
+        const isSportA = a.flight_type_id === 'sport';
+        const isSportB = b.flight_type_id === 'sport';
 
         if (isSportA && !isSportB) return -1;
         if (!isSportA && isSportB) return 1;
 
-        // 4. Finally, sort by start time
-        return a.startTime.localeCompare(b.startTime);
+        return a.start_time.localeCompare(b.start_time);
       });
-  }, [selectedDate, scheduleEntries, categories, getCategoryName]);
+  }, [selectedDate, scheduleEntries, getCategoryName]);
   
-  // Ensure selectedDate is initialized on client side
   useEffect(() => {
     if (!selectedDate) {
       setSelectedDate(new Date());
     }
   }, [selectedDate]);
 
+  const handleRefreshAll = useCallback(() => {
+    fetchPilots();
+    fetchCategories();
+    fetchAircrafts(); // Corrected function name
+    if (selectedDate) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      fetchScheduleEntries(dateStr);
+      fetchObservations(dateStr);
+    } else {
+        fetchScheduleEntries(); // fetch all if no date selected
+        fetchObservations();
+    }
+  }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
+
+  const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading;
+  const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
+
+  if (anyError) {
+    return (
+      <div className="text-destructive p-4">
+        Error al cargar datos: {anyError.message || JSON.stringify(anyError)}
+        <Button onClick={handleRefreshAll} className="ml-2 mt-2">Reintentar Cargar Todo</Button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -156,14 +184,17 @@ export function ScheduleClient() {
         title="Agenda de Vuelos"
         action={
           <div className="flex gap-2">
-            {selectedDate && (filteredAndSortedEntries.length > 0 || savedObservation) && (
+            <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={anyLoading}>
+              <RefreshCw className={cn("h-4 w-4", anyLoading && "animate-spin")} />
+            </Button>
+            {selectedDate && (filteredAndSortedEntries.length > 0 || savedObservationText) && (
               <ShareButton 
                 scheduleDate={selectedDate} 
                 entries={filteredAndSortedEntries} 
-                observationText={savedObservation}
+                observationText={savedObservationText}
               />
             )}
-            <Button onClick={handleAddEntry} disabled={!selectedDate}>
+            <Button onClick={handleAddEntry} disabled={!selectedDate || anyLoading}>
               <PlusCircle className="mr-2 h-4 w-4" /> Agregar Turno
             </Button>
           </div>
@@ -182,6 +213,7 @@ export function ScheduleClient() {
                     "w-full sm:w-[280px] justify-start text-left font-normal",
                     !selectedDate && "text-muted-foreground"
                   )}
+                  disabled={anyLoading}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {selectedDate ? format(selectedDate, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
@@ -194,6 +226,7 @@ export function ScheduleClient() {
                   onSelect={setSelectedDate}
                   initialFocus
                   locale={es}
+                  disabled={anyLoading}
                 />
               </PopoverContent>
             </Popover>
@@ -207,14 +240,17 @@ export function ScheduleClient() {
             <CardTitle className="text-xl">Observaciones del Día</CardTitle>
           </CardHeader>
           <CardContent>
-            <Textarea
-              placeholder="Escribe observaciones generales para la agenda de este día..."
-              value={observationInput}
-              onChange={(e) => setObservationInput(e.target.value)}
-              rows={3}
-              className="mb-3"
-            />
-            <Button onClick={handleSaveObservation} size="sm">
+            {obsLoading && !observationInput ? <Skeleton className="h-20 w-full" /> : (
+              <Textarea
+                placeholder="Escribe observaciones generales para la agenda de este día..."
+                value={observationInput}
+                onChange={(e) => setObservationInput(e.target.value)}
+                rows={3}
+                className="mb-3"
+                disabled={obsLoading}
+              />
+            )}
+            <Button onClick={handleSaveObservation} size="sm" disabled={obsLoading}>
               <Save className="mr-2 h-4 w-4" />
               Guardar Observaciones
             </Button>
@@ -222,7 +258,12 @@ export function ScheduleClient() {
         </Card>
       )}
       
-      {selectedDate && (
+      {scheduleLoading && !filteredAndSortedEntries.length ? (
+        <div className="space-y-4 mt-6">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : selectedDate && (
         <ScheduleDisplay 
           entries={filteredAndSortedEntries}
           onEdit={handleEditEntry}
@@ -244,7 +285,7 @@ export function ScheduleClient() {
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         onConfirm={confirmDelete}
-        itemName={entryToDelete ? `el turno de las ${entryToDelete.startTime}` : 'este turno'}
+        itemName={entryToDelete ? `el turno de las ${entryToDelete.start_time}` : 'este turno'}
       />
     </>
   );
