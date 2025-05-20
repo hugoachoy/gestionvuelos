@@ -33,7 +33,7 @@ export function ScheduleClient() {
   
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
-  const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore(); // Renamed fetchAircraft to fetchAircrafts to avoid conflict
+  const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
 
@@ -48,22 +48,25 @@ export function ScheduleClient() {
     return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
   }, [selectedDate]);
 
+  // Effect for fetching schedule and observation data when selectedDate changes
+  useEffect(() => {
+    if (selectedDate) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      fetchScheduleEntries(dateStr);
+      fetchObservations(dateStr);
+    }
+  }, [selectedDate, fetchScheduleEntries, fetchObservations]);
+
+  // Memoize observation text for the selected date
   const savedObservationText = useMemo(() => {
     return formattedSelectedDate ? getObservation(formattedSelectedDate) : undefined;
   }, [formattedSelectedDate, getObservation]);
 
-
+  // Effect for setting local observationInput state when observation from store changes
   useEffect(() => {
-    if (selectedDate) {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      setObservationInput(getObservation(dateStr) || '');
-      fetchScheduleEntries(dateStr); // Fetch schedule for the selected date
-      fetchObservations(dateStr); // Fetch observations for the selected date
-    } else {
-      setObservationInput('');
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, getObservation]); // fetchScheduleEntries, fetchObservations removed from deps to avoid loop on their identity change; they are called conditionally
+    setObservationInput(savedObservationText || '');
+  }, [savedObservationText]);
+
 
   const handleSaveObservation = async () => {
     if (selectedDate) {
@@ -96,10 +99,7 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  // AvailabilityFormData matches Omit<ScheduleEntry, 'id' | 'created_at' | 'date'> + {date: Date}
-  // The hook expects date as string 'yyyy-MM-dd'
   const handleSubmitForm = async (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => {
-    // data.date is already a string 'yyyy-MM-dd' from availability-form
     if (entryId) {
       await updateScheduleEntry({ ...data, id: entryId });
     } else {
@@ -110,16 +110,13 @@ export function ScheduleClient() {
 
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate) return [];
-    // scheduleEntries are already filtered by date by the fetchScheduleEntries call
-    // and sorted by the database query.
-    // We apply client-side sorting primarily for categories/flight types if DB doesn't handle it perfectly.
     
     const categoryOrderValues: Record<string, number> = {
       'Piloto remolcador': 1,
       'Instructor': 2,
     };
 
-    return [...scheduleEntries] // Create a shallow copy before sorting
+    return [...scheduleEntries] 
       .sort((a, b) => {
         const catA_Name = getCategoryName(a.pilot_category_id);
         const catB_Name = getCategoryName(b.pilot_category_id);
@@ -155,13 +152,13 @@ export function ScheduleClient() {
   const handleRefreshAll = useCallback(() => {
     fetchPilots();
     fetchCategories();
-    fetchAircrafts(); // Corrected function name
+    fetchAircrafts();
     if (selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
     } else {
-        fetchScheduleEntries(); // fetch all if no date selected
+        fetchScheduleEntries(); 
         fetchObservations();
     }
   }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
@@ -187,7 +184,7 @@ export function ScheduleClient() {
             <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={anyLoading}>
               <RefreshCw className={cn("h-4 w-4", anyLoading && "animate-spin")} />
             </Button>
-            {selectedDate && (filteredAndSortedEntries.length > 0 || savedObservationText) && (
+            {selectedDate && (filteredAndSortedEntries.length > 0 || (savedObservationText && savedObservationText.trim() !== '')) && (
               <ShareButton 
                 scheduleDate={selectedDate} 
                 entries={filteredAndSortedEntries} 
@@ -240,7 +237,7 @@ export function ScheduleClient() {
             <CardTitle className="text-xl">Observaciones del Día</CardTitle>
           </CardHeader>
           <CardContent>
-            {obsLoading && !observationInput ? <Skeleton className="h-20 w-full" /> : (
+            {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-20 w-full" /> : ( // Improved skeleton condition
               <Textarea
                 placeholder="Escribe observaciones generales para la agenda de este día..."
                 value={observationInput}
