@@ -5,6 +5,17 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 
+// Helper function for more detailed error logging
+function logSupabaseError(context: string, error: any) {
+  console.error(`${context}. Full error object:`, error);
+  if (error && typeof error === 'object') {
+    if ('message' in error) console.error('Supabase error message:', error.message);
+    if ('details' in error) console.error('Supabase error details:', error.details);
+    if ('hint' in error) console.error('Supabase error hint:', error.hint);
+    if ('code' in error) console.error('Supabase error code:', error.code);
+  }
+}
+
 // Pilots Store
 export function usePilotsStore() {
   const [pilots, setPilots] = useState<Pilot[]>([]);
@@ -14,10 +25,10 @@ export function usePilotsStore() {
   const fetchPilots = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase.from('pilots').select('*').order('created_at', { ascending: false });
-    if (error) {
-      console.error('Error fetching pilots:', error);
-      setError(error);
+    const { data, error: fetchError } = await supabase.from('pilots').select('*').order('created_at', { ascending: false });
+    if (fetchError) {
+      logSupabaseError('Error fetching pilots', fetchError);
+      setError(fetchError);
     } else {
       setPilots(data || []);
     }
@@ -38,7 +49,7 @@ export function usePilotsStore() {
     setLoading(false);
 
     if (insertError) {
-      console.error('Error adding pilot:', insertError);
+      logSupabaseError('Error adding pilot', insertError);
       setError(insertError);
       return null;
     }
@@ -50,16 +61,17 @@ export function usePilotsStore() {
 
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
     setLoading(true);
+    const { id, created_at, ...updatePayload } = updatedPilotData;
     const { data: updatedPilot, error: updateError } = await supabase
       .from('pilots')
-      .update(updatedPilotData)
-      .eq('id', updatedPilotData.id)
+      .update(updatePayload)
+      .eq('id', id)
       .select()
       .single();
     setLoading(false);
 
     if (updateError) {
-      console.error('Error updating pilot:', updateError);
+      logSupabaseError('Error updating pilot', updateError);
       setError(updateError);
       return null;
     }
@@ -75,7 +87,7 @@ export function usePilotsStore() {
     setLoading(false);
 
     if (deleteError) {
-      console.error('Error deleting pilot:', deleteError);
+      logSupabaseError('Error deleting pilot', deleteError);
       setError(deleteError);
       return false;
     }
@@ -85,7 +97,7 @@ export function usePilotsStore() {
   
   const getPilotName = useCallback((pilotId: string): string => {
     const pilot = pilots.find(p => p.id === pilotId);
-    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto Desconocido';
+    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto Desconocido (ID no encontrado)';
   }, [pilots]);
 
   return { pilots, loading, error, addPilot, updatePilot, deletePilot, getPilotName, fetchPilots };
@@ -97,29 +109,25 @@ export function usePilotCategoriesStore() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   
-  // Static default categories (ensure these IDs match what you might seed in DB)
-  // These are only used if fetched categories are empty, as a fallback.
-  // Ideally, these should be seeded directly in Supabase.
   const DEFAULT_CATEGORIES: PilotCategory[] = [
-    { id: 'static-cat-tow-pilot', name: 'Piloto remolcador' },
-    { id: 'static-cat-instructor', name: 'Instructor' },
-    { id: 'static-cat-glider-pilot', name: 'Piloto planeador' },
+    { id: 'static-cat-tow-pilot', name: 'Piloto remolcador', created_at: new Date().toISOString() },
+    { id: 'static-cat-instructor', name: 'Instructor', created_at: new Date().toISOString() },
+    { id: 'static-cat-glider-pilot', name: 'Piloto planeador', created_at: new Date().toISOString() },
   ];
-
 
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await supabase.from('pilot_categories').select('*').order('name');
     if (fetchError) {
-      console.error('Error fetching categories:', fetchError);
+      logSupabaseError('Error fetching pilot categories', fetchError);
       setError(fetchError);
-      setCategories(DEFAULT_CATEGORIES); // Fallback to defaults on error
+      setCategories(DEFAULT_CATEGORIES); 
     } else {
       setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
     }
     setLoading(false);
-  }, []); // DEFAULT_CATEGORIES dependency removed as it's static
+  }, []); 
 
   useEffect(() => {
     fetchCategories();
@@ -135,7 +143,7 @@ export function usePilotCategoriesStore() {
     setLoading(false);
 
     if (insertError) {
-      console.error('Error adding category:', insertError);
+      logSupabaseError('Error adding pilot category', insertError);
       setError(insertError);
       return null;
     }
@@ -147,16 +155,17 @@ export function usePilotCategoriesStore() {
 
   const updateCategory = useCallback(async (updatedCategoryData: PilotCategory) => {
     setLoading(true);
+    const { id, created_at, ...updatePayload } = updatedCategoryData;
     const { data: updatedCategory, error: updateError } = await supabase
       .from('pilot_categories')
-      .update({ name: updatedCategoryData.name })
-      .eq('id', updatedCategoryData.id)
+      .update(updatePayload)
+      .eq('id', id)
       .select()
       .single();
     setLoading(false);
 
     if (updateError) {
-      console.error('Error updating category:', updateError);
+      logSupabaseError('Error updating pilot category', updateError);
       setError(updateError);
       return null;
     }
@@ -172,7 +181,7 @@ export function usePilotCategoriesStore() {
     setLoading(false);
 
     if (deleteError) {
-      console.error('Error deleting category:', deleteError);
+      logSupabaseError('Error deleting pilot category', deleteError);
       setError(deleteError);
       return false;
     }
@@ -182,7 +191,7 @@ export function usePilotCategoriesStore() {
 
   const getCategoryName = useCallback((categoryId: string): string => {
     const category = categories.find(c => c.id === categoryId);
-    return category ? category.name : 'Categoría Desconocida';
+    return category ? category.name : 'Categoría Desconocida (ID no encontrado)';
   }, [categories]);
   
   return { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryName, fetchCategories };
@@ -199,7 +208,7 @@ export function useAircraftStore() {
     setError(null);
     const { data, error: fetchError } = await supabase.from('aircraft').select('*').order('name');
     if (fetchError) {
-      console.error('Error fetching aircraft:', fetchError);
+      logSupabaseError('Error fetching aircraft', fetchError);
       setError(fetchError);
     } else {
       setAircraft(data || []);
@@ -221,7 +230,7 @@ export function useAircraftStore() {
     setLoading(false);
 
     if (insertError) {
-      console.error('Error adding aircraft:', insertError);
+      logSupabaseError('Error adding aircraft', insertError);
       setError(insertError);
       return null;
     }
@@ -233,16 +242,17 @@ export function useAircraftStore() {
 
   const updateAircraft = useCallback(async (updatedAircraftData: Aircraft) => {
     setLoading(true);
+    const { id, created_at, ...updatePayload } = updatedAircraftData;
     const { data: updatedAircraft, error: updateError } = await supabase
       .from('aircraft')
-      .update({ name: updatedAircraftData.name, type: updatedAircraftData.type })
-      .eq('id', updatedAircraftData.id)
+      .update(updatePayload)
+      .eq('id', id)
       .select()
       .single();
     setLoading(false);
 
     if (updateError) {
-      console.error('Error updating aircraft:', updateError);
+      logSupabaseError('Error updating aircraft', updateError);
       setError(updateError);
       return null;
     }
@@ -258,7 +268,7 @@ export function useAircraftStore() {
     setLoading(false);
 
     if (deleteError) {
-      console.error('Error deleting aircraft:', deleteError);
+      logSupabaseError('Error deleting aircraft', deleteError);
       setError(deleteError);
       return false;
     }
@@ -269,7 +279,7 @@ export function useAircraftStore() {
   const getAircraftName = useCallback((aircraftId?: string): string => {
     if (!aircraftId) return 'N/A';
     const ac = aircraft.find(a => a.id === aircraftId);
-    return ac ? ac.name : 'Aeronave Desconocida';
+    return ac ? ac.name : 'Aeronave Desconocida (ID no encontrado)';
   }, [aircraft]);
 
   return { aircraft, loading, error, addAircraft, updateAircraft, deleteAircraft, getAircraftName, fetchAircraft };
@@ -281,7 +291,6 @@ export function useScheduleStore() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
 
-  // Fetching all entries. For larger datasets, consider filtering by date range.
   const fetchScheduleEntries = useCallback(async (date?: string) => {
     setLoading(true);
     setError(null);
@@ -294,7 +303,7 @@ export function useScheduleStore() {
     const { data, error: fetchError } = await query;
 
     if (fetchError) {
-      console.error('Error fetching schedule entries:', fetchError);
+      logSupabaseError('Error fetching schedule entries', fetchError);
       setError(fetchError);
     } else {
       setScheduleEntries(data || []);
@@ -302,9 +311,8 @@ export function useScheduleStore() {
     setLoading(false);
   }, []);
 
-  // Initial fetch (can be refined to fetch for a default date range or current date)
   useEffect(() => {
-    fetchScheduleEntries(); // Fetches all initially
+    fetchScheduleEntries(); 
   }, [fetchScheduleEntries]);
 
 
@@ -318,23 +326,18 @@ export function useScheduleStore() {
     setLoading(false);
 
     if (insertError) {
-      console.error('Error adding schedule entry:', insertError);
+      logSupabaseError('Error adding schedule entry', insertError);
       setError(insertError);
       return null;
     }
     if (newEntry) {
-      // Instead of just prepending, refetch for the specific date to maintain order or merge carefully
-      // For simplicity now, just adding to local state - consider implications on sorting.
-      // A full refetch for the day or a smart merge might be better.
-      setScheduleEntries(prev => [...prev, newEntry]); 
-      fetchScheduleEntries(newEntry.date); // Refetch for the day of the new entry
+      fetchScheduleEntries(newEntry.date); 
     }
     return newEntry;
   }, [fetchScheduleEntries]);
 
   const updateScheduleEntry = useCallback(async (updatedEntryData: ScheduleEntry) => {
     setLoading(true);
-    // Ensure we only send fields that exist on the table, excluding client-side ones or ones managed by DB
     const { created_at, id, ...updatePayload } = updatedEntryData;
 
     const { data: updatedEntry, error: updateError } = await supabase
@@ -346,13 +349,12 @@ export function useScheduleStore() {
     setLoading(false);
 
     if (updateError) {
-      console.error('Error updating schedule entry:', updateError);
+      logSupabaseError('Error updating schedule entry', updateError);
       setError(updateError);
       return null;
     }
     if (updatedEntry) {
-      setScheduleEntries(prev => prev.map(e => e.id === updatedEntry.id ? updatedEntry : e));
-      fetchScheduleEntries(updatedEntry.date); // Refetch for the day of the updated entry
+      fetchScheduleEntries(updatedEntry.date); 
     }
     return updatedEntry;
   }, [fetchScheduleEntries]);
@@ -363,12 +365,11 @@ export function useScheduleStore() {
     setLoading(false);
 
     if (deleteError) {
-      console.error('Error deleting schedule entry:', deleteError);
+      logSupabaseError('Error deleting schedule entry', deleteError);
       setError(deleteError);
       return false;
     }
-    setScheduleEntries(prev => prev.filter(e => e.id !== entryId));
-    fetchScheduleEntries(entryDate); // Refetch for the day of the deleted entry
+    fetchScheduleEntries(entryDate); 
     return true;
   }, [fetchScheduleEntries]);
 
@@ -377,7 +378,7 @@ export function useScheduleStore() {
 
 
 // Daily Observations Store
-export type DailyObservationsMap = Record<string, DailyObservation>; // Key: YYYY-MM-DD, Value: observation object
+export type DailyObservationsMap = Record<string, DailyObservation>; 
 
 export function useDailyObservationsStore() {
   const [dailyObservations, setDailyObservations] = useState<DailyObservationsMap>({});
@@ -394,21 +395,20 @@ export function useDailyObservationsStore() {
     const { data, error: fetchError } = await query;
     
     if (fetchError) {
-      console.error('Error fetching daily observations:', fetchError);
+      logSupabaseError('Error fetching daily observations', fetchError);
       setError(fetchError);
     } else {
       const newObservationsMap: DailyObservationsMap = {};
       (data || []).forEach(obs => {
         newObservationsMap[obs.date] = obs;
       });
-      // If fetching for a specific date, merge, otherwise replace
       setDailyObservations(prev => date ? {...prev, ...newObservationsMap} : newObservationsMap);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchObservations(); // Fetch all initially
+    fetchObservations(); 
   }, [fetchObservations]);
 
   const getObservation = useCallback((date: string): string | undefined => {
@@ -425,7 +425,7 @@ export function useDailyObservationsStore() {
     setLoading(false);
 
     if (upsertError) {
-      console.error('Error updating observation:', upsertError);
+      logSupabaseError('Error updating daily observation', upsertError);
       setError(upsertError);
       return null;
     }
