@@ -25,4 +25,11 @@ try {
   );
 }
 
+// Basic check for anon key format (Supabase anon keys are JWTs, typically starting with "eyJ")
+if (!supabaseAnonKey.startsWith('eyJ')) {
+  console.warn(
+    `Warning: The Supabase anon key provided does not look like a standard JWT (expected to start with "eyJ..."). Please double-check NEXT_PUBLIC_SUPABASE_ANON_KEY.`
+  );
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
