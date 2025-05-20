@@ -1,12 +1,12 @@
 
 "use client";
 
-import type { ScheduleEntry, Pilot } from '@/types'; // FlightType, Aircraft, PilotCategory no longer needed directly
+import type { ScheduleEntry } from '@/types'; 
 import { FLIGHT_TYPES } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookOpen, MapPin, AlertTriangle } from 'lucide-react';
+import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookOpen, AlertTriangle, PlaneTakeoff, PlaneLanding } from 'lucide-react'; // Added PlaneTakeoff, PlaneLanding
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -21,13 +21,14 @@ const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = 
   switch (typeId) {
     case 'sport': return <Award className="h-4 w-4 text-yellow-500" />;
     case 'instruction': return <BookOpen className="h-4 w-4 text-blue-500" />;
-    case 'local': return <MapPin className="h-4 w-4 text-green-500" />;
+    case 'local': return <PlaneLanding className="h-4 w-4 text-green-500" />; // Changed icon
+    case 'towage': return <PlaneTakeoff className="h-4 w-4 text-sky-500" />; // Added icon for towage
     default: return null;
   }
 };
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
-  const { getPilotName, pilots } = usePilotsStore(); // pilots is used for medical_expiry
+  const { getPilotName, pilots } = usePilotsStore(); 
   const { getCategoryName } = usePilotCategoriesStore();
   const { getAircraftName } = useAircraftStore();
 
@@ -67,14 +68,14 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
               );
             } else if (daysUntilExpiry <= 30) {
               medicalWarningElement = (
-                <Badge variant="default" className="ml-2 text-xs shrink-0 bg-yellow-500 text-black">
+                <Badge variant="default" className="ml-2 text-xs shrink-0 bg-yellow-500 text-black hover:bg-yellow-600">
                   <AlertTriangle className="h-3 w-3 mr-1" />
                   Psicofísico vence {format(medicalExpiryDate, "dd/MM/yy", { locale: es })} (en {daysUntilExpiry} días)
                 </Badge>
               );
             }
           } else {
-            console.warn(`Invalid medical expiry date for pilot ${pilot.id}: ${pilot.medical_expiry}`);
+            // console.warn(`Invalid medical expiry date for pilot ${pilot.id}: ${pilot.medical_expiry}`);
           }
         }
 
@@ -126,3 +127,4 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
+
