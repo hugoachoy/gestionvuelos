@@ -72,6 +72,13 @@ interface AvailabilityFormProps {
   selectedDate?: Date; 
 }
 
+interface MedicalWarningState {
+  show: boolean;
+  title: string;
+  message: string;
+  variant: 'default' | 'destructive';
+}
+
 export function AvailabilityForm({
   open,
   onOpenChange,
@@ -98,51 +105,75 @@ export function AvailabilityForm({
         },
   });
 
-  const [medicalWarning, setMedicalWarning] = useState<string | null>(null);
+  const [medicalWarning, setMedicalWarning] = useState<MedicalWarningState | null>(null);
 
   useEffect(() => {
     if (selectedDate && !entry) {
       form.setValue('date', selectedDate);
     }
     if (!open) {
-      setMedicalWarning(null);
+      setMedicalWarning(null); // Clear warning when dialog closes
     }
   }, [selectedDate, form, entry, open]);
 
   const watchedPilotId = form.watch('pilot_id');
-  const watchedPilotCategoryId = form.watch('pilot_category_id');
+  const watchedDate = form.watch('date'); 
 
   const pilotDetails = pilots.find(p => p.id === watchedPilotId);
   const pilotCategoriesForSelectedPilot = pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
-  const selectedCategoryDetails = categories.find(c => c.id === watchedPilotCategoryId);
+  const selectedCategoryDetails = categories.find(c => c.id === form.watch('pilot_category_id'));
   const isTowPilotCategorySelected = selectedCategoryDetails?.name === 'Piloto remolcador';
 
   useEffect(() => {
-    if (open && watchedPilotId && pilotDetails?.medical_expiry) {
-      const medicalExpiryDate = parseISO(pilotDetails.medical_expiry);
+    let newMedicalWarningInfo: MedicalWarningState | null = null;
+    const currentPilotDetails = pilots.find(p => p.id === watchedPilotId);
+    const formFlightDate = watchedDate;
+
+    if (open && watchedPilotId && currentPilotDetails?.medical_expiry && isValid(formFlightDate)) {
+      const medicalExpiryDate = parseISO(currentPilotDetails.medical_expiry);
       const today = new Date();
-      today.setHours(0, 0, 0, 0); 
+      today.setHours(0, 0, 0, 0);
 
-      const daysUntilExpiry = differenceInDays(medicalExpiryDate, today);
+      if (isValid(medicalExpiryDate)) {
+        const isExpiredOnFlightDate = isBefore(medicalExpiryDate, formFlightDate);
+        const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, today);
 
-      if (isBefore(medicalExpiryDate, today)) {
-        setMedicalWarning(`¡Atención! El psicofísico de ${pilotDetails.first_name} ${pilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
-      } else if (daysUntilExpiry <= 30) {
-        setMedicalWarning(`Advertencia: El psicofísico de ${pilotDetails.first_name} ${pilotDetails.last_name} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
-      } else {
-        setMedicalWarning(null);
+        if (isExpiredOnFlightDate) {
+          newMedicalWarningInfo = {
+            show: true,
+            title: "¡Psicofísico Vencido para esta Fecha!",
+            message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}. No puede ser asignado.`,
+            variant: 'destructive',
+          };
+        } else {
+          // Not expired for the flight date, now check warnings based on today
+          if (daysUntilExpiryFromToday <= 30) {
+            newMedicalWarningInfo = {
+              show: true,
+              title: "¡Psicofísico Vence en Muy Poco Tiempo!",
+              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
+              variant: 'destructive',
+            };
+          } else if (daysUntilExpiryFromToday <= 60) {
+            newMedicalWarningInfo = {
+              show: true,
+              title: "Advertencia de Psicofísico",
+              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
+              variant: 'default', // Will be styled with yellow icon
+            };
+          }
+        }
       }
-    } else if (open) {
-      setMedicalWarning(null);
     }
-  }, [watchedPilotId, pilotDetails, open]);
+    setMedicalWarning(newMedicalWarningInfo);
+  }, [watchedPilotId, watchedDate, open, pilots]);
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
     const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
         ...data,
         date: format(data.date, 'yyyy-MM-dd'), // Ensure string format for DB
-        aircraft_id: data.aircraft_id || undefined, // Ensure undefined if empty string, Supabase handles null
+        aircraft_id: data.aircraft_id || undefined, 
     };
     onSubmit(dataToSubmit, entry?.id);
     form.reset({
@@ -169,24 +200,6 @@ export function AvailabilityForm({
 
   useEffect(() => {
     if (open) {
-      const initialPilotId = entry?.pilot_id || form.getValues('pilot_id');
-      const currentPilotDetails = pilots.find(p => p.id === initialPilotId);
-      if (currentPilotDetails?.medical_expiry) {
-        const medicalExpiryDate = parseISO(currentPilotDetails.medical_expiry);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const daysUntilExpiry = differenceInDays(medicalExpiryDate, today);
-        if (isBefore(medicalExpiryDate, today)) {
-          setMedicalWarning(`¡Atención! El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`);
-        } else if (daysUntilExpiry <= 30) {
-          setMedicalWarning(`Advertencia: El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence pronto (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })} - en ${daysUntilExpiry} días).`);
-        } else {
-          setMedicalWarning(null);
-        }
-      } else {
-        setMedicalWarning(null);
-      }
-       // Reset form with correct defaults when opening
        form.reset(entry
         ? { ...entry, date: entry.date ? parseISO(entry.date) : new Date() }
         : {
@@ -198,18 +211,16 @@ export function AvailabilityForm({
             flight_type_id: '',
             aircraft_id: '',
           });
-
     } else {
-      setMedicalWarning(null); // Clear warning on close
+      setMedicalWarning(null); 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, entry, selectedDate, pilots]); // form.reset removed to avoid loop
+  }, [open, entry, selectedDate]); 
 
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       onOpenChange(isOpen);
-      // Reset logic is handled by the useEffect above for 'open'
     }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -295,11 +306,11 @@ export function AvailabilityForm({
               )}
             />
 
-            {medicalWarning && (
-              <Alert variant="destructive" className="mt-2">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Alerta de Psicofísico</AlertTitle>
-                <AlertDescription>{medicalWarning}</AlertDescription>
+            {medicalWarning && medicalWarning.show && (
+              <Alert variant={medicalWarning.variant} className="mt-2">
+                <AlertTriangle className={cn("h-4 w-4", medicalWarning.variant === 'default' && "text-yellow-500")} />
+                <AlertTitle>{medicalWarning.title}</AlertTitle>
+                <AlertDescription>{medicalWarning.message}</AlertDescription>
               </Alert>
             )}
 
@@ -384,7 +395,6 @@ export function AvailabilityForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {/* <SelectItem value=""><em>Ninguna</em></SelectItem> */} {/* Removed this line */}
                       {aircraft.map(ac => (
                         <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
                       ))}
@@ -415,4 +425,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
