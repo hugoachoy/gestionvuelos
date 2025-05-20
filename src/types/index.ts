@@ -25,6 +25,7 @@ export const FLIGHT_TYPES = [
   { id: 'instruction', name: 'Instrucción' },
   { id: 'local', name: 'Local' },
   { id: 'sport', name: 'Deportivo' },
+  { id: 'towage', name: 'Remolque' }, // Added new flight type
 ] as const;
 
 export type FlightType = typeof FLIGHT_TYPES[number];
@@ -50,3 +51,4 @@ export interface DailyObservation {
   created_at?: string;
   updated_at?: string;
 }
+
