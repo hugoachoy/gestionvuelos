@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // Import next/image
+// import Image from 'next/image'; // Removed import
 import { usePathname } from 'next/navigation';
 import {
   SidebarProvider,
@@ -16,9 +16,9 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
-} from '@/components/ui/sidebar'; 
+} from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, Settings, CalendarDays } from 'lucide-react'; 
+import { Home, Users, Tags, Plane, Settings, CalendarDays } from 'lucide-react';
 import { Toaster } from "@/components/ui/toaster";
 
 interface NavItemProps {
@@ -86,15 +86,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:h-16 md:px-6">
           <SidebarTrigger className="md:hidden" />
-          {/* Container for logo and text, centered */}
-          <div className="flex flex-1 items-center justify-center gap-3">
-            <Image
-              src="/logo.png" // Assumes logo.png is in the public folder
-              alt="Aeroclub Logo"
-              width={40} // Adjust width as needed
-              height={40} // Adjust height as needed
-              className="h-10 w-10" // Optional: for consistent sizing with md:h-16 header
-            />
+          {/* Container for text, centered */}
+          <div className="flex flex-1 items-center justify-center">
+            {/* Removed Image component */}
             <div className="text-4xl font-semibold text-primary drop-shadow-md">
               Aeroclub 9 de Julio
             </div>
