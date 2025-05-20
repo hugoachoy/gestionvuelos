@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -21,8 +21,11 @@ export function usePilotsStore() {
   const [pilots, setPilots] = useState<Pilot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
 
   const fetchPilots = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await supabase.from('pilots').select('*').order('created_at', { ascending: false });
@@ -33,6 +36,7 @@ export function usePilotsStore() {
       setPilots(data || []);
     }
     setLoading(false);
+    fetchingRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -54,7 +58,7 @@ export function usePilotsStore() {
       return null;
     }
     if (newPilot) {
-      setPilots(prev => [newPilot, ...prev]);
+      setPilots(prev => [newPilot, ...prev].sort((a, b) => (a.created_at && b.created_at ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime() : 0)));
     }
     return newPilot;
   }, []);
@@ -97,7 +101,7 @@ export function usePilotsStore() {
   
   const getPilotName = useCallback((pilotId: string): string => {
     const pilot = pilots.find(p => p.id === pilotId);
-    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto Desconocido (ID no encontrado)';
+    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto con ID no encontrado';
   }, [pilots]);
 
   return { pilots, loading, error, addPilot, updatePilot, deletePilot, getPilotName, fetchPilots };
@@ -108,6 +112,7 @@ export function usePilotCategoriesStore() {
   const [categories, setCategories] = useState<PilotCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
   
   const DEFAULT_CATEGORIES: PilotCategory[] = [
     { id: 'static-cat-tow-pilot', name: 'Piloto remolcador', created_at: new Date().toISOString() },
@@ -116,6 +121,8 @@ export function usePilotCategoriesStore() {
   ];
 
   const fetchCategories = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await supabase.from('pilot_categories').select('*').order('name');
@@ -127,6 +134,7 @@ export function usePilotCategoriesStore() {
       setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
     }
     setLoading(false);
+    fetchingRef.current = false;
   }, []); 
 
   useEffect(() => {
@@ -191,7 +199,7 @@ export function usePilotCategoriesStore() {
 
   const getCategoryName = useCallback((categoryId: string): string => {
     const category = categories.find(c => c.id === categoryId);
-    return category ? category.name : 'Categoría Desconocida (ID no encontrado)';
+    return category ? category.name : 'Categoría con ID no encontrado';
   }, [categories]);
   
   return { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryName, fetchCategories };
@@ -202,8 +210,11 @@ export function useAircraftStore() {
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
 
   const fetchAircraft = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await supabase.from('aircraft').select('*').order('name');
@@ -214,6 +225,7 @@ export function useAircraftStore() {
       setAircraft(data || []);
     }
     setLoading(false);
+    fetchingRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -279,7 +291,7 @@ export function useAircraftStore() {
   const getAircraftName = useCallback((aircraftId?: string): string => {
     if (!aircraftId) return 'N/A';
     const ac = aircraft.find(a => a.id === aircraftId);
-    return ac ? ac.name : 'Aeronave Desconocida (ID no encontrado)';
+    return ac ? ac.name : 'Aeronave con ID no encontrado';
   }, [aircraft]);
 
   return { aircraft, loading, error, addAircraft, updateAircraft, deleteAircraft, getAircraftName, fetchAircraft };
@@ -290,8 +302,11 @@ export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
 
   const fetchScheduleEntries = useCallback(async (date?: string) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     let query = supabase.from('schedule_entries').select('*');
@@ -309,11 +324,14 @@ export function useScheduleStore() {
       setScheduleEntries(data || []);
     }
     setLoading(false);
+    fetchingRef.current = false;
   }, []);
 
   useEffect(() => {
-    fetchScheduleEntries(); 
-  }, [fetchScheduleEntries]);
+    // Initial fetch for all entries, or based on an initial date if provided elsewhere
+    // For now, let's assume we might want to fetch all initially or rely on component to specify date
+    // fetchScheduleEntries(); // Consider if an initial fetch of *all* entries is desired or should wait for a date.
+  }, []);
 
 
   const addScheduleEntry = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>) => {
@@ -384,8 +402,11 @@ export function useDailyObservationsStore() {
   const [dailyObservations, setDailyObservations] = useState<DailyObservationsMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
 
   const fetchObservations = useCallback(async (date?: string) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     let query = supabase.from('daily_observations').select('*');
@@ -402,14 +423,16 @@ export function useDailyObservationsStore() {
       (data || []).forEach(obs => {
         newObservationsMap[obs.date] = obs;
       });
+      // If a specific date is fetched, merge it. Otherwise, replace all.
       setDailyObservations(prev => date ? {...prev, ...newObservationsMap} : newObservationsMap);
     }
     setLoading(false);
+    fetchingRef.current = false;
   }, []);
 
   useEffect(() => {
-    fetchObservations(); 
-  }, [fetchObservations]);
+    // fetchObservations(); // Consider if an initial fetch of *all* observations is desired.
+  }, []);
 
   const getObservation = useCallback((date: string): string | undefined => {
     return dailyObservations[date]?.observation_text || undefined;
@@ -440,3 +463,5 @@ export function useDailyObservationsStore() {
 
   return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations };
 }
+
+    
