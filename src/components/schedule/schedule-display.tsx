@@ -10,7 +10,7 @@ import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookO
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { cn } from '@/lib/utils'; // Added cn import
+import { cn } from '@/lib/utils';
 
 interface ScheduleDisplayProps {
   entries: ScheduleEntry[];
@@ -91,13 +91,15 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
             }
           }
         }
+        
+        const isTowageRelated = pilotCategoryName === 'Piloto remolcador' || entry.flight_type_id === 'towage';
 
         return (
           <Card 
             key={entry.id} 
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              pilotCategoryName === 'Piloto remolcador' && 'bg-muted'
+              isTowageRelated && 'bg-primary/10'
             )}
           >
             <CardHeader className="pb-2">
@@ -147,3 +149,4 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
+
