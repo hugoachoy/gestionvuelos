@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Share2, FileSpreadsheet, FileText, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { ScheduleEntry } from "@/types"; // ScheduleEntry now has snake_case
+import type { ScheduleEntry } from "@/types"; 
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { FLIGHT_TYPES } from '@/types';
 import { format } from 'date-fns';
@@ -23,7 +23,7 @@ import 'jspdf-autotable';
 interface ShareButtonProps {
   scheduleDate: Date;
   entries: ScheduleEntry[];
-  observationText?: string; // This is already string | undefined
+  observationText?: string; 
 }
 
 declare module 'jspdf' {
@@ -49,7 +49,7 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
         towPilotStatus = entry.is_tow_pilot_available ? 'Sí' : 'No';
       }
       return {
-        time: entry.start_time, // snake_case
+        time: entry.start_time.substring(0,5), // HH:MM
         pilot: pilotName,
         category: categoryName,
         towAvailable: towPilotStatus,

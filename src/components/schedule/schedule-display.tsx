@@ -50,6 +50,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const pilot = pilots.find(p => p.id === entry.pilot_id);
         let expiringBadge = null;
         let expiredBlock = null;
+        const displayTime = entry.start_time.substring(0, 5); // HH:MM
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -96,7 +97,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 <div>
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
-                    <span className="mr-1">{entry.start_time} - {getPilotName(entry.pilot_id)}</span>
+                    <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
                     {expiringBadge}
                   </CardTitle>
                   {expiredBlock}
