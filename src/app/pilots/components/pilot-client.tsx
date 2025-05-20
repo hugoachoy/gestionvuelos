@@ -5,7 +5,7 @@ import { useState } from 'react';
 import type { Pilot, PilotCategory } from '@/types';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { PilotForm } from './pilot-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -121,32 +121,76 @@ export function PilotClient() {
                   </TableCell>
                 </TableRow>
               ) : (
-                pilots.map((pilot) => (
-                  <TableRow key={pilot.id}>
-                    <TableCell>{pilot.first_name}</TableCell>
-                    <TableCell>{pilot.last_name}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {pilot.category_ids.map(catId => (
-                          <Badge key={catId} variant="secondary">{getCategoryName(catId)}</Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {pilot.medical_expiry ? format(parseISO(pilot.medical_expiry), "dd/MM/yyyy", { locale: es }) : 'N/A'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeletePilot(pilot)} className="hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Eliminar</span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                pilots.map((pilot) => {
+                  let medicalExpiryDisplay: React.ReactNode = 'N/A';
+                  if (pilot.medical_expiry) {
+                    const medicalExpiryDate = parseISO(pilot.medical_expiry);
+                    const todayNormalized = startOfDay(new Date());
+
+                    if (isValid(medicalExpiryDate)) {
+                      const formattedDate = format(medicalExpiryDate, "dd/MM/yyyy", { locale: es });
+                      const isExpired = isBefore(medicalExpiryDate, todayNormalized);
+                      const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, todayNormalized);
+
+                      if (isExpired) {
+                        medicalExpiryDisplay = (
+                          <span className="text-destructive font-bold">
+                            VENCIDO {formattedDate}
+                          </span>
+                        );
+                      } else if (daysUntilExpiryFromToday <= 30) {
+                        medicalExpiryDisplay = (
+                          <span className="flex items-center">
+                            {formattedDate}
+                            <Badge variant="destructive" className="ml-2 text-xs shrink-0">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Vence en {daysUntilExpiryFromToday} día(s)
+                            </Badge>
+                          </span>
+                        );
+                      } else if (daysUntilExpiryFromToday <= 60) {
+                        medicalExpiryDisplay = (
+                          <span className="flex items-center">
+                            {formattedDate}
+                            <Badge className="ml-2 text-xs shrink-0 bg-yellow-400 text-black hover:bg-yellow-500">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Vence en {daysUntilExpiryFromToday} día(s)
+                            </Badge>
+                          </span>
+                        );
+                      } else {
+                        medicalExpiryDisplay = formattedDate;
+                      }
+                    }
+                  }
+
+                  return (
+                    <TableRow key={pilot.id}>
+                      <TableCell>{pilot.first_name}</TableCell>
+                      <TableCell>{pilot.last_name}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {pilot.category_ids.map(catId => (
+                            <Badge key={catId} variant="secondary">{getCategoryName(catId)}</Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {medicalExpiryDisplay}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Editar</span>
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeletePilot(pilot)} className="hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Eliminar</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
