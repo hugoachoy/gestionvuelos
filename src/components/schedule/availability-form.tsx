@@ -81,8 +81,11 @@ interface MedicalWarningState {
 
 const generateTimeSlots = () => {
   const slots: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
+  // Loop from 8 (8 AM) to 20 (8 PM)
+  for (let h = 8; h <= 20; h++) {
+    // For hour 20, only generate 20:00. For other hours, generate :00 and :30.
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
+    for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
       slots.push(`${hour}:${minute}`);
@@ -449,5 +452,7 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
 
     
