@@ -10,6 +10,7 @@ import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookO
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils'; // Added cn import
 
 interface ScheduleDisplayProps {
   entries: ScheduleEntry[];
@@ -51,6 +52,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         let expiringBadge = null;
         let expiredBlock = null;
         const displayTime = entry.start_time.substring(0, 5); // HH:MM
+        const pilotCategoryName = getCategoryName(entry.pilot_category_id);
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -80,7 +82,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 );
               } else if (daysUntilExpiryFromToday <= 60) {
                 expiringBadge = (
-                  <Badge className="ml-2 text-xs shrink-0 bg-yellow-500 text-black hover:bg-yellow-600">
+                  <Badge className="ml-2 text-xs shrink-0 bg-yellow-400 text-black hover:bg-yellow-500">
                     <AlertTriangle className="h-3 w-3 mr-1" />
                     Psicofísico vence {format(medicalExpiryDate, "dd/MM/yy", { locale: es })} (en {daysUntilExpiryFromToday} días)
                   </Badge>
@@ -91,7 +93,13 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         }
 
         return (
-          <Card key={entry.id} className="shadow-md hover:shadow-lg transition-shadow">
+          <Card 
+            key={entry.id} 
+            className={cn(
+              "shadow-md hover:shadow-lg transition-shadow",
+              pilotCategoryName === 'Piloto remolcador' && 'bg-muted'
+            )}
+          >
             <CardHeader className="pb-2">
                <div className="flex justify-between items-start">
                 <div>
@@ -102,7 +110,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   </CardTitle>
                   {expiredBlock}
                   <CardDescription className="flex items-center gap-2 mt-1 pt-1">
-                    <Layers className="h-4 w-4 text-muted-foreground" /> {getCategoryName(entry.pilot_category_id)}
+                    <Layers className="h-4 w-4 text-muted-foreground" /> {pilotCategoryName}
                     <FlightTypeIcon typeId={entry.flight_type_id} /> {getFlightTypeName(entry.flight_type_id)}
                   </CardDescription>
                 </div>
@@ -124,7 +132,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {getCategoryName(entry.pilot_category_id) === 'Piloto remolcador' && (
+              {pilotCategoryName === 'Piloto remolcador' && (
                 <div className="flex items-center">
                   {!!entry.is_tow_pilot_available ? 
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
