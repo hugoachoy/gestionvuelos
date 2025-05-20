@@ -384,7 +384,7 @@ export function AvailabilityForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value=""><em>Ninguna</em></SelectItem>
+                      {/* <SelectItem value=""><em>Ninguna</em></SelectItem> */} {/* Removed this line */}
                       {aircraft.map(ac => (
                         <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
                       ))}
@@ -415,3 +415,4 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
