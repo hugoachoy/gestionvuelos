@@ -21,11 +21,12 @@ import {
   useDailyObservationsStore 
 } from '@/store/data-hooks';
 import type { ScheduleEntry } from '@/types';
-import { PlusCircle, CalendarIcon, Save, RefreshCw } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from "@/components/ui/alert"; // Added Alert imports
 
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -48,7 +49,7 @@ export function ScheduleClient() {
     return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
   }, [selectedDate]);
 
-  // Effect for fetching schedule and observation data when selectedDate changes
+   // Effect for fetching schedule and observation data when selectedDate changes
    useEffect(() => {
     if (selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -159,8 +160,6 @@ export function ScheduleClient() {
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
     } else {
-        // Fallback if selectedDate is somehow null, fetch all or for today
-        // This path should ideally not be hit if selectedDate is always initialized
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         fetchScheduleEntries(todayStr); 
         fetchObservations(todayStr);
@@ -169,6 +168,20 @@ export function ScheduleClient() {
 
   const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading;
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
+
+  const isTowPilotConfirmed = useMemo(() => {
+    if (!selectedDate || !scheduleEntries.length || !categories.length) {
+      return false; // Or true if no entries means no need for a tow pilot explicitly
+    }
+    const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
+    if (!towPilotCategory) return true; // If category doesn't exist, can't confirm, so don't warn
+
+    return scheduleEntries.some(entry => 
+      entry.date === formattedSelectedDate &&
+      entry.pilot_category_id === towPilotCategory.id &&
+      entry.is_tow_pilot_available === true
+    );
+  }, [selectedDate, scheduleEntries, categories, formattedSelectedDate]);
 
   if (anyError) {
     return (
@@ -258,6 +271,16 @@ export function ScheduleClient() {
           </CardContent>
         </Card>
       )}
+
+      {selectedDate && !isTowPilotConfirmed && scheduleEntries.length > 0 && ( // Show only if there are entries for the day
+        <Alert variant="destructive" className="mb-6 shadow-sm">
+          <AlertTriangle className="h-4 w-4" />
+          {/* <AlertTitle>Atención</AlertTitle> */}
+          <AlertDescription>
+            Aún no hay piloto remolcador confirmado para esta fecha.
+          </AlertDescription>
+        </Alert>
+      )}
       
       {scheduleLoading && !filteredAndSortedEntries.length ? (
         <div className="space-y-4 mt-6">
@@ -281,7 +304,7 @@ export function ScheduleClient() {
         categories={categories}
         aircraft={aircraft}
         selectedDate={selectedDate}
-        existingEntries={scheduleEntries} // Pass existing entries for conflict checking
+        existingEntries={scheduleEntries} 
       />
       <DeleteDialog
         open={isDeleteDialogOpen}
@@ -292,3 +315,4 @@ export function ScheduleClient() {
     </>
   );
 }
+
