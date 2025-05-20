@@ -49,7 +49,7 @@ import { useEffect, useState } from 'react';
 // Schema uses snake_case matching the Type and DB
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
-  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
+  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM).").min(1, "La hora de inicio es obligatoria."),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   pilot_category_id: z.string().min(1, "Seleccione una categoría para este turno."),
   is_tow_pilot_available: z.boolean().optional(),
@@ -78,6 +78,20 @@ interface MedicalWarningState {
   message: string;
   variant: 'default' | 'destructive';
 }
+
+const generateTimeSlots = () => {
+  const slots: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const hour = h.toString().padStart(2, '0');
+      const minute = m.toString().padStart(2, '0');
+      slots.push(`${hour}:${minute}`);
+    }
+  }
+  return slots;
+};
+const timeSlots = generateTimeSlots();
+
 
 export function AvailabilityForm({
   open,
@@ -136,8 +150,7 @@ export function AvailabilityForm({
 
       if (isValid(medicalExpiryDate)) {
         const isExpiredOnFlightDate = isBefore(medicalExpiryDate, formFlightDate);
-        const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, today);
-
+        
         if (isExpiredOnFlightDate) {
           newMedicalWarningInfo = {
             show: true,
@@ -147,6 +160,7 @@ export function AvailabilityForm({
           };
         } else {
           // Not expired for the flight date, now check warnings based on today
+          const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, today);
           if (daysUntilExpiryFromToday <= 30) {
             newMedicalWarningInfo = {
               show: true,
@@ -275,10 +289,19 @@ export function AvailabilityForm({
               name="start_time"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hora Inicial (HH:MM)</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
+                  <FormLabel>Hora Inicial</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar hora" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {timeSlots.map(slot => (
+                        <SelectItem key={slot} value={slot}>{slot}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -388,13 +411,14 @@ export function AvailabilityForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Aeronave (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={(value) => field.onChange(value === '' ? null : value)} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar aeronave" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                       {/* No <SelectItem value=""><em>Ninguna</em></SelectItem> here */}
                       {aircraft.map(ac => (
                         <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
                       ))}
@@ -425,3 +449,5 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
