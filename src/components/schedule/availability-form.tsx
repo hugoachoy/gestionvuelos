@@ -40,7 +40,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarIcon, AlertTriangle, Plane } from "lucide-react";
+import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide } from "lucide-react"; // Renamed Plane to avoid conflict
 import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,7 +54,7 @@ const availabilitySchema = z.object({
   pilot_category_id: z.string().min(1, "Seleccione una categoría para este turno."),
   is_tow_pilot_available: z.boolean().optional(),
   flight_type_id: z.string().min(1, "Seleccione un tipo de vuelo."),
-  aircraft_id: z.string().optional().nullable(), 
+  aircraft_id: z.string().min(1, "La selección de aeronave es obligatoria."),
 });
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
@@ -86,7 +86,7 @@ interface BookingConflictWarningState {
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // Only 20:00, no 20:30
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -134,7 +134,7 @@ export function AvailabilityForm({
     }
     if (!open) {
       setMedicalWarning(null); 
-      setBookingConflictWarning(null); // Clear glider conflict warning when dialog closes
+      setBookingConflictWarning(null); 
     }
   }, [selectedDate, form, entry, open]);
 
@@ -157,7 +157,7 @@ export function AvailabilityForm({
     if (open && watchedPilotId && currentPilotDetails?.medical_expiry && isValid(formFlightDate)) {
       const medicalExpiryDate = parseISO(currentPilotDetails.medical_expiry);
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normalize today to start of day
+      today.setHours(0, 0, 0, 0); 
 
       if (isValid(medicalExpiryDate)) {
         const isExpiredOnFlightDate = isBefore(medicalExpiryDate, formFlightDate);
@@ -171,19 +171,19 @@ export function AvailabilityForm({
           };
         } else {
           const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, today);
-          if (daysUntilExpiryFromToday <= 30) { // Expiring in 30 days or less (from today)
+          if (daysUntilExpiryFromToday <= 30) { 
             newMedicalWarningInfo = {
               show: true,
               title: "¡Psicofísico Vence en Muy Poco Tiempo!",
               message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
-              variant: 'destructive', // Red alert
+              variant: 'destructive', 
             };
-          } else if (daysUntilExpiryFromToday <= 60) { // Expiring in 60 days or less (from today)
+          } else if (daysUntilExpiryFromToday <= 60) { 
             newMedicalWarningInfo = {
               show: true,
               title: "Advertencia de Psicofísico",
               message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
-              variant: 'default', // Yellow alert (styled via cn)
+              variant: 'default', 
             };
           }
         }
@@ -194,7 +194,7 @@ export function AvailabilityForm({
 
   // Glider Booking Conflict Check
   useEffect(() => {
-    setBookingConflictWarning(null); // Reset on relevant changes
+    setBookingConflictWarning(null); 
 
     if (!watchedAircraftId || !watchedStartTime || !watchedDate || !aircraft.length || !existingEntries?.length) {
       return;
@@ -202,39 +202,38 @@ export function AvailabilityForm({
 
     const selectedAircraftDetails = aircraft.find(a => a.id === watchedAircraftId);
     if (!selectedAircraftDetails || selectedAircraftDetails.type !== 'Glider') {
-      return; // Only check for gliders
+      return; 
     }
 
     const dateString = format(watchedDate, 'yyyy-MM-dd');
+    const formStartTimeHHMM = watchedStartTime.substring(0, 5);
 
     const conflictingEntry = existingEntries.find(
       (se) =>
         se.date === dateString &&
-        se.start_time === watchedStartTime &&
+        se.start_time.substring(0, 5) === formStartTimeHHMM && // Compare HH:MM part
         se.aircraft_id === watchedAircraftId &&
-        (!entry || se.id !== entry.id) // Exclude current entry if editing
+        (!entry || se.id !== entry.id) 
     );
 
     if (conflictingEntry) {
       setBookingConflictWarning({
         show: true,
-        message: `El planeador ${selectedAircraftDetails.name} ya está reservado para las ${watchedStartTime.substring(0,5)} en esta fecha.`,
+        message: `El planeador ${selectedAircraftDetails.name} ya está reservado para las ${formStartTimeHHMM} en esta fecha.`,
       });
     }
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
-    // Prevent submission if there's a destructive medical warning or a glider conflict
     if ((medicalWarning && medicalWarning.variant === 'destructive' && medicalWarning.show) || (bookingConflictWarning && bookingConflictWarning.show)) {
-        // Optionally, show a toast message here if needed
         return;
     }
 
     const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
         ...data,
         date: format(data.date, 'yyyy-MM-dd'), 
-        aircraft_id: data.aircraft_id || undefined, 
+        // aircraft_id is already a string from the form (mandatory)
     };
     onSubmit(dataToSubmit, entry?.id);
     form.reset({
@@ -262,7 +261,12 @@ export function AvailabilityForm({
   useEffect(() => {
     if (open) {
        form.reset(entry
-        ? { ...entry, date: entry.date ? parseISO(entry.date) : new Date(), aircraft_id: entry.aircraft_id ?? '' }
+        ? { 
+            ...entry, 
+            date: entry.date ? parseISO(entry.date) : new Date(), 
+            aircraft_id: entry.aircraft_id ?? '', // Ensure aircraft_id is always a string for the form
+            start_time: entry.start_time ? entry.start_time.substring(0,5) : '' // Use HH:MM for form
+          }
         : {
             date: selectedDate || new Date(),
             start_time: '',
@@ -276,8 +280,7 @@ export function AvailabilityForm({
       setMedicalWarning(null); 
       setBookingConflictWarning(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, entry, selectedDate]); 
+  }, [open, entry, selectedDate, form]); // Added form to dependencies
 
 
   return (
@@ -458,10 +461,10 @@ export function AvailabilityForm({
               name="aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Aeronave (Opcional)</FormLabel>
+                  <FormLabel>Aeronave</FormLabel>
                   <Select 
-                    onValueChange={(value) => field.onChange(value === 'NO_AIRCRAFT_SELECTED_VALUE' ? null : value)} 
-                    value={field.value ?? 'NO_AIRCRAFT_SELECTED_VALUE'}
+                    onValueChange={field.onChange}
+                    value={field.value || ''} // Ensure value is always a string for Select
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -469,7 +472,7 @@ export function AvailabilityForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="NO_AIRCRAFT_SELECTED_VALUE"><em>Ninguna</em></SelectItem>
+                      {/* No "Ninguna" option as it's mandatory */}
                       {aircraft.map(ac => (
                         <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
                       ))}
@@ -481,7 +484,7 @@ export function AvailabilityForm({
             />
              {bookingConflictWarning && bookingConflictWarning.show && (
               <Alert variant="destructive" className="mt-2">
-                <Plane className="h-4 w-4" /> {/* Or AlertTriangle if preferred */}
+                <PlaneIconLucide className="h-4 w-4" /> 
                 <AlertTitle>Conflicto de Reserva</AlertTitle>
                 <AlertDescription>{bookingConflictWarning.message}</AlertDescription>
               </Alert>
@@ -515,3 +518,5 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
