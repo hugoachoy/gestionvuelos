@@ -62,12 +62,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               viewBox="0 0 24 24"
               fill="currentColor"
               xmlns="http://www.w3.org/2000/svg"
-              aria-label="TurnoVuelo Logo"
+              aria-label="Turnos de Vuelo Logo"
             >
               <path d="M3 12L3 21L21 12L3 3L3 10L16 12L3 14L3 12Z" />
             </svg>
             <h1 className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden">
-              TurnoVuelo
+              Turnos de Vuelo
             </h1>
           </Link>
         </SidebarHeader>
@@ -103,3 +103,4 @@ export function AppShell({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
+
