@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import React from 'react'; // Added import
 
 // Schema uses snake_case matching the Type and DB
 const aircraftSchema = z.object({
