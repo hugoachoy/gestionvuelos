@@ -60,6 +60,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const displayTime = entry.start_time.substring(0, 5); // HH:MM
 
         const isFlightTypeTowage = towageFlightType && entry.flight_type_id === towageFlightType.id;
+        // Show "Disponible desde las" if flight type is towage OR if pilot's category for the turn is Instructor
         const showAvailableSinceText = isFlightTypeTowage || isInstructorCategoryEntry;
 
 
@@ -120,7 +121,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
                     {showAvailableSinceText ? (
-                      <span className="mr-1">DISPONIBLE desde las {displayTime} - {getPilotName(entry.pilot_id)}</span>
+                      <span className="mr-1">Disponible desde las {displayTime} - {getPilotName(entry.pilot_id)}</span>
                     ) : (
                       <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
                     )}
