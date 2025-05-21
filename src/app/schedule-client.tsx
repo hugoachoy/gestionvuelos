@@ -22,6 +22,7 @@ import {
   useDailyObservationsStore 
 } from '@/store/data-hooks';
 import type { ScheduleEntry } from '@/types';
+import { FLIGHT_TYPES } from '@/types'; // Import FLIGHT_TYPES
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -76,13 +77,12 @@ export function ScheduleClient() {
     }
   }, [observationInput]);
 
-  // Effect for periodic cleanup
   useEffect(() => {
     const runCleanup = async () => {
-      if (typeof window !== 'undefined') { // Ensure localStorage is available
+      if (typeof window !== 'undefined') { 
         const lastCleanupTimestamp = localStorage.getItem(LAST_CLEANUP_KEY);
         const now = new Date().getTime();
-        const oneDayInMs = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+        const oneDayInMs = 24 * 60 * 60 * 1000;
 
         if (!lastCleanupTimestamp || (now - parseInt(lastCleanupTimestamp, 10)) > oneDayInMs) {
           console.log("Performing scheduled cleanup of old entries...");
@@ -93,17 +93,14 @@ export function ScheduleClient() {
               description: `${result.count} turnos antiguos han sido eliminados.`,
             });
           } else if (!result.success && result.error) {
-            // console.error("Failed to cleanup old entries:", result.error); // Optionally log, but avoid user toast for background tasks
+             console.error("Failed to cleanup old entries:", result.error);
           }
           localStorage.setItem(LAST_CLEANUP_KEY, now.toString());
-        } else {
-          // console.log("Scheduled cleanup already performed recently.");
         }
       }
     };
     runCleanup();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cleanupOldScheduleEntries, toast]); // Ensure cleanupOldScheduleEntries and toast are stable (useCallback)
+  }, [cleanupOldScheduleEntries, toast]); 
 
 
   const handleSaveObservation = async () => {
@@ -147,7 +144,7 @@ export function ScheduleClient() {
   };
 
   const filteredAndSortedEntries = useMemo(() => {
-    if (!selectedDate) return [];
+    if (!selectedDate || !scheduleEntries) return [];
 
     const towPilotCategory = categories.find(c => c.name === 'Piloto remolcador');
     const instructorCategory = categories.find(c => c.name === 'Instructor');
@@ -165,9 +162,9 @@ export function ScheduleClient() {
         if (aIsConfirmedTowPilot && bIsConfirmedTowPilot) {
           return a.start_time.localeCompare(b.start_time);
         }
-
-        const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory; 
-        const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory;
+        
+        const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory && !a.is_tow_pilot_available; 
+        const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory && !b.is_tow_pilot_available;
         
         if (aIsUnconfirmedTowPilot && !bIsUnconfirmedTowPilot) return -1;
         if (!aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) return 1;
@@ -219,21 +216,37 @@ export function ScheduleClient() {
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
 
   const isTowPilotConfirmed = useMemo(() => {
-    if (categoriesLoading || scheduleLoading || !categories.length) {
+    if (categoriesLoading || scheduleLoading || !categories || !categories.length || !scheduleEntries) {
         return false; 
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
     if (!towPilotCategory) { 
       return false; 
     }
-    if (!scheduleEntries || scheduleEntries.length === 0) {
-        return false;
-    }
+    // If scheduleEntries is empty, it means no tow pilot is confirmed yet for any entry on this day.
+    // This is a valid state for the check, so we don't return false prematurely here.
+    // if (scheduleEntries.length === 0) { 
+    //     return false;
+    // }
     return scheduleEntries.some(entry => 
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
     );
   }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
+
+  const towageFlightTypeId = useMemo(() => {
+    return FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
+  }, []);
+
+  const noTowageFlightsPresent = useMemo(() => {
+    if (!selectedDate || scheduleLoading || !towageFlightTypeId) {
+      return false; 
+    }
+    if (!scheduleEntries || scheduleEntries.length === 0) {
+      return true; 
+    }
+    return scheduleEntries.every(entry => entry.flight_type_id !== towageFlightTypeId);
+  }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId]);
 
 
   if (anyError) {
@@ -326,9 +339,10 @@ export function ScheduleClient() {
         </Card>
       )}
 
+      {/* Alert for: Tow PILOT CATEGORY not confirmed available */}
       {selectedDate && 
        !isTowPilotConfirmed && 
-       categories.find(cat => cat.name === 'Piloto remolcador') && 
+       categories && categories.find(cat => cat.name === 'Piloto remolcador') && 
        !anyLoading && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
@@ -338,6 +352,19 @@ export function ScheduleClient() {
         </Alert>
       }
       
+      {/* New Alert for: No FLIGHTS OF TYPE 'Remolque' scheduled */}
+      {selectedDate &&
+       noTowageFlightsPresent && 
+       towageFlightTypeId &&    
+       !anyLoading && (
+        <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
+          <AlertTriangle className="h-4 w-4 text-orange-500" />
+          <AlertDescription>
+            <strong className="text-orange-700">Aún no hay Remolcador confirmado</strong>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {scheduleLoading && !filteredAndSortedEntries.length ? (
         <div className="space-y-4 mt-6">
           <Skeleton className="h-24 w-full" />
