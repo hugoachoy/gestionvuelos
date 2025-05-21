@@ -1,6 +1,7 @@
 
 "use client";
 
+import React from 'react'; // Added explicit React import
 import { useState } from 'react';
 import type { Aircraft } from '@/types';
 import { useAircraftStore } from '@/store/data-hooks';
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils'; // Added import
+import { cn } from '@/lib/utils';
 
 const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Tow Plane': 'Avión Remolcador',
@@ -57,7 +58,6 @@ export function AircraftClient() {
     setAircraftToDelete(null);
   };
 
-  // AircraftFormData is already snake_case from the form
   const handleSubmitForm = async (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => {
     if (aircraftId) {
       await updateAircraft({ ...data, id: aircraftId });

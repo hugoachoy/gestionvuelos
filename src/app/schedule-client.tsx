@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'; // Added useRef
+import React from 'react'; // Added explicit React import
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ export function ScheduleClient() {
   const [entryToDelete, setEntryToDelete] = useState<ScheduleEntry | null>(null);
   
   const [observationInput, setObservationInput] = useState('');
-  const observationTextareaRef = useRef<HTMLTextAreaElement>(null); // Ref for the textarea
+  const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const formattedSelectedDate = useMemo(() => {
     return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
@@ -73,7 +74,7 @@ export function ScheduleClient() {
   // Effect for auto-resizing the textarea
   useEffect(() => {
     if (observationTextareaRef.current) {
-      observationTextareaRef.current.style.height = 'auto'; // Reset height to allow shrinkage
+      observationTextareaRef.current.style.height = 'auto'; 
       observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
   }, [observationInput]);
@@ -140,7 +141,6 @@ export function ScheduleClient() {
         }
 
         if (catA_Name === 'Piloto remolcador') {
-          // Prioritize available tow pilots if category is the same
           if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
           if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
         }
@@ -270,8 +270,8 @@ export function ScheduleClient() {
                 placeholder="Escribe observaciones generales para la agenda de este día..."
                 value={observationInput}
                 onChange={(e) => setObservationInput(e.target.value)}
-                rows={1} // Start with a small number of rows
-                className="mb-3 resize-none overflow-hidden" // resize-none to prevent manual resize, overflow-hidden helps
+                rows={1} 
+                className="mb-3 resize-none overflow-hidden" 
                 disabled={obsLoading}
               />
             )}

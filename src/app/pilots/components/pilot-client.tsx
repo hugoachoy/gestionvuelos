@@ -1,6 +1,7 @@
 
 "use client";
 
+import React from 'react'; // Added explicit React import
 import { useState } from 'react';
 import type { Pilot, PilotCategory } from '@/types';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
@@ -55,11 +56,8 @@ export function PilotClient() {
     setPilotToDelete(null);
   };
 
-  // PilotFormData from the form is Omit<Pilot, 'id' | 'created_at'>, which matches addPilot.
-  // For updatePilot, we spread the id.
   const handleSubmitForm = async (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => {
     if (pilotId) {
-      // Ensure data includes the id for update
       await updatePilot({ ...data, id: pilotId });
     } else {
       await addPilot(data);

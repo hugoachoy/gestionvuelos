@@ -1,6 +1,7 @@
 
 "use client";
 
+import React from 'react'; // Added explicit React import
 import { useState } from 'react';
 import type { PilotCategory } from '@/types';
 import { usePilotCategoriesStore } from '@/store/data-hooks';
@@ -51,7 +52,6 @@ export function CategoryClient() {
     setCategoryToDelete(null);
   };
 
-  // CategoryFormData is Omit<PilotCategory, 'id' | 'created_at'>, matching hook
   const handleSubmitForm = async (data: { name: string }, categoryId?: string) => {
     if (categoryId) {
       await updateCategory({ ...data, id: categoryId });
