@@ -142,7 +142,6 @@ export function ScheduleClient() {
         }
 
         // Rule 2: Unconfirmed/Unavailable Tow Pilots (but still in tow pilot category)
-        // These are entries where category is tow pilot, but they are not "confirmed" (available=false or undefined)
         const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory; 
         const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory;
         
@@ -203,8 +202,6 @@ export function ScheduleClient() {
     
     const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
     if (!towPilotCategory) { 
-      // If the category "Piloto remolcador" doesn't even exist, we can't confirm one.
-      // The warning for missing tow pilot will also check for category existence.
       return false; 
     }
 
@@ -308,14 +305,14 @@ export function ScheduleClient() {
        !isTowPilotConfirmed && 
        scheduleEntries.length > 0 &&
        categories.find(cat => cat.name === 'Piloto remolcador') && 
-       !anyLoading && /* Only show if not loading core data */ ( 
+       !anyLoading && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Aún no hay piloto remolcador confirmado para esta fecha.
           </AlertDescription>
         </Alert>
-      )}
+      }
       
       {scheduleLoading && !filteredAndSortedEntries.length ? (
         <div className="space-y-4 mt-6">

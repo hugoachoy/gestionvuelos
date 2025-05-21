@@ -145,7 +145,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {isTowPilotEntry && ( // Show availability status for any tow pilot entry
+              {isTowPilotEntry && ( 
                 <div className="flex items-center">
                   {!!entry.is_tow_pilot_available ? 
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
