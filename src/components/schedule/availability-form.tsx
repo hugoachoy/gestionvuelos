@@ -24,7 +24,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -70,11 +69,11 @@ interface AvailabilityFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => void;
-  entry?: ScheduleEntry; 
+  entry?: ScheduleEntry;
   pilots: Pilot[];
   categories: PilotCategory[];
   aircraft: Aircraft[];
-  selectedDate?: Date; 
+  selectedDate?: Date;
   existingEntries: ScheduleEntry[];
 }
 
@@ -93,7 +92,7 @@ interface BookingConflictWarningState {
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; 
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -120,10 +119,10 @@ export function AvailabilityForm({
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: entry
-      ? { 
-          ...entry, 
-          date: entry.date ? parseISO(entry.date) : new Date(), 
-          aircraft_id: entry.aircraft_id ?? '', 
+      ? {
+          ...entry,
+          date: entry.date ? parseISO(entry.date) : new Date(),
+          aircraft_id: entry.aircraft_id ?? '',
           start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
         }
       : {
@@ -148,18 +147,18 @@ export function AvailabilityForm({
       form.setValue('date', selectedDate);
     }
     if (!open) {
-      setMedicalWarning(null); 
-      setBookingConflictWarning(null); 
-      setPilotSearchTerm(''); 
+      setMedicalWarning(null);
+      setBookingConflictWarning(null);
+      setPilotSearchTerm('');
     }
   }, [selectedDate, form, entry, open]);
 
   const watchedPilotId = form.watch('pilot_id');
-  const watchedDate = form.watch('date'); 
+  const watchedDate = form.watch('date');
   const watchedAircraftId = form.watch('aircraft_id');
   const watchedStartTime = form.watch('start_time');
   const watchedPilotCategoryId = form.watch('pilot_category_id');
-  const watchedFlightTypeId = form.watch('flight_type_id');
+  // const watchedFlightTypeId = form.watch('flight_type_id'); // No longer explicitly watched, logic moved
 
   const pilotDetails = pilots.find(p => p.id === watchedPilotId);
   const pilotCategoriesForSelectedPilot = pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
@@ -174,11 +173,11 @@ export function AvailabilityForm({
     if (open && watchedPilotId && currentPilotDetails?.medical_expiry && isValid(formFlightDate)) {
       const medicalExpiryDate = parseISO(currentPilotDetails.medical_expiry);
       const today = new Date();
-      today.setHours(0, 0, 0, 0); 
+      today.setHours(0, 0, 0, 0);
 
       if (isValid(medicalExpiryDate)) {
         const isExpiredOnFlightDate = isBefore(medicalExpiryDate, formFlightDate);
-        
+
         if (isExpiredOnFlightDate) {
           newMedicalWarningInfo = {
             show: true,
@@ -188,19 +187,19 @@ export function AvailabilityForm({
           };
         } else {
           const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, today);
-          if (daysUntilExpiryFromToday <= 30) { 
+          if (daysUntilExpiryFromToday <= 30) {
             newMedicalWarningInfo = {
               show: true,
               title: "¡Psicofísico Vence en Muy Poco Tiempo!",
               message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
-              variant: 'destructive', 
+              variant: 'destructive',
             };
-          } else if (daysUntilExpiryFromToday <= 60) { 
+          } else if (daysUntilExpiryFromToday <= 60) {
             newMedicalWarningInfo = {
               show: true,
               title: "Advertencia de Psicofísico",
               message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
-              variant: 'default', 
+              variant: 'default',
             };
           }
         }
@@ -210,7 +209,7 @@ export function AvailabilityForm({
   }, [watchedPilotId, watchedDate, open, pilots]);
 
   useEffect(() => {
-    setBookingConflictWarning(null); 
+    setBookingConflictWarning(null);
 
     if (!watchedAircraftId || !watchedStartTime || !watchedDate || !aircraft.length || !existingEntries?.length) {
       return;
@@ -218,7 +217,7 @@ export function AvailabilityForm({
 
     const selectedAircraftDetails = aircraft.find(a => a.id === watchedAircraftId);
     if (!selectedAircraftDetails || selectedAircraftDetails.type !== 'Glider') {
-      return; 
+      return;
     }
 
     const dateString = format(watchedDate, 'yyyy-MM-dd');
@@ -229,7 +228,7 @@ export function AvailabilityForm({
         se.date === dateString &&
         se.start_time.substring(0, 5) === formStartTimeHHMM &&
         se.aircraft_id === watchedAircraftId &&
-        (!entry || se.id !== entry.id) 
+        (!entry || se.id !== entry.id)
     );
 
     if (conflictingEntry) {
@@ -240,6 +239,7 @@ export function AvailabilityForm({
     }
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
 
+  // Effect to auto-set flight_type_id based on pilot_category_id
   useEffect(() => {
     if (watchedPilotCategoryId) {
       const category = categories.find(c => c.id === watchedPilotCategoryId);
@@ -256,6 +256,26 @@ export function AvailabilityForm({
       }
     }
   }, [watchedPilotCategoryId, categories, form]);
+
+  // Memoize filtered aircraft list based on pilot category
+  const filteredAircraftForSelect = useMemo(() => {
+    const category = categories.find(c => c.id === watchedPilotCategoryId);
+    if (category?.name === 'Piloto remolcador') {
+      return aircraft.filter(ac => ac.type === 'Tow Plane');
+    }
+    return aircraft; // Return all aircraft if not "Piloto remolcador" or no category selected
+  }, [watchedPilotCategoryId, categories, aircraft]);
+
+  // Effect to clear aircraft_id if it becomes invalid due to category change
+  useEffect(() => {
+    const currentAircraftId = form.getValues('aircraft_id');
+    if (currentAircraftId) { // Only proceed if an aircraft is actually selected
+      const isCurrentAircraftInFilteredList = filteredAircraftForSelect.some(ac => ac.id === currentAircraftId);
+      if (!isCurrentAircraftInFilteredList) {
+        form.setValue('aircraft_id', ''); // Clear if not in the filtered list
+      }
+    }
+  }, [filteredAircraftForSelect, form]); // form is a dependency here
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
@@ -278,9 +298,9 @@ export function AvailabilityForm({
       aircraft_id: '',
     });
     onOpenChange(false);
-    setPilotSearchTerm(''); 
+    setPilotSearchTerm('');
   };
-  
+
   useEffect(() => {
     if (watchedPilotId && pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
       form.setValue('pilot_category_id', '');
@@ -294,10 +314,10 @@ export function AvailabilityForm({
   useEffect(() => {
     if (open) {
        form.reset(entry
-        ? { 
-            ...entry, 
-            date: entry.date ? parseISO(entry.date) : new Date(), 
-            aircraft_id: entry.aircraft_id ?? '', 
+        ? {
+            ...entry,
+            date: entry.date ? parseISO(entry.date) : new Date(),
+            aircraft_id: entry.aircraft_id ?? '',
             start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
           }
         : {
@@ -309,9 +329,9 @@ export function AvailabilityForm({
             flight_type_id: '',
             aircraft_id: '',
           });
-       setPilotSearchTerm(''); 
+       setPilotSearchTerm('');
     } else {
-      setMedicalWarning(null); 
+      setMedicalWarning(null);
       setBookingConflictWarning(null);
     }
   }, [open, entry, selectedDate, form]);
@@ -320,7 +340,7 @@ export function AvailabilityForm({
   const sortedAndFilteredPilots = useMemo(() => {
     const searchTermLower = pilotSearchTerm.toLowerCase();
     return pilots
-      .filter(p => 
+      .filter(p =>
         p.last_name.toLowerCase().includes(searchTermLower) ||
         p.first_name.toLowerCase().includes(searchTermLower)
       )
@@ -332,24 +352,6 @@ export function AvailabilityForm({
         return a.first_name.localeCompare(b.first_name, 'es', { sensitivity: 'base' });
       });
   }, [pilots, pilotSearchTerm]);
-
-  const filteredAircraftForSelect = useMemo(() => {
-    const category = categories.find(c => c.id === watchedPilotCategoryId);
-    if (category?.name === 'Piloto remolcador') {
-      return aircraft.filter(ac => ac.type === 'Tow Plane');
-    }
-    return aircraft;
-  }, [watchedPilotCategoryId, categories, aircraft]);
-
-  useEffect(() => {
-    const currentAircraftId = form.getValues('aircraft_id');
-    if (currentAircraftId) {
-      const isCurrentAircraftInFilteredList = filteredAircraftForSelect.some(ac => ac.id === currentAircraftId);
-      if (!isCurrentAircraftInFilteredList) {
-        form.setValue('aircraft_id', '');
-      }
-    }
-  }, [filteredAircraftForSelect, form]);
 
 
   return (
@@ -458,7 +460,7 @@ export function AvailabilityForm({
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                       <Command>
-                        <CommandInput 
+                        <CommandInput
                           placeholder="Buscar piloto..."
                           value={pilotSearchTerm}
                           onValueChange={setPilotSearchTerm}
@@ -476,7 +478,7 @@ export function AvailabilityForm({
                                     form.setValue('pilot_category_id', '');
                                   }
                                   setPilotPopoverOpen(false);
-                                  setPilotSearchTerm(''); 
+                                  setPilotSearchTerm('');
                                 }}
                               >
                                 <Check
@@ -582,9 +584,9 @@ export function AvailabilityForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aeronave</FormLabel>
-                  <Select 
+                  <Select
                     onValueChange={field.onChange}
-                    value={field.value || ''} 
+                    value={field.value || ''}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -592,9 +594,13 @@ export function AvailabilityForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {filteredAircraftForSelect.map(ac => (
-                        <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
-                      ))}
+                      {filteredAircraftForSelect.length > 0 ? (
+                        filteredAircraftForSelect.map(ac => (
+                          <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-2 text-sm text-muted-foreground text-center">No hay aeronaves que coincidan.</div>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -603,7 +609,7 @@ export function AvailabilityForm({
             />
              {bookingConflictWarning && bookingConflictWarning.show && (
               <Alert variant="destructive" className="mt-2">
-                <PlaneIconLucide className="h-4 w-4" /> 
+                <PlaneIconLucide className="h-4 w-4" />
                 <AlertTitle>Conflicto de Reserva</AlertTitle>
                 <AlertDescription>{bookingConflictWarning.message}</AlertDescription>
               </Alert>
@@ -618,14 +624,14 @@ export function AvailabilityForm({
                   is_tow_pilot_available: false,
                   flight_type_id: '',
                   aircraft_id: '',
-                }); 
-                setPilotSearchTerm(''); 
+                });
+                setPilotSearchTerm('');
                 onOpenChange(false);
                 }}>Cancelar</Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={
-                  (medicalWarning?.show && medicalWarning.variant === 'destructive') || 
+                  (medicalWarning?.show && medicalWarning.variant === 'destructive') ||
                   (bookingConflictWarning?.show ?? false)
                 }
               >
@@ -638,3 +644,5 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
