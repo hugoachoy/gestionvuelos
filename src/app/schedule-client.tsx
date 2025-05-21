@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'; // Added useRef
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from "@/components/ui/alert"; // Added Alert imports
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -44,6 +44,7 @@ export function ScheduleClient() {
   const [entryToDelete, setEntryToDelete] = useState<ScheduleEntry | null>(null);
   
   const [observationInput, setObservationInput] = useState('');
+  const observationTextareaRef = useRef<HTMLTextAreaElement>(null); // Ref for the textarea
 
   const formattedSelectedDate = useMemo(() => {
     return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
@@ -68,6 +69,14 @@ export function ScheduleClient() {
   useEffect(() => {
     setObservationInput(savedObservationText || '');
   }, [savedObservationText]);
+
+  // Effect for auto-resizing the textarea
+  useEffect(() => {
+    if (observationTextareaRef.current) {
+      observationTextareaRef.current.style.height = 'auto'; // Reset height to allow shrinkage
+      observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
+    }
+  }, [observationInput]);
 
 
   const handleSaveObservation = async () => {
@@ -131,6 +140,7 @@ export function ScheduleClient() {
         }
 
         if (catA_Name === 'Piloto remolcador') {
+          // Prioritize available tow pilots if category is the same
           if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
           if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
         }
@@ -171,10 +181,10 @@ export function ScheduleClient() {
 
   const isTowPilotConfirmed = useMemo(() => {
     if (!selectedDate || !scheduleEntries.length || !categories.length) {
-      return false; // Or true if no entries means no need for a tow pilot explicitly
+      return false; 
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
-    if (!towPilotCategory) return true; // If category doesn't exist, can't confirm, so don't warn
+    if (!towPilotCategory) return true; 
 
     return scheduleEntries.some(entry => 
       entry.date === formattedSelectedDate &&
@@ -256,11 +266,12 @@ export function ScheduleClient() {
           <CardContent>
             {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-20 w-full" /> : ( 
               <Textarea
+                ref={observationTextareaRef}
                 placeholder="Escribe observaciones generales para la agenda de este día..."
                 value={observationInput}
                 onChange={(e) => setObservationInput(e.target.value)}
-                rows={3}
-                className="mb-3"
+                rows={1} // Start with a small number of rows
+                className="mb-3 resize-none overflow-hidden" // resize-none to prevent manual resize, overflow-hidden helps
                 disabled={obsLoading}
               />
             )}
@@ -272,10 +283,9 @@ export function ScheduleClient() {
         </Card>
       )}
 
-      {selectedDate && !isTowPilotConfirmed && scheduleEntries.length > 0 && ( // Show only if there are entries for the day
+      {selectedDate && !isTowPilotConfirmed && scheduleEntries.length > 0 && ( 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
-          {/* <AlertTitle>Atención</AlertTitle> */}
           <AlertDescription>
             Aún no hay piloto remolcador confirmado para esta fecha.
           </AlertDescription>
@@ -315,4 +325,3 @@ export function ScheduleClient() {
     </>
   );
 }
-
