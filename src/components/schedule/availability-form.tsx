@@ -92,7 +92,7 @@ interface BookingConflictWarningState {
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // Only 20:00, no 20:30
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -158,7 +158,6 @@ export function AvailabilityForm({
   const watchedAircraftId = form.watch('aircraft_id');
   const watchedStartTime = form.watch('start_time');
   const watchedPilotCategoryId = form.watch('pilot_category_id');
-  // const watchedFlightTypeId = form.watch('flight_type_id'); // No longer explicitly watched, logic moved
 
   const pilotDetails = pilots.find(p => p.id === watchedPilotId);
   const pilotCategoriesForSelectedPilot = pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
@@ -226,9 +225,9 @@ export function AvailabilityForm({
     const conflictingEntry = existingEntries.find(
       (se) =>
         se.date === dateString &&
-        se.start_time.substring(0, 5) === formStartTimeHHMM &&
+        se.start_time.substring(0, 5) === formStartTimeHHMM && // Compare only HH:MM
         se.aircraft_id === watchedAircraftId &&
-        (!entry || se.id !== entry.id)
+        (!entry || se.id !== entry.id) // Exclude the current entry if editing
     );
 
     if (conflictingEntry) {
@@ -250,12 +249,13 @@ export function AvailabilityForm({
           form.setValue('flight_type_id', towageFlightType.id);
         }
       } else {
+        // If the category is NOT "Piloto remolcador", and the flight type IS "Remolque", clear it.
         if (form.getValues('flight_type_id') === towageFlightType?.id) {
-          form.setValue('flight_type_id', '');
+          form.setValue('flight_type_id', ''); 
         }
       }
     }
-  }, [watchedPilotCategoryId, categories, form]);
+  }, [watchedPilotCategoryId, categories, form]); 
 
   // Memoize filtered aircraft list based on pilot category
   const filteredAircraftForSelect = useMemo(() => {
@@ -263,19 +263,19 @@ export function AvailabilityForm({
     if (category?.name === 'Piloto remolcador') {
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
-    return aircraft; // Return all aircraft if not "Piloto remolcador" or no category selected
+    return aircraft; 
   }, [watchedPilotCategoryId, categories, aircraft]);
 
   // Effect to clear aircraft_id if it becomes invalid due to category change
   useEffect(() => {
     const currentAircraftId = form.getValues('aircraft_id');
-    if (currentAircraftId) { // Only proceed if an aircraft is actually selected
+    if (currentAircraftId) { 
       const isCurrentAircraftInFilteredList = filteredAircraftForSelect.some(ac => ac.id === currentAircraftId);
       if (!isCurrentAircraftInFilteredList) {
-        form.setValue('aircraft_id', ''); // Clear if not in the filtered list
+        form.setValue('aircraft_id', ''); 
       }
     }
-  }, [filteredAircraftForSelect, form]); // form is a dependency here
+  }, [filteredAircraftForSelect, form]); 
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
@@ -644,5 +644,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    
