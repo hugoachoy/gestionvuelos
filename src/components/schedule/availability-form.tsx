@@ -301,7 +301,7 @@ export function AvailabilityForm({
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fecha</FormLabel>
+                  <FormLabel className="bg-primary/10 border border-primary/30 rounded-md px-2 py-1 inline-block self-start">Fecha</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -340,7 +340,7 @@ export function AvailabilityForm({
               name="start_time"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hora Inicial</FormLabel>
+                  <FormLabel className="bg-primary/10 border border-primary/30 rounded-md px-2 py-1 inline-block">Hora Inicial</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
@@ -362,7 +362,7 @@ export function AvailabilityForm({
               name="pilot_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Piloto</FormLabel>
+                  <FormLabel className="bg-primary/10 border border-primary/30 rounded-md px-2 py-1 inline-block">Piloto</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
@@ -394,7 +394,7 @@ export function AvailabilityForm({
                 name="pilot_category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Categoría del Piloto para este Turno</FormLabel>
+                    <FormLabel className="bg-primary/10 border border-primary/30 rounded-md px-2 py-1 inline-block">Categoría del Piloto para este Turno</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger disabled={!pilotDetails || pilotCategoriesForSelectedPilot.length === 0}>
@@ -419,7 +419,7 @@ export function AvailabilityForm({
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                     <div className="space-y-0.5">
-                      <FormLabel>Disponible para Remolque</FormLabel>
+                      <FormLabel className="bg-primary/10 border border-primary/30 rounded-md px-2 py-1 inline-block">Disponible para Remolque</FormLabel>
                       <FormDescription>
                         ¿El piloto remolcador está disponible?
                       </FormDescription>
@@ -439,7 +439,7 @@ export function AvailabilityForm({
               name="flight_type_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipo de Vuelo</FormLabel>
+                  <FormLabel className="bg-primary/10 border border-primary/30 rounded-md px-2 py-1 inline-block">Tipo de Vuelo</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
@@ -461,10 +461,10 @@ export function AvailabilityForm({
               name="aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Aeronave</FormLabel>
+                  <FormLabel className="bg-primary/10 border border-primary/30 rounded-md px-2 py-1 inline-block">Aeronave</FormLabel>
                   <Select 
                     onValueChange={field.onChange}
-                    value={field.value || ''} // Ensure value is always a string for Select
+                    value={field.value || ''} 
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -472,7 +472,6 @@ export function AvailabilityForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {/* No "Ninguna" option as it's mandatory */}
                       {aircraft.map(ac => (
                         <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
                       ))}
