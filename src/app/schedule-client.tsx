@@ -1,28 +1,28 @@
 
 "use client";
 
-import React from 'react'; 
+import React from 'react';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/common/page-header';
-import { AvailabilityForm, type AvailabilityFormData } from '@/components/schedule/availability-form';
+import { AvailabilityForm } from '@/components/schedule/availability-form';
 import { ScheduleDisplay } from '@/components/schedule/schedule-display';
 import { ShareButton } from '@/components/schedule/share-button';
 import { DeleteDialog } from '@/components/common/delete-dialog';
-import { 
-  usePilotsStore, 
-  usePilotCategoriesStore, 
-  useAircraftStore, 
-  useScheduleStore, 
-  useDailyObservationsStore 
+import {
+  usePilotsStore,
+  usePilotCategoriesStore,
+  useAircraftStore,
+  useScheduleStore,
+  useDailyObservationsStore
 } from '@/store/data-hooks';
 import type { ScheduleEntry } from '@/types';
-import { FLIGHT_TYPES } from '@/types'; 
+import { FLIGHT_TYPES } from '@/types';
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +35,7 @@ const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
-  
+
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
@@ -46,7 +46,7 @@ export function ScheduleClient() {
   const [editingEntry, setEditingEntry] = useState<ScheduleEntry | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<ScheduleEntry | null>(null);
-  
+
   const [observationInput, setObservationInput] = useState('');
   const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -72,14 +72,14 @@ export function ScheduleClient() {
 
   useEffect(() => {
     if (observationTextareaRef.current) {
-      observationTextareaRef.current.style.height = 'auto'; 
+      observationTextareaRef.current.style.height = 'auto';
       observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
   }, [observationInput]);
 
   useEffect(() => {
     const runCleanup = async () => {
-      if (typeof window !== 'undefined') { 
+      if (typeof window !== 'undefined') {
         const lastCleanupTimestamp = localStorage.getItem(LAST_CLEANUP_KEY);
         const now = new Date().getTime();
         const oneDayInMs = 24 * 60 * 60 * 1000;
@@ -100,7 +100,7 @@ export function ScheduleClient() {
       }
     };
     runCleanup();
-  }, [cleanupOldScheduleEntries, toast]); 
+  }, [cleanupOldScheduleEntries, toast]);
 
 
   const handleSaveObservation = async () => {
@@ -144,32 +144,20 @@ export function ScheduleClient() {
   };
 
   const filteredAndSortedEntries = useMemo(() => {
-    if (!selectedDate || !scheduleEntries) return [];
+    if (!selectedDate || !scheduleEntries || !categories.length) return [];
 
     const towPilotCategory = categories.find(c => c.name === 'Remolcador');
     const instructorCategory = categories.find(c => c.name === 'Instructor');
 
     return [...scheduleEntries]
       .sort((a, b) => {
-        const aIsActualTowPilotCategory = a.pilot_category_id === towPilotCategory?.id;
-        const bIsActualTowPilotCategory = b.pilot_category_id === towPilotCategory?.id;
-
-        const aIsConfirmedTowPilot = aIsActualTowPilotCategory && a.is_tow_pilot_available === true;
-        const bIsConfirmedTowPilot = bIsActualTowPilotCategory && b.is_tow_pilot_available === true;
+        const aIsConfirmedTowPilot = a.pilot_category_id === towPilotCategory?.id && a.is_tow_pilot_available === true;
+        const bIsConfirmedTowPilot = b.pilot_category_id === towPilotCategory?.id && b.is_tow_pilot_available === true;
 
         if (aIsConfirmedTowPilot && !bIsConfirmedTowPilot) return -1;
         if (!aIsConfirmedTowPilot && bIsConfirmedTowPilot) return 1;
         if (aIsConfirmedTowPilot && bIsConfirmedTowPilot) {
           return a.start_time.localeCompare(b.start_time);
-        }
-        
-        const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory && (a.is_tow_pilot_available === false || a.is_tow_pilot_available === undefined); 
-        const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory && (b.is_tow_pilot_available === false || b.is_tow_pilot_available === undefined);
-        
-        if (aIsUnconfirmedTowPilot && !bIsUnconfirmedTowPilot) return -1;
-        if (!aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) return 1;
-        if (aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) {
-            return a.start_time.localeCompare(b.start_time);
         }
 
         const aIsInstructor = a.pilot_category_id === instructorCategory?.id;
@@ -181,16 +169,25 @@ export function ScheduleClient() {
           return a.start_time.localeCompare(b.start_time);
         }
 
+        const aIsUnconfirmedTowPilot = a.pilot_category_id === towPilotCategory?.id && (a.is_tow_pilot_available === false || a.is_tow_pilot_available === undefined);
+        const bIsUnconfirmedTowPilot = b.pilot_category_id === towPilotCategory?.id && (b.is_tow_pilot_available === false || b.is_tow_pilot_available === undefined);
+
+        if (aIsUnconfirmedTowPilot && !bIsUnconfirmedTowPilot) return -1;
+        if (!aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) return 1;
+        if (aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) {
+            return a.start_time.localeCompare(b.start_time);
+        }
+
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
 
         if (aIsSport && !bIsSport) return -1;
         if (!aIsSport && bIsSport) return 1;
-        
+
         return a.start_time.localeCompare(b.start_time);
       });
   }, [selectedDate, scheduleEntries, categories]);
-  
+
   useEffect(() => {
     if (!selectedDate) {
       setSelectedDate(new Date());
@@ -207,7 +204,7 @@ export function ScheduleClient() {
       fetchObservations(dateStr);
     } else {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        fetchScheduleEntries(todayStr); 
+        fetchScheduleEntries(todayStr);
         fetchObservations(todayStr);
     }
   }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
@@ -217,13 +214,13 @@ export function ScheduleClient() {
 
   const isTowPilotCategoryConfirmed = useMemo(() => {
     if (categoriesLoading || scheduleLoading || !categories || !categories.length || !scheduleEntries) {
-        return false; 
+        return false;
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
-    if (!towPilotCategory) { 
-      return false; 
+    if (!towPilotCategory) {
+      return false;
     }
-    return scheduleEntries.some(entry => 
+    return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
     );
@@ -234,14 +231,12 @@ export function ScheduleClient() {
   }, []);
 
   const noTowageFlightsPresent = useMemo(() => {
-    if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries) {
-      return false; 
+    if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries || categoriesLoading) {
+      return false;
     }
-    if (scheduleEntries.length === 0) {
-      return true; 
-    }
-    return scheduleEntries.every(entry => entry.flight_type_id !== towageFlightTypeId);
-  }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId]);
+     // Check if any entry has the flight type 'Remolque'
+    return !scheduleEntries.some(entry => entry.flight_type_id === towageFlightTypeId);
+  }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId, categoriesLoading]);
 
 
   if (anyError) {
@@ -255,7 +250,7 @@ export function ScheduleClient() {
 
   return (
     <>
-      <PageHeader 
+      <PageHeader
         title="Agenda de Vuelos"
         action={
           <div className="flex gap-2">
@@ -263,9 +258,9 @@ export function ScheduleClient() {
               <RefreshCw className={cn("h-4 w-4", anyLoading && "animate-spin")} />
             </Button>
             {selectedDate && (filteredAndSortedEntries.length > 0 || (savedObservationText && savedObservationText.trim() !== '')) && (
-              <ShareButton 
-                scheduleDate={selectedDate} 
-                entries={filteredAndSortedEntries} 
+              <ShareButton
+                scheduleDate={selectedDate}
+                entries={filteredAndSortedEntries}
                 observationText={savedObservationText}
               />
             )}
@@ -315,14 +310,14 @@ export function ScheduleClient() {
             <CardTitle className="text-xl">Observaciones del Día</CardTitle>
           </CardHeader>
           <CardContent>
-            {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-10 w-full" /> : ( 
+            {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-10 w-full" /> : (
               <Textarea
                 ref={observationTextareaRef}
                 placeholder="Escribe observaciones generales para la agenda de este día..."
                 value={observationInput}
                 onChange={(e) => setObservationInput(e.target.value)}
-                rows={1} 
-                className="mb-3 resize-none overflow-hidden" 
+                rows={1}
+                className="mb-3 resize-none overflow-hidden"
                 disabled={obsLoading}
               />
             )}
@@ -334,21 +329,21 @@ export function ScheduleClient() {
         </Card>
       )}
 
-      {selectedDate && 
-       !isTowPilotCategoryConfirmed && 
-       categories && categories.find(cat => cat.name === 'Remolcador') && 
-       !anyLoading && 
+      {selectedDate &&
+       !isTowPilotCategoryConfirmed &&
+       categories.some(cat => cat.name === 'Remolcador') && // Check if "Remolcador" category exists
+       !anyLoading &&
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Aún no hay piloto remolcador confirmado para esta fecha.
+            Aún no hay piloto de categoría &quot;Remolcador&quot; confirmado para esta fecha.
           </AlertDescription>
         </Alert>
       }
-      
+
       {selectedDate &&
-       noTowageFlightsPresent && 
-       towageFlightTypeId &&    
+       noTowageFlightsPresent &&
+       towageFlightTypeId &&
        !anyLoading && (
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -364,7 +359,7 @@ export function ScheduleClient() {
           <Skeleton className="h-24 w-full" />
         </div>
       ) : selectedDate && (
-        <ScheduleDisplay 
+        <ScheduleDisplay
           entries={filteredAndSortedEntries}
           onEdit={handleEditEntry}
           onDelete={handleDeleteEntry}
@@ -380,7 +375,7 @@ export function ScheduleClient() {
         categories={categories}
         aircraft={aircraft}
         selectedDate={selectedDate}
-        existingEntries={scheduleEntries} 
+        existingEntries={scheduleEntries}
       />
       <DeleteDialog
         open={isDeleteDialogOpen}

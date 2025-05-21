@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ScheduleEntry } from '@/types'; 
+import type { ScheduleEntry } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,7 @@ const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = 
 };
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
-  const { getPilotName, pilots } = usePilotsStore(); 
+  const { getPilotName, pilots } = usePilotsStore();
   const { getCategoryName, categories } = usePilotCategoriesStore();
   const { getAircraftName } = useAircraftStore();
 
@@ -42,7 +42,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
       </Card>
     );
   }
-  
+
   const getFlightTypeName = (id: typeof FLIGHT_TYPES[number]['id']) => FLIGHT_TYPES.find(ft => ft.id === id)?.name || 'Desconocido';
   const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
 
@@ -52,25 +52,26 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const pilot = pilots.find(p => p.id === entry.pilot_id);
         let expiringBadge = null;
         let expiredBlock = null;
-        
+
         const pilotCategoryName = getCategoryName(entry.pilot_category_id);
         const isTowPilotCategoryEntry = pilotCategoryName === 'Remolcador';
-        
+        const isInstructorCategoryEntry = pilotCategoryName === 'Instructor';
+
         const displayTime = entry.start_time.substring(0, 5); // HH:MM
 
-        // Condition changed: now only checks if the flight type is 'towage'
         const isFlightTypeTowage = towageFlightType && entry.flight_type_id === towageFlightType.id;
+        const showAvailableSinceText = isFlightTypeTowage || isInstructorCategoryEntry;
+
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
-          const entryDate = parseISO(entry.date); 
-          
+          const entryDate = parseISO(entry.date);
+
           if (isValid(medicalExpiryDate) && isValid(entryDate)) {
             const today = new Date();
             const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-            todayNormalized.setHours(0,0,0,0); // Normalize today to start of day
-            
-            // Ensure entryDate is also normalized to the start of its day for consistent comparison
+            todayNormalized.setHours(0,0,0,0); 
+
             const entryDateNormalized = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
 
             const isExpiredOnEntryDate = isBefore(medicalExpiryDate, entryDateNormalized);
@@ -83,7 +84,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   PF VENCIDO ({format(medicalExpiryDate, "dd/MM/yy", { locale: es })})
                 </div>
               );
-            } else { 
+            } else {
               if (daysUntilExpiryFromToday <= 30) {
                 expiringBadge = (
                   <Badge variant="destructive" className="ml-2 text-xs shrink-0">
@@ -102,12 +103,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
             }
           }
         }
-        
+
         const isTowageRelatedCardStyle = isTowPilotCategoryEntry || entry.flight_type_id === 'towage';
 
         return (
-          <Card 
-            key={entry.id} 
+          <Card
+            key={entry.id}
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
               isTowageRelatedCardStyle && 'bg-primary/20'
@@ -118,7 +119,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 <div>
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
-                    {isFlightTypeTowage ? ( // Use the new, broader condition here
+                    {showAvailableSinceText ? (
                       <span className="mr-1">DISPONIBLE desde las {displayTime} - {getPilotName(entry.pilot_id)}</span>
                     ) : (
                       <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
@@ -128,7 +129,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   {expiredBlock}
                   <CardDescription className="flex items-center gap-2 mt-1 pt-1">
                     <Layers className="h-4 w-4 text-muted-foreground" /> {pilotCategoryName}
-                    <FlightTypeIcon typeId={entry.flight_type_id} /> 
+                    <FlightTypeIcon typeId={entry.flight_type_id} />
                     <span className={cn(entry.flight_type_id === 'towage' && "font-semibold text-foreground")}>
                       {getFlightTypeName(entry.flight_type_id)}
                     </span>
@@ -152,12 +153,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {isTowPilotCategoryEntry && ( 
+              {isTowPilotCategoryEntry && (
                 <div className="flex items-center">
-                  {!!entry.is_tow_pilot_available ? 
-                    <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
+                  {entry.is_tow_pilot_available ?
+                    <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> :
                     <XCircle className="h-4 w-4 mr-2 text-red-500" />}
-                  Remolcador: {!!entry.is_tow_pilot_available ? 'Disponible' : 'No Disponible'}
+                  Remolcador: {entry.is_tow_pilot_available ? 'Disponible' : 'No Disponible'}
                 </div>
               )}
             </CardContent>
@@ -167,4 +168,3 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
-
