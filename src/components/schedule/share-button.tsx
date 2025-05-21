@@ -226,7 +226,7 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
             {
               content: groupDetails.name,
               colSpan: tableColumn.length,
-              styles: { fontStyle: 'bold', fillColor: [220, 220, 220], textColor: 0, halign: 'left' },
+              styles: { fontStyle: 'bold', fillColor: [214, 234, 248], textColor: [21, 67, 96], halign: 'left' }, // Light blue bg, dark blue text
             },
           ]);
           previousGroupIdentifier = groupDetails.id;
@@ -249,7 +249,7 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
       body: tableRows,
       startY: currentY,
       theme: 'grid',
-      headStyles: { fillColor: [22, 160, 133], textColor: 255 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 }, // Medium blue bg, white text
       styles: { fontSize: 8, cellPadding: 1.5 },
       columnStyles: {
          0: { cellWidth: 20 },
@@ -303,5 +303,6 @@ export function ShareButton({ scheduleDate, entries, observationText }: ShareBut
     </DropdownMenu>
   );
 }
+    
 
     
