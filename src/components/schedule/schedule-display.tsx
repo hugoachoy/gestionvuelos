@@ -30,7 +30,7 @@ const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = 
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
   const { getPilotName, pilots } = usePilotsStore(); 
-  const { getCategoryName } = usePilotCategoriesStore();
+  const { getCategoryName, categories } = usePilotCategoriesStore(); // Added categories
   const { getAircraftName } = useAircraftStore();
 
   if (entries.length === 0) {
@@ -44,6 +44,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
   }
   
   const getFlightTypeName = (id: typeof FLIGHT_TYPES[number]['id']) => FLIGHT_TYPES.find(ft => ft.id === id)?.name || 'Desconocido';
+  const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
 
   return (
     <div className="space-y-4 mt-6">
@@ -54,9 +55,13 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         
         const pilotCategoryName = getCategoryName(entry.pilot_category_id);
         const isTowPilotCategoryEntry = pilotCategoryName === 'Remolcador';
-        const isConfirmedTowPilotForDisplay = isTowPilotCategoryEntry && entry.is_tow_pilot_available === true;
+        
         const displayTime = entry.start_time.substring(0, 5); // HH:MM
 
+        const isTowageFlightAndPilotActuallyAvailable =
+          towageFlightType &&
+          entry.flight_type_id === towageFlightType.id &&
+          entry.is_tow_pilot_available === true;
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -111,8 +116,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 <div>
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
-                    {isConfirmedTowPilotForDisplay ? (
-                      <span className="mr-1">Disponible desde las: {displayTime} - {getPilotName(entry.pilot_id)}</span>
+                    {isTowageFlightAndPilotActuallyAvailable ? (
+                      <span className="mr-1">DISPONIBLE desde las {displayTime} - {getPilotName(entry.pilot_id)}</span>
                     ) : (
                       <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
                     )}
