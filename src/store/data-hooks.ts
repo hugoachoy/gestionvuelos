@@ -119,7 +119,7 @@ export function usePilotCategoriesStore() {
   const fetchingRef = useRef(false);
   
   const DEFAULT_CATEGORIES: PilotCategory[] = [
-    { id: 'static-cat-tow-pilot', name: 'Piloto remolcador', created_at: new Date().toISOString() },
+    { id: 'static-cat-tow-pilot', name: 'Remolcador', created_at: new Date().toISOString() },
     { id: 'static-cat-instructor', name: 'Instructor', created_at: new Date().toISOString() },
     { id: 'static-cat-glider-pilot', name: 'Piloto planeador', created_at: new Date().toISOString() },
   ];
@@ -318,7 +318,11 @@ export function useScheduleStore() {
   const fetchScheduleEntries = useCallback(async (date?: string) => {
     if (fetchingRef.current && date) {
       const currentFetchIsForSpecificDate = !!date;
-      if(currentFetchIsForSpecificDate) return;
+      if(currentFetchIsForSpecificDate && !fetchingRef.current) { 
+        // Allow if not already fetching, even for specific date
+      } else if (fetchingRef.current) {
+        return;
+      }
     }
 
     fetchingRef.current = true;
@@ -346,6 +350,30 @@ export function useScheduleStore() {
     } finally {
       setLoading(false); 
       fetchingRef.current = false;
+    }
+  }, []);
+
+  const fetchScheduleEntriesForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<ScheduleEntry[] | null> => {
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('schedule_entries')
+        .select('*')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
+        .order('date')
+        .order('start_time');
+
+      if (fetchError) {
+        logSupabaseError('Error fetching schedule entries for range', fetchError);
+        setError(fetchError);
+        return null;
+      }
+      return data || [];
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchScheduleEntriesForRange', e);
+      setError(e);
+      return null;
     }
   }, []);
 
@@ -405,7 +433,7 @@ export function useScheduleStore() {
   }, [fetchScheduleEntries]);
 
   const cleanupOldScheduleEntries = useCallback(async () => {
-    console.log('Running cleanup of old schedule entries...');
+    // console.log('Running cleanup of old schedule entries...');
     try {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -413,7 +441,7 @@ export function useScheduleStore() {
 
       const { error: deleteError, count } = await supabase
         .from('schedule_entries')
-        .delete()
+        .delete({ count: 'exact'}) // Request count
         .lt('date', thresholdDate);
 
       if (deleteError) {
@@ -421,7 +449,7 @@ export function useScheduleStore() {
         return { success: false, error: deleteError, count: 0 };
       }
 
-      console.log(`Successfully deleted ${count ?? 0} old schedule entries.`);
+      // console.log(`Successfully deleted ${count ?? 0} old schedule entries.`);
       return { success: true, count: count ?? 0 };
     } catch (e) {
       logSupabaseError('Unexpected error during old schedule entry cleanup', e);
@@ -429,7 +457,7 @@ export function useScheduleStore() {
     }
   }, []);
 
-  return { scheduleEntries, loading, error, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, fetchScheduleEntries, cleanupOldScheduleEntries };
+  return { scheduleEntries, loading, error, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, fetchScheduleEntries, cleanupOldScheduleEntries, fetchScheduleEntriesForRange };
 }
 
 
@@ -445,7 +473,11 @@ export function useDailyObservationsStore() {
   const fetchObservations = useCallback(async (date?: string) => {
      if (fetchingRef.current && date) {
        const currentFetchIsForSpecificDate = !!date;
-       if(currentFetchIsForSpecificDate) return;
+       if(currentFetchIsForSpecificDate && !fetchingRef.current) {
+         // Allow if not already fetching, even for specific date
+       } else if (fetchingRef.current) {
+         return;
+       }
      }
     fetchingRef.current = true;
     setLoading(true);
@@ -465,6 +497,7 @@ export function useDailyObservationsStore() {
         (data || []).forEach(obs => {
           newObservationsMap[obs.date] = obs;
         });
+        // If fetching for a specific date, merge with existing observations. Otherwise, replace.
         setDailyObservations(prev => date ? {...prev, ...newObservationsMap} : newObservationsMap);
       }
     } catch (e) {
@@ -475,6 +508,30 @@ export function useDailyObservationsStore() {
       fetchingRef.current = false;
     }
   }, []);
+  
+  const fetchObservationsForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<DailyObservation[] | null> => {
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('daily_observations')
+        .select('*')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
+        .order('date');
+
+      if (fetchError) {
+        logSupabaseError('Error fetching daily observations for range', fetchError);
+        setError(fetchError);
+        return null;
+      }
+      return data || [];
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchObservationsForRange', e);
+      setError(e);
+      return null;
+    }
+  }, []);
+
 
   const getObservation = useCallback((date: string): string | undefined => {
     return dailyObservations[date]?.observation_text || undefined;
@@ -494,6 +551,7 @@ export function useDailyObservationsStore() {
       return null;
     }
     if (upsertedObservation) {
+      // Instead of replacing, ensure this specific date is updated or added.
       setDailyObservations(prev => ({
         ...prev,
         [date]: upsertedObservation,
@@ -502,5 +560,6 @@ export function useDailyObservationsStore() {
     return upsertedObservation;
   }, []);
 
-  return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations };
+  return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations, fetchObservationsForRange };
 }
+
