@@ -40,11 +40,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide } from "lucide-react"; // Renamed Plane to avoid conflict
+import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react'; // Added React and useMemo
 
 // Schema uses snake_case matching the Type and DB
 const availabilitySchema = z.object({
@@ -85,8 +85,8 @@ interface BookingConflictWarningState {
 
 const generateTimeSlots = () => {
   const slots: string[] = [];
-  for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // Only 20:00, no 20:30
+  for (let h = 8; h <= 20; h++) { // From 08:00
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // To 20:00
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -113,7 +113,12 @@ export function AvailabilityForm({
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: entry
-      ? { ...entry, date: entry.date ? parseISO(entry.date) : new Date(), aircraft_id: entry.aircraft_id ?? '' }
+      ? { 
+          ...entry, 
+          date: entry.date ? parseISO(entry.date) : new Date(), 
+          aircraft_id: entry.aircraft_id ?? '', 
+          start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
+        }
       : {
           date: selectedDate || new Date(),
           start_time: '',
@@ -127,6 +132,7 @@ export function AvailabilityForm({
 
   const [medicalWarning, setMedicalWarning] = useState<MedicalWarningState | null>(null);
   const [bookingConflictWarning, setBookingConflictWarning] = useState<BookingConflictWarningState | null>(null);
+  const [pilotSearchTerm, setPilotSearchTerm] = useState('');
 
   useEffect(() => {
     if (selectedDate && !entry) {
@@ -135,6 +141,7 @@ export function AvailabilityForm({
     if (!open) {
       setMedicalWarning(null); 
       setBookingConflictWarning(null); 
+      setPilotSearchTerm(''); // Reset search term on close
     }
   }, [selectedDate, form, entry, open]);
 
@@ -211,7 +218,7 @@ export function AvailabilityForm({
     const conflictingEntry = existingEntries.find(
       (se) =>
         se.date === dateString &&
-        se.start_time.substring(0, 5) === formStartTimeHHMM && // Compare HH:MM part
+        se.start_time.substring(0, 5) === formStartTimeHHMM &&
         se.aircraft_id === watchedAircraftId &&
         (!entry || se.id !== entry.id) 
     );
@@ -232,8 +239,7 @@ export function AvailabilityForm({
 
     const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
         ...data,
-        date: format(data.date, 'yyyy-MM-dd'), 
-        // aircraft_id is already a string from the form (mandatory)
+        date: format(data.date, 'yyyy-MM-dd'),
     };
     onSubmit(dataToSubmit, entry?.id);
     form.reset({
@@ -246,6 +252,7 @@ export function AvailabilityForm({
       aircraft_id: '',
     });
     onOpenChange(false);
+    setPilotSearchTerm(''); // Reset search term on submit
   };
   
   useEffect(() => {
@@ -264,8 +271,8 @@ export function AvailabilityForm({
         ? { 
             ...entry, 
             date: entry.date ? parseISO(entry.date) : new Date(), 
-            aircraft_id: entry.aircraft_id ?? '', // Ensure aircraft_id is always a string for the form
-            start_time: entry.start_time ? entry.start_time.substring(0,5) : '' // Use HH:MM for form
+            aircraft_id: entry.aircraft_id ?? '', 
+            start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
           }
         : {
             date: selectedDate || new Date(),
@@ -276,11 +283,29 @@ export function AvailabilityForm({
             flight_type_id: '',
             aircraft_id: '',
           });
+       setPilotSearchTerm(''); // Reset search term when dialog opens
     } else {
       setMedicalWarning(null); 
       setBookingConflictWarning(null);
     }
-  }, [open, entry, selectedDate, form]); // Added form to dependencies
+  }, [open, entry, selectedDate, form]);
+
+
+  const sortedAndFilteredPilots = useMemo(() => {
+    const searchTermLower = pilotSearchTerm.toLowerCase();
+    return pilots
+      .filter(p => 
+        p.last_name.toLowerCase().includes(searchTermLower) ||
+        p.first_name.toLowerCase().includes(searchTermLower)
+      )
+      .sort((a, b) => {
+        const lastNameComparison = a.last_name.localeCompare(b.last_name, 'es', { sensitivity: 'base' });
+        if (lastNameComparison !== 0) {
+          return lastNameComparison;
+        }
+        return a.first_name.localeCompare(b.first_name, 'es', { sensitivity: 'base' });
+      });
+  }, [pilots, pilotSearchTerm]);
 
 
   return (
@@ -357,22 +382,47 @@ export function AvailabilityForm({
                 </FormItem>
               )}
             />
+
+            <FormItem>
+              <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Buscar Piloto</FormLabel>
+              <Input
+                placeholder="Buscar por apellido o nombre..."
+                value={pilotSearchTerm}
+                onChange={(e) => setPilotSearchTerm(e.target.value)}
+                className="mt-1" 
+              />
+            </FormItem>
+
             <FormField
               control={form.control}
               name="pilot_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select 
+                    onValueChange={(value) => {
+                        field.onChange(value);
+                        // Reset category if new pilot doesn't have the current one
+                        const selectedPilotDetails = pilots.find(p => p.id === value);
+                        if (selectedPilotDetails && !selectedPilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
+                          form.setValue('pilot_category_id', '');
+                        }
+                    }} 
+                    value={field.value || ''}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar piloto" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {pilots.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>
-                      ))}
+                      {sortedAndFilteredPilots.length > 0 ? (
+                        sortedAndFilteredPilots.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.last_name}, {p.first_name}</SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-2 text-center text-sm text-muted-foreground">No se encontraron pilotos.</div>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -499,6 +549,7 @@ export function AvailabilityForm({
                   flight_type_id: '',
                   aircraft_id: '',
                 }); 
+                setPilotSearchTerm(''); // Also reset search term on cancel
                 onOpenChange(false);
                 }}>Cancelar</Button>
               <Button 
@@ -517,5 +568,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    
