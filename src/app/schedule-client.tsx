@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react'; // Added explicit React import
+import React from 'react'; 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -29,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
+
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
@@ -36,7 +38,7 @@ export function ScheduleClient() {
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
-  const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries } = useScheduleStore();
+  const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries, cleanupOldScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -51,7 +53,6 @@ export function ScheduleClient() {
     return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
   }, [selectedDate]);
 
-   // Effect for fetching schedule and observation data when selectedDate changes
    useEffect(() => {
     if (selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -60,24 +61,49 @@ export function ScheduleClient() {
     }
   }, [selectedDate, fetchScheduleEntries, fetchObservations]);
 
-
-  // Memoize observation text for the selected date
   const savedObservationText = useMemo(() => {
     return formattedSelectedDate ? getObservation(formattedSelectedDate) : undefined;
   }, [formattedSelectedDate, getObservation]);
 
-  // Effect for setting local observationInput state when observation from store changes
   useEffect(() => {
     setObservationInput(savedObservationText || '');
   }, [savedObservationText]);
 
-  // Effect for auto-resizing the textarea
   useEffect(() => {
     if (observationTextareaRef.current) {
       observationTextareaRef.current.style.height = 'auto'; 
       observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
   }, [observationInput]);
+
+  // Effect for periodic cleanup
+  useEffect(() => {
+    const runCleanup = async () => {
+      if (typeof window !== 'undefined') { // Ensure localStorage is available
+        const lastCleanupTimestamp = localStorage.getItem(LAST_CLEANUP_KEY);
+        const now = new Date().getTime();
+        const oneDayInMs = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+        if (!lastCleanupTimestamp || (now - parseInt(lastCleanupTimestamp, 10)) > oneDayInMs) {
+          console.log("Performing scheduled cleanup of old entries...");
+          const result = await cleanupOldScheduleEntries();
+          if (result.success && result.count > 0) {
+            toast({
+              title: "Limpieza de Agenda",
+              description: `${result.count} turnos antiguos han sido eliminados.`,
+            });
+          } else if (!result.success && result.error) {
+            // console.error("Failed to cleanup old entries:", result.error); // Optionally log, but avoid user toast for background tasks
+          }
+          localStorage.setItem(LAST_CLEANUP_KEY, now.toString());
+        } else {
+          // console.log("Scheduled cleanup already performed recently.");
+        }
+      }
+    };
+    runCleanup();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleanupOldScheduleEntries, toast]); // Ensure cleanupOldScheduleEntries and toast are stable (useCallback)
 
 
   const handleSaveObservation = async () => {
@@ -134,14 +160,12 @@ export function ScheduleClient() {
         const aIsConfirmedTowPilot = aIsActualTowPilotCategory && a.is_tow_pilot_available === true;
         const bIsConfirmedTowPilot = bIsActualTowPilotCategory && b.is_tow_pilot_available === true;
 
-        // Rule 1: Confirmed Tow Pilots first
         if (aIsConfirmedTowPilot && !bIsConfirmedTowPilot) return -1;
         if (!aIsConfirmedTowPilot && bIsConfirmedTowPilot) return 1;
         if (aIsConfirmedTowPilot && bIsConfirmedTowPilot) {
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // Rule 2: Unconfirmed/Unavailable Tow Pilots (but still in tow pilot category)
         const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory; 
         const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory;
         
@@ -151,7 +175,6 @@ export function ScheduleClient() {
             return a.start_time.localeCompare(b.start_time);
         }
 
-        // Rule 3: Instructors
         const aIsInstructor = a.pilot_category_id === instructorCategory?.id;
         const bIsInstructor = b.pilot_category_id === instructorCategory?.id;
 
@@ -161,14 +184,12 @@ export function ScheduleClient() {
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // Rule 4: Other pilots, prioritize sport flights
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
 
         if (aIsSport && !bIsSport) return -1;
         if (!aIsSport && bIsSport) return 1;
         
-        // Final sort by time for entries of same sport/non-sport status
         return a.start_time.localeCompare(b.start_time);
       });
   }, [selectedDate, scheduleEntries, categories]);
@@ -198,23 +219,16 @@ export function ScheduleClient() {
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
 
   const isTowPilotConfirmed = useMemo(() => {
-    // If critical data is loading or not present, we can't confirm.
     if (categoriesLoading || scheduleLoading || !categories.length) {
-        return false;
+        return false; 
     }
-    
     const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
-    // If the tow pilot category itself doesn't exist, then no tow pilot can be confirmed.
     if (!towPilotCategory) { 
       return false; 
     }
-
-    // If there are no schedule entries at all, then no tow pilot is confirmed through an entry.
-    if (!scheduleEntries.length) {
+    if (!scheduleEntries || scheduleEntries.length === 0) {
         return false;
     }
-
-    // Otherwise, check if any entry confirms a tow pilot.
     return scheduleEntries.some(entry => 
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
@@ -357,4 +371,3 @@ export function ScheduleClient() {
     </>
   );
 }
-

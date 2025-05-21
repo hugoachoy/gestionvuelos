@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
+import { format } from 'date-fns'; // Ensure format is imported
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -50,13 +51,12 @@ export function usePilotsStore() {
   }, [fetchPilots]);
 
   const addPilot = useCallback(async (pilotData: Omit<Pilot, 'id' | 'created_at'>) => {
-    // setLoading(true); // Loading state for individual actions can be added if needed
+    setError(null);
     const { data: newPilot, error: insertError } = await supabase
       .from('pilots')
       .insert([pilotData])
       .select()
       .single();
-    // setLoading(false);
 
     if (insertError) {
       logSupabaseError('Error adding pilot', insertError);
@@ -64,16 +64,13 @@ export function usePilotsStore() {
       return null;
     }
     if (newPilot) {
-      // Fetch again to ensure UI consistency, or optimistically update
       await fetchPilots(); 
-      // Optimistic update (alternative to re-fetching):
-      // setPilots(prev => [newPilot, ...prev].sort((a, b) => (a.created_at && b.created_at ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime() : 0)));
     }
     return newPilot;
   }, [fetchPilots]);
 
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
-    // setLoading(true);
+    setError(null);
     const { id, created_at, ...updatePayload } = updatedPilotData;
     const { data: updatedPilot, error: updateError } = await supabase
       .from('pilots')
@@ -81,7 +78,6 @@ export function usePilotsStore() {
       .eq('id', id)
       .select()
       .single();
-    // setLoading(false);
 
     if (updateError) {
       logSupabaseError('Error updating pilot', updateError);
@@ -90,16 +86,13 @@ export function usePilotsStore() {
     }
     if (updatedPilot) {
       await fetchPilots();
-      // Optimistic update:
-      // setPilots(prev => prev.map(p => p.id === updatedPilot.id ? updatedPilot : p));
     }
     return updatedPilot;
   }, [fetchPilots]);
 
   const deletePilot = useCallback(async (pilotId: string) => {
-    // setLoading(true);
+    setError(null);
     const { error: deleteError } = await supabase.from('pilots').delete().eq('id', pilotId);
-    // setLoading(false);
 
     if (deleteError) {
       logSupabaseError('Error deleting pilot', deleteError);
@@ -107,8 +100,6 @@ export function usePilotsStore() {
       return false;
     }
     await fetchPilots();
-    // Optimistic update:
-    // setPilots(prev => prev.filter(p => p.id !== pilotId));
     return true;
   }, [fetchPilots]);
   
@@ -162,6 +153,7 @@ export function usePilotCategoriesStore() {
   }, [fetchCategories]);
 
   const addCategory = useCallback(async (categoryData: Omit<PilotCategory, 'id' | 'created_at'>) => {
+    setError(null);
     const { data: newCategory, error: insertError } = await supabase
       .from('pilot_categories')
       .insert([categoryData])
@@ -180,6 +172,7 @@ export function usePilotCategoriesStore() {
   }, [fetchCategories]);
 
   const updateCategory = useCallback(async (updatedCategoryData: PilotCategory) => {
+    setError(null);
     const { id, created_at, ...updatePayload } = updatedCategoryData;
     const { data: updatedCategory, error: updateError } = await supabase
       .from('pilot_categories')
@@ -200,6 +193,7 @@ export function usePilotCategoriesStore() {
   }, [fetchCategories]);
 
   const deleteCategory = useCallback(async (categoryId: string) => {
+    setError(null);
     const { error: deleteError } = await supabase.from('pilot_categories').delete().eq('id', categoryId);
 
     if (deleteError) {
@@ -253,6 +247,7 @@ export function useAircraftStore() {
   }, [fetchAircraft]);
 
   const addAircraft = useCallback(async (aircraftData: Omit<Aircraft, 'id' | 'created_at'>) => {
+    setError(null);
     const { data: newAircraft, error: insertError } = await supabase
       .from('aircraft')
       .insert([aircraftData])
@@ -271,6 +266,7 @@ export function useAircraftStore() {
   }, [fetchAircraft]);
 
   const updateAircraft = useCallback(async (updatedAircraftData: Aircraft) => {
+    setError(null);
     const { id, created_at, ...updatePayload } = updatedAircraftData;
     const { data: updatedAircraft, error: updateError } = await supabase
       .from('aircraft')
@@ -291,6 +287,7 @@ export function useAircraftStore() {
   }, [fetchAircraft]);
 
   const deleteAircraft = useCallback(async (aircraftId: string) => {
+    setError(null);
     const { error: deleteError } = await supabase.from('aircraft').delete().eq('id', aircraftId);
 
     if (deleteError) {
@@ -314,20 +311,18 @@ export function useAircraftStore() {
 // Schedule Store
 export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
-  const [loading, setLoading] = useState(true); // This loading is for the list of entries
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
   const fetchScheduleEntries = useCallback(async (date?: string) => {
-    if (fetchingRef.current && date) { // Only block if fetching for a specific date is in progress
-      // If date is undefined, it might be a general refresh, allow it or handle differently.
-      // For now, let's allow general refresh to proceed but specific date fetches are guarded.
+    if (fetchingRef.current && date) {
       const currentFetchIsForSpecificDate = !!date;
       if(currentFetchIsForSpecificDate) return;
     }
 
     fetchingRef.current = true;
-    setLoading(true); // Set loading true when a fetch starts
+    setLoading(true); 
     setError(null);
     
     try {
@@ -349,14 +344,14 @@ export function useScheduleStore() {
       logSupabaseError('Unexpected error in fetchScheduleEntries', e);
       setError(e);
     } finally {
-      setLoading(false); // Set loading false when fetch completes
+      setLoading(false); 
       fetchingRef.current = false;
     }
   }, []);
 
 
   const addScheduleEntry = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>) => {
-    // setError(null); // Clear previous errors for this specific action
+    setError(null); 
     const { data: newEntry, error: insertError } = await supabase
       .from('schedule_entries')
       .insert([entryData])
@@ -365,7 +360,7 @@ export function useScheduleStore() {
 
     if (insertError) {
       logSupabaseError('Error adding schedule entry', insertError);
-      setError(insertError); // Set error specific to this store
+      setError(insertError); 
       return null;
     }
     if (newEntry) {
@@ -375,7 +370,7 @@ export function useScheduleStore() {
   }, [fetchScheduleEntries]);
 
   const updateScheduleEntry = useCallback(async (updatedEntryData: ScheduleEntry) => {
-    // setError(null);
+    setError(null);
     const { created_at, id, ...updatePayload } = updatedEntryData;
 
     const { data: updatedEntry, error: updateError } = await supabase
@@ -397,7 +392,7 @@ export function useScheduleStore() {
   }, [fetchScheduleEntries]);
 
   const deleteScheduleEntry = useCallback(async (entryId: string, entryDate: string) => {
-    // setError(null);
+    setError(null);
     const { error: deleteError } = await supabase.from('schedule_entries').delete().eq('id', entryId);
 
     if (deleteError) {
@@ -409,7 +404,32 @@ export function useScheduleStore() {
     return true;
   }, [fetchScheduleEntries]);
 
-  return { scheduleEntries, loading, error, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, fetchScheduleEntries };
+  const cleanupOldScheduleEntries = useCallback(async () => {
+    console.log('Running cleanup of old schedule entries...');
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thresholdDate = format(thirtyDaysAgo, 'yyyy-MM-dd');
+
+      const { error: deleteError, count } = await supabase
+        .from('schedule_entries')
+        .delete()
+        .lt('date', thresholdDate);
+
+      if (deleteError) {
+        logSupabaseError('Error cleaning up old schedule entries', deleteError);
+        return { success: false, error: deleteError, count: 0 };
+      }
+
+      console.log(`Successfully deleted ${count ?? 0} old schedule entries.`);
+      return { success: true, count: count ?? 0 };
+    } catch (e) {
+      logSupabaseError('Unexpected error during old schedule entry cleanup', e);
+      return { success: false, error: e, count: 0 };
+    }
+  }, []);
+
+  return { scheduleEntries, loading, error, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, fetchScheduleEntries, cleanupOldScheduleEntries };
 }
 
 
@@ -418,7 +438,7 @@ export type DailyObservationsMap = Record<string, DailyObservation>;
 
 export function useDailyObservationsStore() {
   const [dailyObservations, setDailyObservations] = useState<DailyObservationsMap>({});
-  const [loading, setLoading] = useState(true); // Loading for observations
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
@@ -461,31 +481,26 @@ export function useDailyObservationsStore() {
   }, [dailyObservations]);
 
   const updateObservation = useCallback(async (date: string, text: string) => {
-    // setLoading(true); // Optional: separate loading state for this action
-    // setError(null);
+    setError(null);
     const { data: upsertedObservation, error: upsertError } = await supabase
       .from('daily_observations')
       .upsert({ date: date, observation_text: text, updated_at: new Date().toISOString() }, { onConflict: 'date' })
       .select()
       .single();
-    // setLoading(false);
-
+    
     if (upsertError) {
       logSupabaseError('Error updating daily observation', upsertError);
-      setError(upsertError); // Set error specific to this store
+      setError(upsertError); 
       return null;
     }
     if (upsertedObservation) {
-      // Optimistically update or re-fetch if needed, though upsert gives the new data.
       setDailyObservations(prev => ({
         ...prev,
         [date]: upsertedObservation,
       }));
     }
     return upsertedObservation;
-  }, []); // Removed fetchObservations from deps as it's not directly needed after upsert
+  }, []);
 
   return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations };
 }
-
-    
