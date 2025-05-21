@@ -245,12 +245,11 @@ export function AvailabilityForm({
       const category = categories.find(c => c.id === watchedPilotCategoryId);
       const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
 
-      if (category?.name === 'Piloto remolcador' && towageFlightType) {
-        if (form.getValues('flight_type_id') !== towageFlightType.id) {
+      if (category?.name === 'Piloto remolcador') {
+        if (towageFlightType && form.getValues('flight_type_id') !== towageFlightType.id) {
           form.setValue('flight_type_id', towageFlightType.id);
         }
       } else {
-        // If category is not "Piloto remolcador" and current flight type is "Remolque", clear it
         if (form.getValues('flight_type_id') === towageFlightType?.id) {
           form.setValue('flight_type_id', '');
         }
@@ -333,6 +332,24 @@ export function AvailabilityForm({
         return a.first_name.localeCompare(b.first_name, 'es', { sensitivity: 'base' });
       });
   }, [pilots, pilotSearchTerm]);
+
+  const filteredAircraftForSelect = useMemo(() => {
+    const category = categories.find(c => c.id === watchedPilotCategoryId);
+    if (category?.name === 'Piloto remolcador') {
+      return aircraft.filter(ac => ac.type === 'Tow Plane');
+    }
+    return aircraft;
+  }, [watchedPilotCategoryId, categories, aircraft]);
+
+  useEffect(() => {
+    const currentAircraftId = form.getValues('aircraft_id');
+    if (currentAircraftId) {
+      const isCurrentAircraftInFilteredList = filteredAircraftForSelect.some(ac => ac.id === currentAircraftId);
+      if (!isCurrentAircraftInFilteredList) {
+        form.setValue('aircraft_id', '');
+      }
+    }
+  }, [filteredAircraftForSelect, form]);
 
 
   return (
@@ -459,7 +476,7 @@ export function AvailabilityForm({
                                     form.setValue('pilot_category_id', '');
                                   }
                                   setPilotPopoverOpen(false);
-                                  setPilotSearchTerm(''); // Clear search term after selection
+                                  setPilotSearchTerm(''); 
                                 }}
                               >
                                 <Check
@@ -575,7 +592,7 @@ export function AvailabilityForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {aircraft.map(ac => (
+                      {filteredAircraftForSelect.map(ac => (
                         <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
                       ))}
                     </SelectContent>
@@ -621,7 +638,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    
-
-    
