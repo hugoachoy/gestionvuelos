@@ -34,7 +34,7 @@ export function ScheduleClient() {
   const { toast } = useToast();
   
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
-  const { categories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
+  const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
@@ -122,38 +122,57 @@ export function ScheduleClient() {
 
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate) return [];
-    
-    const categoryOrderValues: Record<string, number> = {
-      'Piloto remolcador': 1,
-      'Instructor': 2,
-    };
 
-    return [...scheduleEntries] 
+    const towPilotCategory = categories.find(c => c.name === 'Piloto remolcador');
+    const instructorCategory = categories.find(c => c.name === 'Instructor');
+
+    return [...scheduleEntries]
       .sort((a, b) => {
-        const catA_Name = getCategoryName(a.pilot_category_id);
-        const catB_Name = getCategoryName(b.pilot_category_id);
+        const aIsActualTowPilotCategory = a.pilot_category_id === towPilotCategory?.id;
+        const bIsActualTowPilotCategory = b.pilot_category_id === towPilotCategory?.id;
 
-        const orderA = categoryOrderValues[catA_Name] || 3; 
-        const orderB = categoryOrderValues[catB_Name] || 3;
+        const aIsConfirmedTowPilot = aIsActualTowPilotCategory && a.is_tow_pilot_available === true;
+        const bIsConfirmedTowPilot = bIsActualTowPilotCategory && b.is_tow_pilot_available === true;
 
-        if (orderA !== orderB) {
-          return orderA - orderB;
+        // Rule 1: Confirmed Tow Pilots first
+        if (aIsConfirmedTowPilot && !bIsConfirmedTowPilot) return -1;
+        if (!aIsConfirmedTowPilot && bIsConfirmedTowPilot) return 1;
+        if (aIsConfirmedTowPilot && bIsConfirmedTowPilot) {
+          return a.start_time.localeCompare(b.start_time);
         }
 
-        if (catA_Name === 'Piloto remolcador') {
-          if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
-          if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
-        }
+        // Rule 2: Unconfirmed/Unavailable Tow Pilots (but still in tow pilot category)
+        // These are entries where category is tow pilot, but they are not "confirmed" (available=false or undefined)
+        const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory; 
+        const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory;
         
-        const isSportA = a.flight_type_id === 'sport';
-        const isSportB = b.flight_type_id === 'sport';
+        if (aIsUnconfirmedTowPilot && !bIsUnconfirmedTowPilot) return -1;
+        if (!aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) return 1;
+        if (aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) {
+            return a.start_time.localeCompare(b.start_time);
+        }
 
-        if (isSportA && !isSportB) return -1;
-        if (!isSportA && isSportB) return 1;
+        // Rule 3: Instructors
+        const aIsInstructor = a.pilot_category_id === instructorCategory?.id;
+        const bIsInstructor = b.pilot_category_id === instructorCategory?.id;
 
+        if (aIsInstructor && !bIsInstructor) return -1;
+        if (!aIsInstructor && bIsInstructor) return 1;
+        if (aIsInstructor && bIsInstructor) {
+          return a.start_time.localeCompare(b.start_time);
+        }
+
+        // Rule 4: Other pilots, prioritize sport flights
+        const aIsSport = a.flight_type_id === 'sport';
+        const bIsSport = b.flight_type_id === 'sport';
+
+        if (aIsSport && !bIsSport) return -1;
+        if (!aIsSport && bIsSport) return 1;
+        
+        // Final sort by time for entries of same sport/non-sport status
         return a.start_time.localeCompare(b.start_time);
       });
-  }, [selectedDate, scheduleEntries, getCategoryName]);
+  }, [selectedDate, scheduleEntries, categories]);
   
   useEffect(() => {
     if (!selectedDate) {
@@ -180,18 +199,20 @@ export function ScheduleClient() {
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
 
   const isTowPilotConfirmed = useMemo(() => {
-    if (!selectedDate || !scheduleEntries.length || !categories.length) {
+    if (categoriesLoading || scheduleLoading || !categories.length || !scheduleEntries.length) return false;
+    
+    const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
+    if (!towPilotCategory) { 
+      // If the category "Piloto remolcador" doesn't even exist, we can't confirm one.
+      // The warning for missing tow pilot will also check for category existence.
       return false; 
     }
-    const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
-    if (!towPilotCategory) return true; 
 
     return scheduleEntries.some(entry => 
-      entry.date === formattedSelectedDate &&
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
     );
-  }, [selectedDate, scheduleEntries, categories, formattedSelectedDate]);
+  }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
 
   if (anyError) {
     return (
@@ -264,7 +285,7 @@ export function ScheduleClient() {
             <CardTitle className="text-xl">Observaciones del Día</CardTitle>
           </CardHeader>
           <CardContent>
-            {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-20 w-full" /> : ( 
+            {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-10 w-full" /> : ( 
               <Textarea
                 ref={observationTextareaRef}
                 placeholder="Escribe observaciones generales para la agenda de este día..."
@@ -283,7 +304,11 @@ export function ScheduleClient() {
         </Card>
       )}
 
-      {selectedDate && !isTowPilotConfirmed && scheduleEntries.length > 0 && ( 
+      {selectedDate && 
+       !isTowPilotConfirmed && 
+       scheduleEntries.length > 0 &&
+       categories.find(cat => cat.name === 'Piloto remolcador') && 
+       !anyLoading && /* Only show if not loading core data */ ( 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>

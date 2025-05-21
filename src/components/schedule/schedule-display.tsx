@@ -51,8 +51,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const pilot = pilots.find(p => p.id === entry.pilot_id);
         let expiringBadge = null;
         let expiredBlock = null;
-        const displayTime = entry.start_time.substring(0, 5); // HH:MM
+        
         const pilotCategoryName = getCategoryName(entry.pilot_category_id);
+        const isTowPilotEntry = pilotCategoryName === 'Piloto remolcador';
+        const isConfirmedTowPilotForDisplay = isTowPilotEntry && entry.is_tow_pilot_available === true;
+        const displayTime = entry.start_time.substring(0, 5); // HH:MM
+
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -72,7 +76,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   PF VENCIDO ({format(medicalExpiryDate, "dd/MM/yy", { locale: es })})
                 </div>
               );
-            } else { // Not expired on entry date, check for upcoming expiry from today
+            } else { 
               if (daysUntilExpiryFromToday <= 30) {
                 expiringBadge = (
                   <Badge variant="destructive" className="ml-2 text-xs shrink-0">
@@ -92,14 +96,14 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
           }
         }
         
-        const isTowageRelated = pilotCategoryName === 'Piloto remolcador' || entry.flight_type_id === 'towage';
+        const isTowageRelated = isTowPilotEntry || entry.flight_type_id === 'towage';
 
         return (
           <Card 
             key={entry.id} 
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isTowageRelated && 'bg-primary/20' // Increased opacity
+              isTowageRelated && 'bg-primary/20'
             )}
           >
             <CardHeader className="pb-2">
@@ -107,7 +111,11 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 <div>
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
-                    <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
+                    {isConfirmedTowPilotForDisplay ? (
+                      <span className="mr-1">Disponible desde las: {displayTime} - {getPilotName(entry.pilot_id)}</span>
+                    ) : (
+                      <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
+                    )}
                     {expiringBadge}
                   </CardTitle>
                   {expiredBlock}
@@ -137,7 +145,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {pilotCategoryName === 'Piloto remolcador' && (
+              {isTowPilotEntry && ( // Show availability status for any tow pilot entry
                 <div className="flex items-center">
                   {!!entry.is_tow_pilot_available ? 
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
