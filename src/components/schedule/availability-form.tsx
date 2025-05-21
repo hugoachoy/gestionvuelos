@@ -244,6 +244,7 @@ export function AvailabilityForm({
 
 
   // Effect to SUGGEST flight_type_id based on the INHERENT categories of the SELECTED PILOT
+  // This runs when the pilot changes.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
       const towPilotCategoryDefinition = categories.find(c => c.name === 'Piloto remolcador');
@@ -253,32 +254,47 @@ export function AvailabilityForm({
         const pilotIsInherentlyTowPilot = pilotDetails.category_ids.includes(towPilotCategoryDefinition.id);
         const currentFlightTypeId = form.getValues('flight_type_id');
 
-        // If the pilot is inherently a tow pilot, and the flight type is currently empty,
-        // then suggest "Remolque". This does not override if flight_type_id is already set.
-        if (pilotIsInherentlyTowPilot && !currentFlightTypeId) {
-          form.setValue('flight_type_id', towageFlightTypeDefinition.id);
+        if (pilotIsInherentlyTowPilot && !currentFlightTypeId) { // Only suggest if flight type is currently empty
+          form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
         }
       }
     }
+    // If pilot is deselected, or pilot has no categories, this effect doesn't clear flight_type_id.
   }, [watchedPilotId, pilotDetails, categories, form]);
 
 
   // Effect to auto-set flight_type_id based on pilot_category_id (category FOR THE TURN)
   // This effect takes precedence for setting or clearing "Remolque" flight type.
   useEffect(() => {
+    // For debugging:
+    // console.log("watchedPilotCategoryId Effect triggered. Category ID:", watchedPilotCategoryId);
+
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
 
+    // For debugging:
+    // if (categoryForTurn) console.log("Category for turn found:", categoryForTurn.name);
+    // if (towageFlightType) console.log("Towage flight type found:", towageFlightType.id);
+
+
+    // If towageFlightType is not found in FLIGHT_TYPES, something is wrong with definitions.
+    if (!towageFlightType) {
+      // console.error("Flight type 'Remolque' not found in FLIGHT_TYPES definitions.");
+      return; // Exit if 'Remolque' is not defined, critical for this logic
+    }
+
     if (categoryForTurn?.name === 'Piloto remolcador') {
       // If THE TURN is a tow pilot turn, ensure flight type is "Remolque".
-      if (towageFlightType && form.getValues('flight_type_id') !== towageFlightType.id) {
-        form.setValue('flight_type_id', towageFlightType.id);
-      }
+      // Set it regardless of current value to ensure it's correctly "Remolque"
+      // console.log("Setting flight_type_id to Remolque:", towageFlightType.id);
+      form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
     } else {
       // If THE TURN is NOT a tow pilot turn (or no category selected for turn),
-      // and the current flight type IS "Remolque", clear it.
-      if (form.getValues('flight_type_id') === towageFlightType?.id) {
-        form.setValue('flight_type_id', '');
+      // AND the current flight_type_id IS "Remolque", clear it.
+      // Check current value before clearing to avoid unnecessary form updates if it's already empty or different.
+      if (form.getValues('flight_type_id') === towageFlightType.id) {
+        // console.log("Clearing flight_type_id from Remolque");
+        form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
     }
   }, [watchedPilotCategoryId, categories, form]);
@@ -312,20 +328,16 @@ export function AvailabilityForm({
         date: format(data.date, 'yyyy-MM-dd'),
     };
     onSubmit(dataToSubmit, entry?.id);
-    // Resetting the form is handled by the useEffect watching `open`
     onOpenChange(false);
   };
 
   useEffect(() => {
-    // If the selected pilot changes, and the pilot_category_id was for that pilot, clear it
-    // This ensures the category dropdown repopulates correctly for the new pilot.
-    // Also, clear it if the current category is not one of the new pilot's categories.
     if (watchedPilotId && pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
       form.setValue('pilot_category_id', '');
     }
-    if (!watchedPilotId) { // If pilot is deselected
+    if (!watchedPilotId) { 
         setMedicalWarning(null);
-        form.setValue('pilot_category_id', ''); // Clear category for turn if pilot is cleared
+        form.setValue('pilot_category_id', ''); 
     }
   }, [watchedPilotId, pilotDetails, form]);
 
@@ -350,7 +362,6 @@ export function AvailabilityForm({
           });
        setPilotSearchTerm('');
     } else {
-      // Reset warnings when dialog closes
       setMedicalWarning(null);
       setBookingConflictWarning(null);
     }
@@ -490,7 +501,6 @@ export function AvailabilityForm({
                                 key={pilot.id}
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id);
-                                  // If the new pilot's categories don't include the current turn category, clear it.
                                   if (!pilot.category_ids.includes(form.getValues('pilot_category_id'))) {
                                     form.setValue('pilot_category_id', '');
                                   }
@@ -633,7 +643,6 @@ export function AvailabilityForm({
             )}
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => {
-                // form.reset is handled by onOpenChange and the useEffect for 'open' state
                 onOpenChange(false);
                 }}>Cancelar</Button>
               <Button
@@ -652,3 +661,4 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
