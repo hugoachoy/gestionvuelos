@@ -198,18 +198,29 @@ export function ScheduleClient() {
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
 
   const isTowPilotConfirmed = useMemo(() => {
-    if (categoriesLoading || scheduleLoading || !categories.length || !scheduleEntries.length) return false;
+    // If critical data is loading or not present, we can't confirm.
+    if (categoriesLoading || scheduleLoading || !categories.length) {
+        return false;
+    }
     
     const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
+    // If the tow pilot category itself doesn't exist, then no tow pilot can be confirmed.
     if (!towPilotCategory) { 
       return false; 
     }
 
+    // If there are no schedule entries at all, then no tow pilot is confirmed through an entry.
+    if (!scheduleEntries.length) {
+        return false;
+    }
+
+    // Otherwise, check if any entry confirms a tow pilot.
     return scheduleEntries.some(entry => 
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
     );
   }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
+
 
   if (anyError) {
     return (
@@ -303,7 +314,6 @@ export function ScheduleClient() {
 
       {selectedDate && 
        !isTowPilotConfirmed && 
-       scheduleEntries.length > 0 &&
        categories.find(cat => cat.name === 'Piloto remolcador') && 
        !anyLoading && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
@@ -347,3 +357,4 @@ export function ScheduleClient() {
     </>
   );
 }
+
