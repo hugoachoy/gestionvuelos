@@ -113,7 +113,10 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   {expiredBlock}
                   <CardDescription className="flex items-center gap-2 mt-1 pt-1">
                     <Layers className="h-4 w-4 text-muted-foreground" /> {pilotCategoryName}
-                    <FlightTypeIcon typeId={entry.flight_type_id} /> {getFlightTypeName(entry.flight_type_id)}
+                    <FlightTypeIcon typeId={entry.flight_type_id} /> 
+                    <span className={cn(entry.flight_type_id === 'towage' && "font-semibold text-foreground")}>
+                      {getFlightTypeName(entry.flight_type_id)}
+                    </span>
                   </CardDescription>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -149,4 +152,3 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
-
