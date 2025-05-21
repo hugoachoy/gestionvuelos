@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // Import next/image
+// Removed: import Image from 'next/image'; 
 import { usePathname } from 'next/navigation';
 import {
   SidebarProvider,
@@ -86,16 +86,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:h-16 md:px-6">
           <SidebarTrigger className="md:hidden" />
-          {/* Container for logo and text, centered */}
-          <div className="flex flex-1 items-center justify-center gap-3"> {/* Added gap-3 */}
-            <Image
-              src="/aeroclub_logo.png" // Assumes logo is in public/aeroclub_logo.png
-              alt="Aeroclub 9 de Julio Logo"
-              width={50} // Adjust width as needed
-              height={50} // Adjust height as needed
-              className="h-10 w-auto md:h-12" // Responsive height, auto width
-              priority // Optional: if logo is critical for LCP
-            />
+          {/* Container for text, centered */}
+          <div className="flex flex-1 items-center justify-center"> {/* Removed gap-3 */}
+            {/* Logo Image removed from here */}
             <div className="text-4xl font-semibold text-primary drop-shadow-md">
               Aeroclub 9 de Julio
             </div>
