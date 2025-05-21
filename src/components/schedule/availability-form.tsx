@@ -165,8 +165,8 @@ export function AvailabilityForm({
     return pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
   }, [pilotDetails, categories]);
   
-  const selectedCategoryDetails = useMemo(() => categories.find(c => c.id === watchedPilotCategoryId), [categories, watchedPilotCategoryId]);
-  const isTowPilotCategorySelectedForTurn = selectedCategoryDetails?.name === 'Piloto remolcador';
+  const selectedCategoryDetailsForTurn = useMemo(() => categories.find(c => c.id === watchedPilotCategoryId), [categories, watchedPilotCategoryId]);
+  const isTowPilotCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name === 'Remolcador';
 
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
@@ -244,56 +244,36 @@ export function AvailabilityForm({
 
 
   // Effect to SUGGEST flight_type_id based on the INHERENT categories of the SELECTED PILOT
-  // This runs when the pilot changes.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
-      const towPilotCategoryDefinition = categories.find(c => c.name === 'Piloto remolcador');
+      const towPilotCategoryDefinition = categories.find(c => c.name === 'Remolcador');
       const towageFlightTypeDefinition = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
-
+      
       if (towPilotCategoryDefinition && towageFlightTypeDefinition) {
         const pilotIsInherentlyTowPilot = pilotDetails.category_ids.includes(towPilotCategoryDefinition.id);
-        const currentFlightTypeId = form.getValues('flight_type_id');
-
-        if (pilotIsInherentlyTowPilot && !currentFlightTypeId) { // Only suggest if flight type is currently empty
+        
+        if (pilotIsInherentlyTowPilot && form.getValues('flight_type_id') === '') { 
           form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
         }
       }
     }
-    // If pilot is deselected, or pilot has no categories, this effect doesn't clear flight_type_id.
   }, [watchedPilotId, pilotDetails, categories, form]);
 
 
-  // Effect to auto-set flight_type_id based on pilot_category_id (category FOR THE TURN)
-  // This effect takes precedence for setting or clearing "Remolque" flight type.
+  // Effect to auto-set/clear flight_type_id based on pilot_category_id (category FOR THE TURN)
   useEffect(() => {
-    // For debugging:
-    // console.log("watchedPilotCategoryId Effect triggered. Category ID:", watchedPilotCategoryId);
-
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
 
-    // For debugging:
-    // if (categoryForTurn) console.log("Category for turn found:", categoryForTurn.name);
-    // if (towageFlightType) console.log("Towage flight type found:", towageFlightType.id);
-
-
-    // If towageFlightType is not found in FLIGHT_TYPES, something is wrong with definitions.
     if (!towageFlightType) {
       // console.error("Flight type 'Remolque' not found in FLIGHT_TYPES definitions.");
-      return; // Exit if 'Remolque' is not defined, critical for this logic
+      return;
     }
 
-    if (categoryForTurn?.name === 'Piloto remolcador') {
-      // If THE TURN is a tow pilot turn, ensure flight type is "Remolque".
-      // Set it regardless of current value to ensure it's correctly "Remolque"
-      // console.log("Setting flight_type_id to Remolque:", towageFlightType.id);
+    if (categoryForTurn?.name === 'Remolcador') {
       form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
     } else {
-      // If THE TURN is NOT a tow pilot turn (or no category selected for turn),
-      // AND the current flight_type_id IS "Remolque", clear it.
-      // Check current value before clearing to avoid unnecessary form updates if it's already empty or different.
       if (form.getValues('flight_type_id') === towageFlightType.id) {
-        // console.log("Clearing flight_type_id from Remolque");
         form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
     }
@@ -301,18 +281,18 @@ export function AvailabilityForm({
 
 
   const filteredAircraftForSelect = useMemo(() => {
-    if (selectedCategoryDetails?.name === 'Piloto remolcador') {
+    if (selectedCategoryDetailsForTurn?.name === 'Remolcador') {
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
     return aircraft; 
-  }, [selectedCategoryDetails, aircraft]);
+  }, [selectedCategoryDetailsForTurn, aircraft]);
 
   useEffect(() => {
     const currentAircraftId = form.getValues('aircraft_id');
     if (currentAircraftId) { 
       const isCurrentAircraftInFilteredList = filteredAircraftForSelect.some(ac => ac.id === currentAircraftId);
       if (!isCurrentAircraftInFilteredList) {
-        form.setValue('aircraft_id', ''); 
+        form.setValue('aircraft_id', '', { shouldValidate: true, shouldDirty: true }); 
       }
     }
   }, [filteredAircraftForSelect, form]); 
@@ -661,4 +641,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-

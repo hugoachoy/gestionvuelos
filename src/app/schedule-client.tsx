@@ -22,7 +22,7 @@ import {
   useDailyObservationsStore 
 } from '@/store/data-hooks';
 import type { ScheduleEntry } from '@/types';
-import { FLIGHT_TYPES } from '@/types'; // Import FLIGHT_TYPES
+import { FLIGHT_TYPES } from '@/types'; 
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -146,7 +146,7 @@ export function ScheduleClient() {
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate || !scheduleEntries) return [];
 
-    const towPilotCategory = categories.find(c => c.name === 'Piloto remolcador');
+    const towPilotCategory = categories.find(c => c.name === 'Remolcador');
     const instructorCategory = categories.find(c => c.name === 'Instructor');
 
     return [...scheduleEntries]
@@ -163,8 +163,8 @@ export function ScheduleClient() {
           return a.start_time.localeCompare(b.start_time);
         }
         
-        const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory && !a.is_tow_pilot_available; 
-        const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory && !b.is_tow_pilot_available;
+        const aIsUnconfirmedTowPilot = aIsActualTowPilotCategory && (a.is_tow_pilot_available === false || a.is_tow_pilot_available === undefined); 
+        const bIsUnconfirmedTowPilot = bIsActualTowPilotCategory && (b.is_tow_pilot_available === false || b.is_tow_pilot_available === undefined);
         
         if (aIsUnconfirmedTowPilot && !bIsUnconfirmedTowPilot) return -1;
         if (!aIsUnconfirmedTowPilot && bIsUnconfirmedTowPilot) return 1;
@@ -215,19 +215,14 @@ export function ScheduleClient() {
   const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading;
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
 
-  const isTowPilotConfirmed = useMemo(() => {
+  const isTowPilotCategoryConfirmed = useMemo(() => {
     if (categoriesLoading || scheduleLoading || !categories || !categories.length || !scheduleEntries) {
         return false; 
     }
-    const towPilotCategory = categories.find(cat => cat.name === 'Piloto remolcador');
+    const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
     if (!towPilotCategory) { 
       return false; 
     }
-    // If scheduleEntries is empty, it means no tow pilot is confirmed yet for any entry on this day.
-    // This is a valid state for the check, so we don't return false prematurely here.
-    // if (scheduleEntries.length === 0) { 
-    //     return false;
-    // }
     return scheduleEntries.some(entry => 
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
@@ -239,10 +234,10 @@ export function ScheduleClient() {
   }, []);
 
   const noTowageFlightsPresent = useMemo(() => {
-    if (!selectedDate || scheduleLoading || !towageFlightTypeId) {
+    if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries) {
       return false; 
     }
-    if (!scheduleEntries || scheduleEntries.length === 0) {
+    if (scheduleEntries.length === 0) {
       return true; 
     }
     return scheduleEntries.every(entry => entry.flight_type_id !== towageFlightTypeId);
@@ -339,10 +334,9 @@ export function ScheduleClient() {
         </Card>
       )}
 
-      {/* Alert for: Tow PILOT CATEGORY not confirmed available */}
       {selectedDate && 
-       !isTowPilotConfirmed && 
-       categories && categories.find(cat => cat.name === 'Piloto remolcador') && 
+       !isTowPilotCategoryConfirmed && 
+       categories && categories.find(cat => cat.name === 'Remolcador') && 
        !anyLoading && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
@@ -352,7 +346,6 @@ export function ScheduleClient() {
         </Alert>
       }
       
-      {/* New Alert for: No FLIGHTS OF TYPE 'Remolque' scheduled */}
       {selectedDate &&
        noTowageFlightsPresent && 
        towageFlightTypeId &&    

@@ -53,8 +53,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         let expiredBlock = null;
         
         const pilotCategoryName = getCategoryName(entry.pilot_category_id);
-        const isTowPilotEntry = pilotCategoryName === 'Piloto remolcador';
-        const isConfirmedTowPilotForDisplay = isTowPilotEntry && entry.is_tow_pilot_available === true;
+        const isTowPilotCategoryEntry = pilotCategoryName === 'Remolcador';
+        const isConfirmedTowPilotForDisplay = isTowPilotCategoryEntry && entry.is_tow_pilot_available === true;
         const displayTime = entry.start_time.substring(0, 5); // HH:MM
 
 
@@ -96,7 +96,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
           }
         }
         
-        const isTowageRelated = isTowPilotEntry || entry.flight_type_id === 'towage';
+        const isTowageRelated = isTowPilotCategoryEntry || entry.flight_type_id === 'towage';
 
         return (
           <Card 
@@ -145,7 +145,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {isTowPilotEntry && ( 
+              {isTowPilotCategoryEntry && ( 
                 <div className="flex items-center">
                   {!!entry.is_tow_pilot_available ? 
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : 
