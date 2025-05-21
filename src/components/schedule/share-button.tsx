@@ -31,9 +31,7 @@ import 'jspdf-autotable';
 import { cn } from '@/lib/utils';
 
 interface ShareButtonProps {
-  scheduleDate: Date; // Used for initial date range
-  // entries prop is removed as we will fetch data for the selected range
-  // observationText prop is removed for the same reason
+  scheduleDate: Date;
 }
 
 declare module 'jspdf' {
@@ -138,59 +136,60 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
   const generateShareTextForRange = (allEntries: ScheduleEntry[], allObservations: DailyObservation[]) => {
     if (!exportStartDate || !exportEndDate) return "Rango de fechas no seleccionado.";
 
-    let fullText = `Agenda de Vuelo: ${format(exportStartDate, "PPP", { locale: es })} - ${format(exportEndDate, "PPP", { locale: es })}\n`;
+    let fullText = `Agenda de Vuelo: ${format(exportStartDate, "PPP", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' - ' + format(exportEndDate, "PPP", { locale: es }) : ''}\n`;
     
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
+    let contentAddedForPreviousDay = false;
 
-    dateInterval.forEach(day => {
+    dateInterval.forEach((day, index) => {
       const dayStr = format(day, "yyyy-MM-dd");
-      fullText += `\n=== ${format(day, "PPP", { locale: es })} ===\n`;
-
       const observationForDay = allObservations.find(obs => obs.date === dayStr);
-      if (observationForDay && observationForDay.observation_text) {
-        fullText += `\nObservaciones:\n${observationForDay.observation_text}\n`;
+      const entriesForDay = allEntries.filter(entry => entry.date === dayStr);
+
+      if (entriesForDay.length === 0 && (!observationForDay || !observationForDay.observation_text || observationForDay.observation_text.trim() === '')) {
+        return; // Skip this day if no entries and no (meaningful) observations
+      }
+      
+      if (contentAddedForPreviousDay || index > 0) { // Add separator if not the very first day with content
+         fullText += `\n`; 
+      }
+      fullText += `\n=== ${format(day, "PPP", { locale: es })} ===\n`;
+      contentAddedForPreviousDay = true;
+
+
+      if (observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '') {
+        fullText += `\nObservaciones:\n${observationForDay.observation_text.trim()}\n`;
       }
 
-      const entriesForDay = allEntries.filter(entry => entry.date === dayStr);
       if (entriesForDay.length === 0) {
-        fullText += "No hay turnos programados para esta fecha.\n";
+        if (observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '') {
+          fullText += "No hay turnos programados para esta fecha.\n";
+        }
       } else {
         let previousGroupIdentifier: string | null = null;
-        // Entries are already sorted by the fetch function (date then time)
-        // We need to sort them again here based on the complex grouping logic
+        
         const sortedEntriesForDay = [...entriesForDay].sort((a, b) => {
             const groupA = getEntryGroupDetails(a, categories, getCategoryName, getAircraftName);
             const groupB = getEntryGroupDetails(b, categories, getCategoryName, getAircraftName);
-
-            // Define the order of main groups
             const groupOrder = (groupId: string) => {
                 if (groupId === 'instructor') return 1;
                 if (groupId === 'remolcador_disponible') return 2;
                 if (groupId === 'remolcador_no_disponible') return 3;
                 if (groupId.startsWith('aircraft_')) return 4;
-                return 5; // sin_aeronave
+                return 5; 
             };
-
             const orderA = groupOrder(groupA.id);
             const orderB = groupOrder(groupB.id);
-
             if (orderA !== orderB) return orderA - orderB;
-            
-            // If in the same main group, sort by specific criteria
             if (groupA.id.startsWith('aircraft_') && groupB.id.startsWith('aircraft_')) {
                  if (groupA.id !== groupB.id) return groupA.id.localeCompare(groupB.id);
             }
-
-            // Sort by start_time
             const timeComparison = a.start_time.localeCompare(b.start_time);
             if (timeComparison !== 0) return timeComparison;
-
-            // Sort by sport preference (Deportivo first)
             const aIsSport = a.flight_type_id === 'sport';
             const bIsSport = b.flight_type_id === 'sport';
             if (aIsSport && !bIsSport) return -1;
             if (!aIsSport && bIsSport) return 1;
-            
             return 0;
         });
 
@@ -215,7 +214,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
     const shareText = generateShareTextForRange(data.entries, data.observations);
     const shareData = {
-      title: `Agenda de Vuelo: ${exportStartDate ? format(exportStartDate, "PPP", { locale: es }) : ''} - ${exportEndDate ? format(exportEndDate, "PPP", { locale: es }) : ''}`,
+      title: `Agenda de Vuelo: ${exportStartDate ? format(exportStartDate, "PPP", { locale: es }) : ''}${exportStartDate && exportEndDate && exportStartDate.getTime() !== exportEndDate.getTime() ? ' - ' + format(exportEndDate, "PPP", { locale: es }) : ''}`,
       text: shareText,
     };
 
@@ -242,88 +241,88 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     }
   };
   
-  // Placeholder for CSV and PDF, adapt them similarly to handle ranges
   const handleExportCsv = async () => {
     const data = await fetchDataForRange();
     if (!data || !exportStartDate || !exportEndDate) return;
 
-    let csvContent = `Agenda de Vuelo del ${format(exportStartDate, "yyyy-MM-dd", { locale: es })} al ${format(exportEndDate, "yyyy-MM-dd", { locale: es })}\n\n`;
-    const headers = ["Fecha", "Hora", "Piloto", "Categoría", "Remolcador Disponible", "Tipo de Vuelo", "Aeronave", "Observaciones del Día"];
+    let csvContent = `Agenda de Vuelo del ${format(exportStartDate, "yyyy-MM-dd", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' al ' + format(exportEndDate, "yyyy-MM-dd", { locale: es }) : ''}\n`;
+    const headers = ["Hora", "Piloto", "Categoría", "Remolcador Disponible", "Tipo de Vuelo", "Aeronave"];
     
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
+    let contentAddedForPreviousDay = false;
 
-    dateInterval.forEach(day => {
+    dateInterval.forEach((day, index) => {
         const dayStr = format(day, "yyyy-MM-dd");
         const formattedDay = format(day, "dd/MM/yyyy", { locale: es });
         
         const observationForDay = data.observations.find(obs => obs.date === dayStr);
-        const obsText = observationForDay?.observation_text ? `"${observationForDay.observation_text.replace(/"/g, '""')}"` : "";
-
+        const obsText = (observationForDay?.observation_text && observationForDay.observation_text.trim() !== '') ? `"${observationForDay.observation_text.trim().replace(/"/g, '""')}"` : "";
         const entriesForDay = data.entries.filter(entry => entry.date === dayStr);
         
-        if (entriesForDay.length === 0 && !observationForDay?.observation_text) {
-            // Optionally skip days with no entries and no observations, or list them as empty
-            // csvContent += `"${formattedDay}",No hay turnos ni observaciones,,,,,\n`;
-            return; 
-        }
-        
-        if (entriesForDay.length === 0 && observationForDay?.observation_text) {
-            csvContent += `"${formattedDay}",,,,,,,${obsText}\n`; // Date and observation only
+        if (entriesForDay.length === 0 && !obsText) {
+            return; // Skip this day
         }
 
+        if (contentAddedForPreviousDay || index > 0) { // Add separator if not the very first day with content
+          csvContent += `\n`; 
+        }
+        csvContent += `"${formattedDay}"\n`; // Date header for the day
+        contentAddedForPreviousDay = true;
 
-        let previousGroupIdentifier: string | null = null;
-        const sortedEntriesForDay = [...entriesForDay].sort((a, b) => { /* ... same sorting as text ... */
-            const groupA = getEntryGroupDetails(a, categories, getCategoryName, getAircraftName);
-            const groupB = getEntryGroupDetails(b, categories, getCategoryName, getAircraftName);
-            const groupOrder = (groupId: string) => {
-                if (groupId === 'instructor') return 1;
-                if (groupId === 'remolcador_disponible') return 2;
-                if (groupId === 'remolcador_no_disponible') return 3;
-                if (groupId.startsWith('aircraft_')) return 4;
-                return 5; 
-            };
-            const orderA = groupOrder(groupA.id);
-            const orderB = groupOrder(groupB.id);
-            if (orderA !== orderB) return orderA - orderB;
-            if (groupA.id.startsWith('aircraft_') && groupB.id.startsWith('aircraft_')) {
-                 if (groupA.id !== groupB.id) return groupA.id.localeCompare(groupB.id);
-            }
-            const timeComparison = a.start_time.localeCompare(b.start_time);
-            if (timeComparison !== 0) return timeComparison;
-            const aIsSport = a.flight_type_id === 'sport';
-            const bIsSport = b.flight_type_id === 'sport';
-            if (aIsSport && !bIsSport) return -1;
-            if (!aIsSport && bIsSport) return 1;
-            return 0;
-        });
-
-        if (entriesForDay.length > 0 || (observationForDay && observationForDay.observation_text)) {
-             csvContent += `\n"${formattedDay}",,,,,,,${entriesForDay.length > 0 ? "" : obsText}\n`; // Header for the day with date
-             csvContent += headers.join(",") + "\n"; // Column headers for each day block
+        if (obsText) {
+            csvContent += `"Observaciones:",${obsText}\n`; // Observation row (spanning for example purposes)
         }
 
+        if (entriesForDay.length > 0) {
+            csvContent += headers.join(",") + "\n";
 
-        sortedEntriesForDay.forEach((entry, index) => {
-          const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
-          if (groupDetails.id !== previousGroupIdentifier) {
-            csvContent += `"${groupDetails.name}",,,,,,\n`; 
-            previousGroupIdentifier = groupDetails.id;
-          }
-          const formatted = getFormattedEntry(entry);
-          const row = [
-            index === 0 && entriesForDay.length > 0 ? "" : "", // Date only on first row for day or if only obs
-            formatted.time,
-            `"${formatted.pilot.replace(/"/g, '""')}"`,
-            `"${formatted.category.replace(/"/g, '""')}"`,
-            formatted.towAvailable,
-            `"${formatted.flightType.replace(/"/g, '""')}"`,
-            `"${formatted.aircraft.replace(/"/g, '""')}"`,
-            index === 0 && entriesForDay.length > 0 ? obsText : "" // Observation on first entry row
-          ];
-          csvContent += row.join(",") + "\n";
-        });
-         csvContent += "\n"; // Extra line break between days
+            let previousGroupIdentifier: string | null = null;
+            const sortedEntriesForDay = [...entriesForDay].sort((a, b) => { 
+                const groupA = getEntryGroupDetails(a, categories, getCategoryName, getAircraftName);
+                const groupB = getEntryGroupDetails(b, categories, getCategoryName, getAircraftName);
+                const groupOrder = (groupId: string) => {
+                    if (groupId === 'instructor') return 1;
+                    if (groupId === 'remolcador_disponible') return 2;
+                    if (groupId === 'remolcador_no_disponible') return 3;
+                    if (groupId.startsWith('aircraft_')) return 4;
+                    return 5; 
+                };
+                const orderA = groupOrder(groupA.id);
+                const orderB = groupOrder(groupB.id);
+                if (orderA !== orderB) return orderA - orderB;
+                if (groupA.id.startsWith('aircraft_') && groupB.id.startsWith('aircraft_')) {
+                     if (groupA.id !== groupB.id) return groupA.id.localeCompare(groupB.id);
+                }
+                const timeComparison = a.start_time.localeCompare(b.start_time);
+                if (timeComparison !== 0) return timeComparison;
+                const aIsSport = a.flight_type_id === 'sport';
+                const bIsSport = b.flight_type_id === 'sport';
+                if (aIsSport && !bIsSport) return -1;
+                if (!aIsSport && bIsSport) return 1;
+                return 0;
+            });
+
+            sortedEntriesForDay.forEach((entry) => {
+              const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
+              if (groupDetails.id !== previousGroupIdentifier) {
+                csvContent += `"${groupDetails.name}"\n`; 
+                previousGroupIdentifier = groupDetails.id;
+              }
+              const formatted = getFormattedEntry(entry);
+              const row = [
+                formatted.time,
+                `"${formatted.pilot.replace(/"/g, '""')}"`,
+                `"${formatted.category.replace(/"/g, '""')}"`,
+                formatted.towAvailable,
+                `"${formatted.flightType.replace(/"/g, '""')}"`,
+                `"${formatted.aircraft.replace(/"/g, '""')}"`,
+              ];
+              csvContent += row.join(",") + "\n";
+            });
+        } else if (obsText) {
+            csvContent += `"No hay turnos programados para esta fecha."\n`;
+        }
+         csvContent += "\n";
     });
 
 
@@ -348,8 +347,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     if (!data || !exportStartDate || !exportEndDate) return;
     
     const doc = new jsPDF({ orientation: 'landscape' });
-    const pageTitle = `Agenda de Vuelo: ${format(exportStartDate, "PPP", { locale: es })} - ${format(exportEndDate, "PPP", { locale: es })}`;
+    const pageTitle = `Agenda de Vuelo: ${format(exportStartDate, "PPP", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' - ' + format(exportEndDate, "PPP", { locale: es }) : ''}`;
     let currentY = 15;
+    let pageBreakAddedForPreviousDay = false; // To track if a page break was added for the content of the previous day
 
     doc.setFontSize(16);
     doc.text(pageTitle, 14, currentY);
@@ -357,45 +357,68 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
 
-    dateInterval.forEach((day, dayIndex) => {
-        if (dayIndex > 0) { // Add page break for subsequent days
-            doc.addPage();
-            currentY = 15;
+    dateInterval.forEach((day) => {
+        const dayStr = format(day, "yyyy-MM-dd");
+        const observationForDay = data.observations.find(obs => obs.date === dayStr);
+        const entriesForDay = data.entries.filter(entry => entry.date === dayStr);
+
+        const hasObservationText = observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '';
+
+        if (entriesForDay.length === 0 && !hasObservationText) {
+            return; // Skip this day
         }
 
-        const dayStr = format(day, "yyyy-MM-dd");
+        if (pageBreakAddedForPreviousDay) { 
+            doc.addPage();
+            currentY = 15;
+            // Reprint main title on new page if desired
+            doc.setFontSize(16);
+            doc.text(pageTitle, 14, currentY);
+            currentY += 10;
+        }
+        pageBreakAddedForPreviousDay = false; // Reset for the current day
+
+
         doc.setFontSize(14);
         doc.text(`Fecha: ${format(day, "PPP", { locale: es })}`, 14, currentY);
         currentY += 7;
 
-        const observationForDay = data.observations.find(obs => obs.date === dayStr);
-        if (observationForDay && observationForDay.observation_text) {
+        if (hasObservationText) {
             doc.setFontSize(10);
-            const observationLines = doc.splitTextToSize(observationForDay.observation_text, doc.internal.pageSize.getWidth() - 28);
+            const observationLines = doc.splitTextToSize(observationForDay!.observation_text!.trim(), doc.internal.pageSize.getWidth() - 28);
             doc.text("Observaciones:", 14, currentY);
             currentY += 5;
             observationLines.forEach((line: string) => {
-                if (currentY > doc.internal.pageSize.getHeight() - 20) { // Check for page overflow
+                if (currentY > doc.internal.pageSize.getHeight() - 20) { 
                     doc.addPage();
                     currentY = 15;
+                    // Optionally reprint date header on new page if observation spans
+                    doc.setFontSize(14);
+                    doc.text(`Fecha: ${format(day, "PPP", { locale: es })} (cont.)`, 14, currentY);
+                    currentY +=7;
+                    doc.setFontSize(10);
+                    doc.text("Observaciones (cont.):", 14, currentY);
+                    currentY += 5;
                 }
                 doc.text(line, 14, currentY);
                 currentY += 5;
             });
-            currentY += 5; // Extra space after observations
+            currentY += 3; 
         }
 
-        const entriesForDay = data.entries.filter(entry => entry.date === dayStr);
         if (entriesForDay.length === 0) {
-            doc.setFontSize(10);
-            doc.text("No hay turnos programados para esta fecha.", 14, currentY);
-            currentY += 10;
+            if (hasObservationText) {
+                doc.setFontSize(10);
+                if (currentY > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); currentY = 15; }
+                doc.text("No hay turnos programados para esta fecha.", 14, currentY);
+                currentY += 10;
+            }
         } else {
             const tableColumn = ["Hora", "Piloto", "Categoría", "Rem. Disp.", "Tipo Vuelo", "Aeronave"];
             const tableRows: (string | { content: string; colSpan: number; styles: any } | null)[][] = [];
             
             let previousGroupIdentifier: string | null = null;
-            const sortedEntriesForDay = [...entriesForDay].sort((a, b) => { /* ... same sorting as text ... */
+            const sortedEntriesForDay = [...entriesForDay].sort((a, b) => { 
                 const groupA = getEntryGroupDetails(a, categories, getCategoryName, getAircraftName);
                 const groupB = getEntryGroupDetails(b, categories, getCategoryName, getAircraftName);
                 const groupOrder = (groupId: string) => {
@@ -458,8 +481,13 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                     4: { cellWidth: 30 },
                     5: { cellWidth: 'auto' },
                 },
-                didDrawPage: (data) => { // Update currentY after a page is drawn (if autotable adds pages)
-                    currentY = data.cursor?.y ?? currentY;
+                didDrawPage: (dataAfterPage) => { 
+                    currentY = dataAfterPage.cursor?.y ?? currentY;
+                    if (dataAfterPage.pageNumber > doc.getNumberOfPages()) { // AutoTable added new page(s)
+                         pageBreakAddedForPreviousDay = true; 
+                    } else if ( dataAfterPage.pageNumber === doc.getNumberOfPages() && currentY < 20){ // Content wrapped to a new page, meaning previous was full
+                         pageBreakAddedForPreviousDay = true;
+                    }
                 },
                 didParseCell: function (data) {
                     if (data.row.raw && typeof data.row.raw[0] === 'object' && (data.row.raw[0] as any).colSpan) {
@@ -472,7 +500,14 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                     }
                 }
             });
-            currentY = (doc as any).lastAutoTable.finalY + 10; // Get Y position after table
+            currentY = (doc as any).lastAutoTable.finalY + 10; 
+            if (currentY > doc.internal.pageSize.getHeight() -20) { // If table ends close to bottom, next day on new page
+                pageBreakAddedForPreviousDay = true;
+            }
+
+        }
+        if (entriesForDay.length > 0 || hasObservationText) { // If content was added for this day, set flag for potential page break for next day
+            pageBreakAddedForPreviousDay = true; 
         }
     });
 
@@ -490,7 +525,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           Compartir/Exportar
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72"> {/* Increased width for date pickers */}
+      <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel>Seleccionar Rango de Fechas</DropdownMenuLabel>
         <div className="p-2 space-y-2">
             <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
@@ -558,3 +593,4 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     </DropdownMenu>
   );
 }
+
