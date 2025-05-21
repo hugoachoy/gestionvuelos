@@ -92,7 +92,7 @@ interface BookingConflictWarningState {
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // Only 20:00, no 20:30
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -118,22 +118,21 @@ export function AvailabilityForm({
 
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
-    defaultValues: entry
-      ? {
+    defaultValues: { // Default values for a new entry or when entry prop is initially undefined
+        date: selectedDate || new Date(),
+        start_time: '',
+        pilot_id: '',
+        pilot_category_id: '',
+        is_tow_pilot_available: false,
+        flight_type_id: '',
+        aircraft_id: '',
+        ...(entry && { // Spread entry data if available initially
           ...entry,
           date: entry.date ? parseISO(entry.date) : new Date(),
-          aircraft_id: entry.aircraft_id ?? '',
+          aircraft_id: entry.aircraft_id ?? '', // Ensure aircraft_id is a string for the form
           start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
-        }
-      : {
-          date: selectedDate || new Date(),
-          start_time: '',
-          pilot_id: '',
-          pilot_category_id: '',
-          is_tow_pilot_available: false,
-          flight_type_id: '',
-          aircraft_id: '',
-        },
+        })
+      },
   });
 
   const [medicalWarning, setMedicalWarning] = useState<MedicalWarningState | null>(null);
@@ -143,21 +142,41 @@ export function AvailabilityForm({
 
 
   useEffect(() => {
-    if (selectedDate && !entry) {
-      form.setValue('date', selectedDate);
-    }
-    if (!open) {
+    // This effect runs when the dialog opens or the entry/selectedDate data changes.
+    // It's responsible for resetting the form with the entry's data or default new entry data.
+    if (open) {
+      const initialFormValues = entry
+        ? {
+            ...entry,
+            date: entry.date ? parseISO(entry.date) : (selectedDate || new Date()),
+            aircraft_id: entry.aircraft_id ?? '',
+            start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
+          }
+        : { // Default for new entry
+            date: selectedDate || new Date(),
+            start_time: '',
+            pilot_id: '',
+            pilot_category_id: '',
+            is_tow_pilot_available: false,
+            flight_type_id: '',
+            aircraft_id: '',
+          };
+      form.reset(initialFormValues);
+      setPilotSearchTerm(''); // Reset search term when dialog opens/entry changes
+    } else {
+      // Clear warnings when dialog closes
       setMedicalWarning(null);
       setBookingConflictWarning(null);
-      setPilotSearchTerm('');
     }
-  }, [selectedDate, form, entry, open]);
+  }, [open, entry, selectedDate, form]);
+
 
   const watchedPilotId = form.watch('pilot_id');
   const watchedDate = form.watch('date');
   const watchedAircraftId = form.watch('aircraft_id');
   const watchedStartTime = form.watch('start_time');
   const watchedPilotCategoryId = form.watch('pilot_category_id');
+  const watchedFlightTypeId = form.watch('flight_type_id');
 
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
   
@@ -167,6 +186,7 @@ export function AvailabilityForm({
   
   const selectedCategoryDetailsForTurn = useMemo(() => categories.find(c => c.id === watchedPilotCategoryId), [categories, watchedPilotCategoryId]);
   const isTowPilotCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name === 'Remolcador';
+
 
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
@@ -243,16 +263,17 @@ export function AvailabilityForm({
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
 
 
-  // Effect to SUGGEST flight_type_id based on the INHERENT categories of the SELECTED PILOT
+  // Effect to SUGGEST flight_type_id if selected pilot is inherently a "Remolcador"
+  // This only suggests if the flight_type_id is currently empty.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
-      const towPilotCategoryDefinition = categories.find(c => c.name === 'Remolcador');
+      const remolcadorCategoryDefinition = categories.find(c => c.name === 'Remolcador');
       const towageFlightTypeDefinition = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
       
-      if (towPilotCategoryDefinition && towageFlightTypeDefinition) {
-        const pilotIsInherentlyTowPilot = pilotDetails.category_ids.includes(towPilotCategoryDefinition.id);
+      if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
+        const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
         
-        if (pilotIsInherentlyTowPilot && form.getValues('flight_type_id') === '') { 
+        if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') { 
           form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
         }
       }
@@ -261,6 +282,7 @@ export function AvailabilityForm({
 
 
   // Effect to auto-set/clear flight_type_id based on pilot_category_id (category FOR THE TURN)
+  // This has higher precedence for setting/clearing "Remolque" flight type.
   useEffect(() => {
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
@@ -273,6 +295,7 @@ export function AvailabilityForm({
     if (categoryForTurn?.name === 'Remolcador') {
       form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
     } else {
+      // If the category is NOT "Remolcador", and the flight type IS "Remolque", clear it.
       if (form.getValues('flight_type_id') === towageFlightType.id) {
         form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
@@ -281,11 +304,16 @@ export function AvailabilityForm({
 
 
   const filteredAircraftForSelect = useMemo(() => {
-    if (selectedCategoryDetailsForTurn?.name === 'Remolcador') {
+    const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
+    const isRemolcadorCategorySelected = selectedCategoryDetailsForTurn?.name === 'Remolcador';
+    const isRemolqueFlightTypeSelected = watchedFlightTypeId === towageFlightType?.id;
+
+    if (isRemolcadorCategorySelected || isRemolqueFlightTypeSelected) {
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
-    return aircraft; 
-  }, [selectedCategoryDetailsForTurn, aircraft]);
+    return aircraft;
+  }, [selectedCategoryDetailsForTurn, aircraft, watchedFlightTypeId]);
+
 
   useEffect(() => {
     const currentAircraftId = form.getValues('aircraft_id');
@@ -308,44 +336,19 @@ export function AvailabilityForm({
         date: format(data.date, 'yyyy-MM-dd'),
     };
     onSubmit(dataToSubmit, entry?.id);
-    onOpenChange(false);
+    onOpenChange(false); // This should trigger the useEffect for 'open' to reset form
   };
 
+  // Effect to clear pilot_category_id if selected pilot doesn't have it or if pilot is deselected.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
-      form.setValue('pilot_category_id', '');
+      form.setValue('pilot_category_id', ''); // Clear if category not valid for pilot
     }
-    if (!watchedPilotId) { 
-        setMedicalWarning(null);
-        form.setValue('pilot_category_id', ''); 
+    if (!watchedPilotId) { // If pilot is deselected
+        setMedicalWarning(null); // Clear medical warning
+        form.setValue('pilot_category_id', ''); // Clear category for turn
     }
   }, [watchedPilotId, pilotDetails, form]);
-
-
-  useEffect(() => {
-    if (open) {
-       form.reset(entry
-        ? {
-            ...entry,
-            date: entry.date ? parseISO(entry.date) : new Date(),
-            aircraft_id: entry.aircraft_id ?? '',
-            start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
-          }
-        : {
-            date: selectedDate || new Date(),
-            start_time: '',
-            pilot_id: '',
-            pilot_category_id: '',
-            is_tow_pilot_available: false,
-            flight_type_id: '',
-            aircraft_id: '',
-          });
-       setPilotSearchTerm('');
-    } else {
-      setMedicalWarning(null);
-      setBookingConflictWarning(null);
-    }
-  }, [open, entry, selectedDate, form]);
 
 
   const sortedAndFilteredPilots = useMemo(() => {
@@ -593,7 +596,7 @@ export function AvailabilityForm({
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aeronave</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    value={field.value || ''}
+                    value={field.value || ''} // Ensure value is not undefined for Select
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -623,7 +626,7 @@ export function AvailabilityForm({
             )}
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => {
-                onOpenChange(false);
+                onOpenChange(false); // This will trigger the reset in useEffect
                 }}>Cancelar</Button>
               <Button
                 type="submit"
@@ -641,3 +644,5 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
