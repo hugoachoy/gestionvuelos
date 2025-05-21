@@ -39,14 +39,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide } from "lucide-react";
+import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import React, { useEffect, useState, useMemo } from 'react'; // Added React and useMemo
+import React, { useEffect, useState, useMemo } from 'react';
 
-// Schema uses snake_case matching the Type and DB
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM).").min(1, "La hora de inicio es obligatoria."),
@@ -68,7 +75,7 @@ interface AvailabilityFormProps {
   categories: PilotCategory[];
   aircraft: Aircraft[];
   selectedDate?: Date; 
-  existingEntries: ScheduleEntry[]; // For checking glider conflicts
+  existingEntries: ScheduleEntry[];
 }
 
 interface MedicalWarningState {
@@ -85,8 +92,8 @@ interface BookingConflictWarningState {
 
 const generateTimeSlots = () => {
   const slots: string[] = [];
-  for (let h = 8; h <= 20; h++) { // From 08:00
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // To 20:00
+  for (let h = 8; h <= 20; h++) {
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; 
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -133,6 +140,8 @@ export function AvailabilityForm({
   const [medicalWarning, setMedicalWarning] = useState<MedicalWarningState | null>(null);
   const [bookingConflictWarning, setBookingConflictWarning] = useState<BookingConflictWarningState | null>(null);
   const [pilotSearchTerm, setPilotSearchTerm] = useState('');
+  const [pilotPopoverOpen, setPilotPopoverOpen] = useState(false);
+
 
   useEffect(() => {
     if (selectedDate && !entry) {
@@ -141,7 +150,7 @@ export function AvailabilityForm({
     if (!open) {
       setMedicalWarning(null); 
       setBookingConflictWarning(null); 
-      setPilotSearchTerm(''); // Reset search term on close
+      setPilotSearchTerm(''); 
     }
   }, [selectedDate, form, entry, open]);
 
@@ -155,7 +164,6 @@ export function AvailabilityForm({
   const selectedCategoryDetails = categories.find(c => c.id === form.watch('pilot_category_id'));
   const isTowPilotCategorySelected = selectedCategoryDetails?.name === 'Piloto remolcador';
 
-  // Medical Expiry Check
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
     const currentPilotDetails = pilots.find(p => p.id === watchedPilotId);
@@ -199,7 +207,6 @@ export function AvailabilityForm({
     setMedicalWarning(newMedicalWarningInfo);
   }, [watchedPilotId, watchedDate, open, pilots]);
 
-  // Glider Booking Conflict Check
   useEffect(() => {
     setBookingConflictWarning(null); 
 
@@ -252,7 +259,7 @@ export function AvailabilityForm({
       aircraft_id: '',
     });
     onOpenChange(false);
-    setPilotSearchTerm(''); // Reset search term on submit
+    setPilotSearchTerm(''); 
   };
   
   useEffect(() => {
@@ -283,7 +290,7 @@ export function AvailabilityForm({
             flight_type_id: '',
             aircraft_id: '',
           });
-       setPilotSearchTerm(''); // Reset search term when dialog opens
+       setPilotSearchTerm(''); 
     } else {
       setMedicalWarning(null); 
       setBookingConflictWarning(null);
@@ -383,48 +390,74 @@ export function AvailabilityForm({
               )}
             />
 
-            <FormItem>
-              <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Buscar Piloto</FormLabel>
-              <Input
-                placeholder="Buscar por apellido o nombre..."
-                value={pilotSearchTerm}
-                onChange={(e) => setPilotSearchTerm(e.target.value)}
-                className="mt-1" 
-              />
-            </FormItem>
-
             <FormField
               control={form.control}
               name="pilot_id"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-col">
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto</FormLabel>
-                  <Select 
-                    onValueChange={(value) => {
-                        field.onChange(value);
-                        // Reset category if new pilot doesn't have the current one
-                        const selectedPilotDetails = pilots.find(p => p.id === value);
-                        if (selectedPilotDetails && !selectedPilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
-                          form.setValue('pilot_category_id', '');
-                        }
-                    }} 
-                    value={field.value || ''}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar piloto" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {sortedAndFilteredPilots.length > 0 ? (
-                        sortedAndFilteredPilots.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.last_name}, {p.first_name}</SelectItem>
-                        ))
-                      ) : (
-                        <div className="p-2 text-center text-sm text-muted-foreground">No se encontraron pilotos.</div>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={pilotPopoverOpen}
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value
+                            ? sortedAndFilteredPilots.find(
+                                (pilot) => pilot.id === field.value
+                              )?.last_name + ", " + sortedAndFilteredPilots.find(
+                                (pilot) => pilot.id === field.value
+                              )?.first_name
+                            : "Seleccionar piloto"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput 
+                          placeholder="Buscar piloto..."
+                          value={pilotSearchTerm}
+                          onValueChange={setPilotSearchTerm}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandGroup>
+                            {sortedAndFilteredPilots.map((pilot) => (
+                              <CommandItem
+                                value={`${pilot.last_name}, ${pilot.first_name} (${pilot.id})`}
+                                key={pilot.id}
+                                onSelect={() => {
+                                  form.setValue("pilot_id", pilot.id);
+                                  if (!pilot.category_ids.includes(form.getValues('pilot_category_id'))) {
+                                    form.setValue('pilot_category_id', '');
+                                  }
+                                  setPilotPopoverOpen(false);
+                                  setPilotSearchTerm(''); // Clear search term after selection
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    pilot.id === field.value
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                {pilot.last_name}, {pilot.first_name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}
@@ -549,7 +582,7 @@ export function AvailabilityForm({
                   flight_type_id: '',
                   aircraft_id: '',
                 }); 
-                setPilotSearchTerm(''); // Also reset search term on cancel
+                setPilotSearchTerm(''); 
                 onOpenChange(false);
                 }}>Cancelar</Button>
               <Button 
@@ -568,3 +601,5 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
