@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ScheduleEntry, Pilot, PilotCategory, Aircraft, FlightType } from '@/types';
+import type { ScheduleEntry, Pilot, PilotCategory, Aircraft } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -158,10 +158,12 @@ export function AvailabilityForm({
   const watchedDate = form.watch('date'); 
   const watchedAircraftId = form.watch('aircraft_id');
   const watchedStartTime = form.watch('start_time');
+  const watchedPilotCategoryId = form.watch('pilot_category_id');
+  const watchedFlightTypeId = form.watch('flight_type_id');
 
   const pilotDetails = pilots.find(p => p.id === watchedPilotId);
   const pilotCategoriesForSelectedPilot = pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
-  const selectedCategoryDetails = categories.find(c => c.id === form.watch('pilot_category_id'));
+  const selectedCategoryDetails = categories.find(c => c.id === watchedPilotCategoryId);
   const isTowPilotCategorySelected = selectedCategoryDetails?.name === 'Piloto remolcador';
 
   useEffect(() => {
@@ -237,6 +239,24 @@ export function AvailabilityForm({
       });
     }
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
+
+  useEffect(() => {
+    if (watchedPilotCategoryId) {
+      const category = categories.find(c => c.id === watchedPilotCategoryId);
+      const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
+
+      if (category?.name === 'Piloto remolcador' && towageFlightType) {
+        if (form.getValues('flight_type_id') !== towageFlightType.id) {
+          form.setValue('flight_type_id', towageFlightType.id);
+        }
+      } else {
+        // If category is not "Piloto remolcador" and current flight type is "Remolque", clear it
+        if (form.getValues('flight_type_id') === towageFlightType?.id) {
+          form.setValue('flight_type_id', '');
+        }
+      }
+    }
+  }, [watchedPilotCategoryId, categories, form]);
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
@@ -601,5 +621,7 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
 
     
