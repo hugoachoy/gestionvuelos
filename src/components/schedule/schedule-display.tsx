@@ -99,7 +99,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
             key={entry.id} 
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isTowageRelated && 'bg-primary/10'
+              isTowageRelated && 'bg-primary/20' // Increased opacity
             )}
           >
             <CardHeader className="pb-2">
