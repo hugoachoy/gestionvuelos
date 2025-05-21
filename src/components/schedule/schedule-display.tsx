@@ -30,7 +30,7 @@ const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = 
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
   const { getPilotName, pilots } = usePilotsStore(); 
-  const { getCategoryName, categories } = usePilotCategoriesStore(); // Added categories
+  const { getCategoryName, categories } = usePilotCategoriesStore();
   const { getAircraftName } = useAircraftStore();
 
   if (entries.length === 0) {
@@ -58,10 +58,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         
         const displayTime = entry.start_time.substring(0, 5); // HH:MM
 
-        const isTowageFlightAndPilotActuallyAvailable =
-          towageFlightType &&
-          entry.flight_type_id === towageFlightType.id &&
-          entry.is_tow_pilot_available === true;
+        // Condition changed: now only checks if the flight type is 'towage'
+        const isFlightTypeTowage = towageFlightType && entry.flight_type_id === towageFlightType.id;
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -70,8 +68,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
           if (isValid(medicalExpiryDate) && isValid(entryDate)) {
             const today = new Date();
             const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            todayNormalized.setHours(0,0,0,0); // Normalize today to start of day
             
-            const isExpiredOnEntryDate = isBefore(medicalExpiryDate, entryDate);
+            // Ensure entryDate is also normalized to the start of its day for consistent comparison
+            const entryDateNormalized = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
+
+            const isExpiredOnEntryDate = isBefore(medicalExpiryDate, entryDateNormalized);
             const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, todayNormalized);
 
             if (isExpiredOnEntryDate) {
@@ -101,14 +103,14 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
           }
         }
         
-        const isTowageRelated = isTowPilotCategoryEntry || entry.flight_type_id === 'towage';
+        const isTowageRelatedCardStyle = isTowPilotCategoryEntry || entry.flight_type_id === 'towage';
 
         return (
           <Card 
             key={entry.id} 
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isTowageRelated && 'bg-primary/20'
+              isTowageRelatedCardStyle && 'bg-primary/20'
             )}
           >
             <CardHeader className="pb-2">
@@ -116,7 +118,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                 <div>
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
-                    {isTowageFlightAndPilotActuallyAvailable ? (
+                    {isFlightTypeTowage ? ( // Use the new, broader condition here
                       <span className="mr-1">DISPONIBLE desde las {displayTime} - {getPilotName(entry.pilot_id)}</span>
                     ) : (
                       <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
@@ -165,3 +167,4 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
+
