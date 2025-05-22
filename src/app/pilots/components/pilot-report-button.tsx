@@ -44,7 +44,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
 
     try {
       const doc = new jsPDF({ orientation: 'portrait' });
-      const pageTitle = "Listado Total de Pilots";
+      const pageTitle = "Listado Total de Pilotos";
       let currentY = 15;
 
       doc.setFontSize(16);
@@ -132,7 +132,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
       }
 
       const doc = new jsPDF({ orientation: 'portrait' });
-      const pageTitle = "Informe de Vencimientos Próximos de Psicofísico";
+      const pageTitle = "Informe de Vencimientos de Psicofísico";
       let currentY = 15;
 
       doc.setFontSize(16);
@@ -221,7 +221,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
         </DropdownMenuItem>
         <DropdownMenuItem onClick={generateUpcomingExpiriesPdf} disabled={isExporting}>
           <FileText className="mr-2 h-4 w-4" />
-          <span>Vencimientos Próximos</span>
+          <span>Vencimientos Psicofísicos</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
