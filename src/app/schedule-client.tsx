@@ -37,7 +37,7 @@ export function ScheduleClient() {
   const { toast } = useToast();
 
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
-  const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
+  const { categories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries, cleanupOldScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
@@ -144,8 +144,8 @@ export function ScheduleClient() {
   };
 
   const filteredAndSortedEntries = useMemo(() => {
-    if (!selectedDate || !scheduleEntries || categoriesLoading || !categories.length) return [];
-
+    if (!selectedDate || !scheduleEntries || categoriesLoading || !categories || !categories.length) return [];
+    
     const instructorCategory = categories.find(c => c.name === 'Instructor');
     const towPilotCategory = categories.find(c => c.name === 'Remolcador');
 
@@ -160,27 +160,30 @@ export function ScheduleClient() {
         if (aIsInstructor && bIsInstructor) {
           return a.start_time.localeCompare(b.start_time);
         }
-
+        
         // At this point, neither a nor b is an Instructor.
         const aIsTowPilot = a.pilot_category_id === towPilotCategory?.id;
         const bIsTowPilot = b.pilot_category_id === towPilotCategory?.id;
+        const aIsConfirmedTow = a.is_tow_pilot_available === true;
+        const bIsConfirmedTow = b.is_tow_pilot_available === true;
 
-        // 2. Tow Pilots
-        if (aIsTowPilot && !bIsTowPilot) return -1;
-        if (!aIsTowPilot && bIsTowPilot) return 1;
-        if (aIsTowPilot && bIsTowPilot) {
-          // Sort by confirmed status first, then time
-          const aIsConfirmedTow = a.is_tow_pilot_available === true;
-          const bIsConfirmedTow = b.is_tow_pilot_available === true;
-          if (aIsConfirmedTow && !bIsConfirmedTow) return -1;
-          if (!aIsConfirmedTow && bIsConfirmedTow) return 1;
+        // 2. Confirmed Tow Pilots
+        if (aIsTowPilot && aIsConfirmedTow && !(bIsTowPilot && bIsConfirmedTow)) return -1;
+        if (!(aIsTowPilot && aIsConfirmedTow) && (bIsTowPilot && bIsConfirmedTow)) return 1;
+        if (aIsTowPilot && aIsConfirmedTow && bIsTowPilot && bIsConfirmedTow) {
           return a.start_time.localeCompare(b.start_time);
         }
-        
-        // At this point, neither a nor b is an Instructor OR a Tow Pilot.
-        // 3. Other Pilots: Group by aircraft, then time, then sport preference.
 
-        // Group by aircraft_id (entries with aircraft_id come before those without)
+        // At this point, a and b are not Instructors, and not Confirmed Tow Pilots.
+        // 3. Unconfirmed/Unavailable Tow Pilots
+        if (aIsTowPilot && !aIsConfirmedTow && !(bIsTowPilot && !bIsConfirmedTow)) return -1;
+        if (!(aIsTowPilot && !aIsConfirmedTow) && (bIsTowPilot && !bIsConfirmedTow)) return 1;
+        if (aIsTowPilot && !aIsConfirmedTow && bIsTowPilot && !bIsConfirmedTow) {
+          return a.start_time.localeCompare(b.start_time);
+        }
+
+        // At this point, a and b are not Instructors, and not any kind of Tow Pilot.
+        // 4. Other Pilots: Group by aircraft, then time, then sport preference.
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
 
@@ -191,21 +194,19 @@ export function ScheduleClient() {
             const aircraftComparison = (a.aircraft_id).localeCompare(b.aircraft_id);
             if (aircraftComparison !== 0) return aircraftComparison;
         }
-        // If aircraft_ids are the same, or both are null/undefined
 
-        // Sort by start_time
         const timeComparison = a.start_time.localeCompare(b.start_time);
         if (timeComparison !== 0) return timeComparison;
 
-        // Sort by sport preference
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
         if (aIsSport && !bIsSport) return -1;
         if (!aIsSport && bIsSport) return 1;
         
-        return 0; // Default: maintain original relative order
+        return 0;
       });
   }, [selectedDate, scheduleEntries, categories, categoriesLoading]);
+
 
   useEffect(() => {
     if (!selectedDate) {
@@ -237,14 +238,25 @@ export function ScheduleClient() {
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
     if (!towPilotCategory) {
-      return false; // Remolcador category doesn't even exist
+      return false;
     }
-    // Check if there's at least one entry for a tow pilot that is available
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true 
     );
   }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
+
+  const isInstructorConfirmed = useMemo(() => {
+    if (categoriesLoading || scheduleLoading || !categories || !categories.length || !scheduleEntries) {
+      return false;
+    }
+    const instructorCategory = categories.find(cat => cat.name === 'Instructor');
+    if (!instructorCategory) {
+      return false;
+    }
+    return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
+  }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
+
 
   const towageFlightTypeId = useMemo(() => {
     return FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
@@ -279,8 +291,6 @@ export function ScheduleClient() {
             {selectedDate && (filteredAndSortedEntries.length > 0 || (savedObservationText && savedObservationText.trim() !== '')) && (
               <ShareButton
                 scheduleDate={selectedDate}
-                entries={filteredAndSortedEntries}
-                observationText={savedObservationText}
               />
             )}
             <Button onClick={handleAddEntry} disabled={!selectedDate || anyLoading}>
@@ -349,9 +359,9 @@ export function ScheduleClient() {
       )}
       
       {selectedDate &&
-       !isTowPilotCategoryConfirmed && // No tow pilot (category) confirmed
-       categories.some(cat => cat.name === 'Remolcador') && // "Remolcador" category exists
-       !anyLoading && // Not loading
+       !isTowPilotCategoryConfirmed && 
+       categories.some(cat => cat.name === 'Remolcador') && 
+       !anyLoading && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -361,9 +371,22 @@ export function ScheduleClient() {
       }
 
       {selectedDate &&
-       noTowageFlightsPresent && // No flights of type "Remolque"
-       towageFlightTypeId && // "Remolque" flight type exists
-       !anyLoading && // Not loading
+       !isInstructorConfirmed && 
+       categories.some(cat => cat.name === 'Instructor') && 
+       !anyLoading &&
+        <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
+          <AlertTriangle className="h-4 w-4 text-orange-500" />
+          <AlertDescription>
+            <strong className="text-orange-700">Aún no hay instructor confirmado para esta fecha.</strong>
+          </AlertDescription>
+        </Alert>
+      }
+
+
+      {selectedDate &&
+       noTowageFlightsPresent && 
+       towageFlightTypeId && 
+       !anyLoading && 
         (
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -406,4 +429,3 @@ export function ScheduleClient() {
     </>
   );
 }
-
