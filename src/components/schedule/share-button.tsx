@@ -93,16 +93,16 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     
     let towPilotStatus = '';
     const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
-    const isTurnByInstructor = entryCategoryDetails?.name === 'Instructor';
+    // const isTurnByInstructor = entryCategoryDetails?.name === 'Instructor'; // No longer needed here
     const isTurnByRemolcador = entryCategoryDetails?.name === 'Remolcador';
 
     if (isTurnByRemolcador) {
       towPilotStatus = entry.is_tow_pilot_available ? 'Sí' : 'No';
     }
     
-    const shouldFlightTypeBeBold = 
-      (entry.flight_type_id === 'instruction' && isTurnByInstructor) ||
-      isTurnByRemolcador;
+    const shouldFlightTypeBeBold =
+      (entry.flight_type_id === 'instruction' && entryCategoryDetails?.name === 'Instructor') ||
+      entryCategoryDetails?.name === 'Remolcador';
 
     return {
       time: entry.start_time.substring(0, 5),
@@ -205,6 +205,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
 
   const formatTextForExport = (text: string) => {
+    // This function will underline "Instructor" and "Remolcador"
     return text.replace(/\b(Instructor|Remolcador)\b/gi, (match) => `_${match}_`);
   };
 
@@ -258,13 +259,14 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
       let warningsText = "";
       if (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) {
-        warningsText += formatTextForExport('Aviso: Aún no hay piloto de categoría "Remolcador" confirmado para esta fecha.\n');
+        warningsText += formatTextForExport('Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.\n');
       }
       if (instructorCategory && !isInstructorCategoryConfirmedForDay) {
-        warningsText += formatTextForExport('Aviso: Aún no hay "Instructor" confirmado para esta fecha.\n');
+        warningsText += formatTextForExport('Aviso: Aún no hay Instructor confirmado para esta fecha.\n');
       }
       if (towageFlightTypeId && noTowageFlightsPresentForDay && entriesForDay.length > 0) {
-        warningsText += formatTextForExport('*Aviso: Aún no hay Remolcador confirmado para esta fecha.*\n');
+        // This specific warning gets a slightly different text format for its underline
+        warningsText += 'Aviso: Aún no hay _Remolcador_ confirmado.\n'; 
       }
       if (warningsText) {
         fullText += `\n${warningsText}`;
@@ -287,7 +289,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           if (formatted.shouldFlightTypeBeBold) {
             flightTypeString = `*${formatted.flightType}*`; 
           }
-          fullText += `${formatted.time} - ${formatted.pilot} (${formatTextForExport(formatted.category)}${formatted.towAvailable ? ' - Rem: ' + formatted.towAvailable : ''}) - ${flightTypeString}${formatted.aircraft !== 'N/A' ? ' - Aeronave: ' + formatted.aircraft : ''}\n`;
+          let pilotCategoryString = formatTextForExport(formatted.category);
+
+          fullText += `${formatted.time} - ${formatted.pilot} (${pilotCategoryString}${formatted.towAvailable ? ' - Rem: ' + formatted.towAvailable : ''}) - ${flightTypeString}${formatted.aircraft !== 'N/A' ? ' - Aeronave: ' + formatted.aircraft : ''}\n`;
         });
       }
     });
@@ -373,13 +377,13 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         }
         
         if (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) {
-          csvContent += `"Aviso: Aún no hay piloto de categoría 'Remolcador' confirmado para esta fecha."\n`;
+          csvContent += `"Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha."\n`;
         }
         if (instructorCategory && !isInstructorCategoryConfirmedForDay) {
-          csvContent += `"Aviso: Aún no hay 'Instructor' confirmado para esta fecha."\n`;
+          csvContent += `"Aviso: Aún no hay Instructor confirmado para esta fecha."\n`;
         }
         if (towageFlightTypeId && noTowageFlightsPresentForDay && entriesForDay.length > 0) {
-          csvContent += `"Aviso: Aún no hay Remolcador confirmado para esta fecha."\n`;
+          csvContent += `"Aviso: Aún no hay Remolcador confirmado."\n`;
         }
 
 
@@ -405,7 +409,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
               ];
               csvContent += row.join(",") + "\n";
             });
-        } else { // Only warnings or observations, but no schedule entries
+        } else { 
             csvContent += `"No hay turnos programados para esta fecha."\n`;
         }
     });
@@ -442,8 +446,28 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
 
+    const addPdfWarning = (text: string, isGeneralObservation: boolean = false) => {
+      if (currentY > doc.internal.pageSize.getHeight() - (isGeneralObservation ? 20 : 15)) { // More space for observations before page break
+          doc.addPage(); currentY = 20; 
+          // Ensure dayStr is defined or handled if addPdfWarning is called outside the day loop scope
+          const currentDayStr = data.entries.find(e => e.date === dayStr)?.date || dayStr || format(new Date(), "yyyy-MM-dd");
+          doc.setFontSize(14); doc.text(`Fecha: ${format(parseISO(currentDayStr), "PPP", { locale: es })} (cont.)`, 14, currentY); currentY +=7;
+          doc.setFontSize(10);
+      }
+      doc.setTextColor(150, 0, 0); // Darker red for warnings
+      if (text.toLowerCase().includes("instructor") || text.toLowerCase().includes("remolcador")) {
+           doc.setFont(undefined, 'bold');
+      } else {
+           doc.setFont(undefined, 'normal');
+      }
+      doc.text(text, 14, currentY);
+      doc.setFont(undefined, 'normal'); // Reset font style
+      currentY += 5;
+    };
+
+
     dateInterval.forEach((day, dayIndex) => {
-        const dayStr = format(day, "yyyy-MM-dd");
+        const dayStr = format(day, "yyyy-MM-dd"); // Define dayStr here for use in addPdfWarning
         const entriesForDay = data.entries.filter(entry => entry.date === dayStr);
         const observationForDay = data.observations.find(obs => obs.date === dayStr);
         const hasObservationText = observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '';
@@ -482,6 +506,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         if (hasObservationText) {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
+            doc.setTextColor(0,0,0);
             const observationLines = doc.splitTextToSize(observationForDay!.observation_text!.trim(), doc.internal.pageSize.getWidth() - 28);
             doc.text("Observaciones:", 14, currentY);
             currentY += 5;
@@ -497,34 +522,25 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             currentY += 3; 
         }
 
-        let warningAddedToPdf = false;
         doc.setFontSize(9);
+        doc.setTextColor(0,0,0);
         
-        const addPdfWarning = (text: string, isImportant: boolean = false) => {
-            if (currentY > doc.internal.pageSize.getHeight() - 15) { doc.addPage(); currentY = 20; }
-            doc.setTextColor(150, 0, 0); // Darker red for warnings
-            if (isImportant) { // For "Remolcador confirmado" (no flight type)
-                 doc.setFont(undefined, 'bold');
-            }
-            doc.text(text, 14, currentY);
-            if (isImportant) {
-                doc.setFont(undefined, 'normal');
-            }
-            currentY += 5;
-            warningAddedToPdf = true;
-        };
-
         if (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) {
-            addPdfWarning('Aviso: Aún no hay piloto de categoría "Remolcador" confirmado para esta fecha.', true);
+            addPdfWarning('Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.');
         }
         if (instructorCategory && !isInstructorCategoryConfirmedForDay) {
-            addPdfWarning('Aviso: Aún no hay "Instructor" confirmado para esta fecha.', true);
+            addPdfWarning('Aviso: Aún no hay Instructor confirmado para esta fecha.');
         }
         if (towageFlightTypeId && noTowageFlightsPresentForDay && entriesForDay.length > 0) {
-           addPdfWarning('Aviso: Aún no hay Remolcador confirmado para esta fecha.', true);
+           addPdfWarning('Aviso: Aún no hay Remolcador confirmado.');
         }
         doc.setTextColor(0, 0, 0); 
-        if (warningAddedToPdf) currentY +=2; 
+        if ( (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) ||
+             (instructorCategory && !isInstructorCategoryConfirmedForDay) ||
+             (towageFlightTypeId && noTowageFlightsPresentForDay && entriesForDay.length > 0)
+           ) {
+            currentY +=2; 
+        }
 
 
         if (entriesForDay.length === 0) {
@@ -544,8 +560,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 let groupNameForPdf = groupDetails.name;
                 let groupHeaderStyle: any = { fontStyle: 'bold', fillColor: [214, 234, 248], textColor: [21, 67, 96] };
                 
-                if (groupNameForPdf.includes("Instructor") || groupNameForPdf.includes("Remolcador")) {
-                    // Group name itself is bolded by default style
+                if (groupNameForPdf.toLowerCase().includes("instructor") || groupNameForPdf.toLowerCase().includes("remolcador")) {
+                   // Group name itself is bolded by default style
                 }
 
                 if (groupDetails.id !== previousGroupIdentifier) {
@@ -562,10 +578,16 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 const flightTypeCell = formatted.shouldFlightTypeBeBold 
                     ? { content: formatted.flightType, styles: { fontStyle: 'bold' } } 
                     : formatted.flightType;
+                
+                let categoryCellContent = formatted.category;
+                const categoryCellStyles: any = {};
+                // For PDF, true underlining of partial text is complex.
+                // Bolding is applied to the whole group header or specific bolded flight types.
+
                 tableRows.push([
                     formatted.time,
                     formatted.pilot,
-                    formatted.category, 
+                    { content: categoryCellContent, styles: categoryCellStyles },
                     formatted.towAvailable || '-',
                     flightTypeCell,
                     formatted.aircraft,
@@ -603,6 +625,10 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                         if (cellObject.styles) Object.assign(hookData.cell.styles, cellObject.styles);
                         if (cellObject.colSpan) hookData.cell.colSpan = cellObject.colSpan;
                     } else if (hookData.column.dataKey === '4' && typeof hookData.cell.raw === 'object' && hookData.cell.raw !== null && 'styles' in hookData.cell.raw) {
+                        const cellObject = hookData.cell.raw as { content: string; styles: any };
+                         if (cellObject.styles) Object.assign(hookData.cell.styles, cellObject.styles);
+                        hookData.cell.text = cellObject.content;
+                    } else if (hookData.column.dataKey === '2' && typeof hookData.cell.raw === 'object' && hookData.cell.raw !== null && 'styles' in hookData.cell.raw) { // For category column
                         const cellObject = hookData.cell.raw as { content: string; styles: any };
                          if (cellObject.styles) Object.assign(hookData.cell.styles, cellObject.styles);
                         hookData.cell.text = cellObject.content;
@@ -703,3 +729,4 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     </DropdownMenu>
   );
 }
+
