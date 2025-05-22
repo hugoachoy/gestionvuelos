@@ -40,13 +40,14 @@ declare module 'jspdf' {
   }
 }
 
+// This helper function determines the main sorting/grouping category for an entry
 const getEntryGroupDetails = (
   entry: ScheduleEntry,
   categories: PilotCategory[],
   getCategoryName: (id: string) => string,
   getAircraftName: (id?: string) => string
 ): { id: string; name: string } => {
-  const categoryName = getCategoryName(entry.pilot_category_id);
+  // const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id); // Category name for this specific turn
   const instructorCategory = categories.find(c => c.name === 'Instructor');
   const remolcadorCategory = categories.find(c => c.name === 'Remolcador');
 
@@ -59,11 +60,13 @@ const getEntryGroupDetails = (
     }
     return { id: 'remolcador_no_disponible', name: 'Pilotos Remolcadores (No Disponibles)' };
   }
+  // For other pilots, group by aircraft
   if (entry.aircraft_id) {
     return { id: `aircraft_${entry.aircraft_id}`, name: `Aeronave: ${getAircraftName(entry.aircraft_id)}` };
   }
   return { id: 'sin_aeronave', name: 'Vuelos sin Aeronave Asignada' };
 };
+
 
 export function ShareButton({ scheduleDate }: ShareButtonProps) {
   const { toast } = useToast();
@@ -81,20 +84,30 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
   const getFormattedEntry = (entry: ScheduleEntry) => {
     const pilotName = getPilotName(entry.pilot_id);
-    const categoryNameForEntry = getCategoryName(entry.pilot_category_id);
+    const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id); // Category for the turn
     const flightTypeName = FLIGHT_TYPES.find(ft => ft.id === entry.flight_type_id)?.name || 'N/A';
     const aircraftText = entry.aircraft_id ? getAircraftName(entry.aircraft_id) : 'N/A';
+    
     let towPilotStatus = '';
-    if (categoryNameForEntry === 'Remolcador') {
+    const remolcadorCategoryFromList = categories.find(c => c.name === 'Remolcador');
+    if (entry.pilot_category_id === remolcadorCategoryFromList?.id) {
       towPilotStatus = entry.is_tow_pilot_available ? 'Sí' : 'No';
     }
+
+    const instructorCategoryFromList = categories.find(c => c.name === 'Instructor');
+    const isInstructionByInstructor = entry.flight_type_id === 'instruction' && entry.pilot_category_id === instructorCategoryFromList?.id;
+    const isTurnByRemolcador = entry.pilot_category_id === remolcadorCategoryFromList?.id;
+
+    const shouldFlightTypeBeBold = isInstructionByInstructor || isTurnByRemolcador;
+
     return {
       time: entry.start_time.substring(0, 5),
       pilot: pilotName,
-      category: categoryNameForEntry,
+      category: pilotCategoryNameForTurn,
       towAvailable: towPilotStatus,
       flightType: flightTypeName,
       aircraft: aircraftText,
+      shouldFlightTypeBeBold,
     };
   };
 
@@ -146,62 +159,40 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       const observationForDay = allObservations.find(obs => obs.date === dayStr);
       const entriesForDay = allEntries.filter(entry => entry.date === dayStr);
 
-      if (entriesForDay.length === 0 && (!observationForDay || !observationForDay.observation_text || observationForDay.observation_text.trim() === '')) {
-        return; // Skip this day if no entries and no (meaningful) observations
+      const hasObservationText = observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '';
+      if (entriesForDay.length === 0 && !hasObservationText) {
+        return; 
       }
       
-      if (contentAddedForPreviousDay || index > 0) { // Add separator if not the very first day with content
+      if (contentAddedForPreviousDay) { 
          fullText += `\n`; 
       }
       fullText += `\n=== ${format(day, "PPP", { locale: es })} ===\n`;
       contentAddedForPreviousDay = true;
 
 
-      if (observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '') {
-        fullText += `\nObservaciones:\n${observationForDay.observation_text.trim()}\n`;
+      if (hasObservationText) {
+        fullText += `\nObservaciones:\n${observationForDay!.observation_text!.trim()}\n`;
       }
 
       if (entriesForDay.length === 0) {
-        if (observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '') {
           fullText += "No hay turnos programados para esta fecha.\n";
-        }
       } else {
         let previousGroupIdentifier: string | null = null;
         
-        const sortedEntriesForDay = [...entriesForDay].sort((a, b) => {
-            const groupA = getEntryGroupDetails(a, categories, getCategoryName, getAircraftName);
-            const groupB = getEntryGroupDetails(b, categories, getCategoryName, getAircraftName);
-            const groupOrder = (groupId: string) => {
-                if (groupId === 'instructor') return 1;
-                if (groupId === 'remolcador_disponible') return 2;
-                if (groupId === 'remolcador_no_disponible') return 3;
-                if (groupId.startsWith('aircraft_')) return 4;
-                return 5; 
-            };
-            const orderA = groupOrder(groupA.id);
-            const orderB = groupOrder(groupB.id);
-            if (orderA !== orderB) return orderA - orderB;
-            if (groupA.id.startsWith('aircraft_') && groupB.id.startsWith('aircraft_')) {
-                 if (groupA.id !== groupB.id) return groupA.id.localeCompare(groupB.id);
-            }
-            const timeComparison = a.start_time.localeCompare(b.start_time);
-            if (timeComparison !== 0) return timeComparison;
-            const aIsSport = a.flight_type_id === 'sport';
-            const bIsSport = b.flight_type_id === 'sport';
-            if (aIsSport && !bIsSport) return -1;
-            if (!aIsSport && bIsSport) return 1;
-            return 0;
-        });
-
-
-        sortedEntriesForDay.forEach(entry => {
+        // The entries are already sorted by ScheduleClient, so we just need to iterate and insert group headers.
+        entriesForDay.forEach(entry => {
           const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
           if (groupDetails.id !== previousGroupIdentifier) {
             fullText += `\n--- ${groupDetails.name} ---\n`;
             previousGroupIdentifier = groupDetails.id;
           }
           const formatted = getFormattedEntry(entry);
-          fullText += `${formatted.time} - ${formatted.pilot} (${formatted.category}${formatted.towAvailable ? ' - Rem: ' + formatted.towAvailable : ''}) - ${formatted.flightType}${formatted.aircraft !== 'N/A' ? ' - Aeronave: ' + formatted.aircraft : ''}\n`;
+          let flightTypeString = formatted.flightType;
+          if (formatted.shouldFlightTypeBeBold) {
+            flightTypeString = `*${formatted.flightType}*`; 
+          }
+          fullText += `${formatted.time} - ${formatted.pilot} (${formatted.category}${formatted.towAvailable ? ' - Rem: ' + formatted.towAvailable : ''}) - ${flightTypeString}${formatted.aircraft !== 'N/A' ? ' - Aeronave: ' + formatted.aircraft : ''}\n`;
         });
       }
     });
@@ -251,78 +242,55 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
     let contentAddedForPreviousDay = false;
 
-    dateInterval.forEach((day, index) => {
+    dateInterval.forEach((day) => {
         const dayStr = format(day, "yyyy-MM-dd");
         const formattedDay = format(day, "dd/MM/yyyy", { locale: es });
         
         const observationForDay = data.observations.find(obs => obs.date === dayStr);
-        const obsText = (observationForDay?.observation_text && observationForDay.observation_text.trim() !== '') ? `"${observationForDay.observation_text.trim().replace(/"/g, '""')}"` : "";
+        const hasObservationText = observationForDay?.observation_text && observationForDay.observation_text.trim() !== '';
+        const obsText = hasObservationText ? `"${observationForDay!.observation_text!.trim().replace(/"/g, '""')}"` : "";
         const entriesForDay = data.entries.filter(entry => entry.date === dayStr);
         
-        if (entriesForDay.length === 0 && !obsText) {
-            return; // Skip this day
+        if (entriesForDay.length === 0 && !hasObservationText) {
+            return; 
         }
 
-        if (contentAddedForPreviousDay || index > 0) { // Add separator if not the very first day with content
+        if (contentAddedForPreviousDay) { 
           csvContent += `\n`; 
         }
-        csvContent += `"${formattedDay}"\n`; // Date header for the day
+        csvContent += `"${formattedDay}"\n`; 
         contentAddedForPreviousDay = true;
 
-        if (obsText) {
-            csvContent += `"Observaciones:",${obsText}\n`; // Observation row (spanning for example purposes)
+        if (hasObservationText) {
+            csvContent += `"Observaciones:",${obsText}\n`; 
         }
 
         if (entriesForDay.length > 0) {
             csvContent += headers.join(",") + "\n";
 
             let previousGroupIdentifier: string | null = null;
-            const sortedEntriesForDay = [...entriesForDay].sort((a, b) => { 
-                const groupA = getEntryGroupDetails(a, categories, getCategoryName, getAircraftName);
-                const groupB = getEntryGroupDetails(b, categories, getCategoryName, getAircraftName);
-                const groupOrder = (groupId: string) => {
-                    if (groupId === 'instructor') return 1;
-                    if (groupId === 'remolcador_disponible') return 2;
-                    if (groupId === 'remolcador_no_disponible') return 3;
-                    if (groupId.startsWith('aircraft_')) return 4;
-                    return 5; 
-                };
-                const orderA = groupOrder(groupA.id);
-                const orderB = groupOrder(groupB.id);
-                if (orderA !== orderB) return orderA - orderB;
-                if (groupA.id.startsWith('aircraft_') && groupB.id.startsWith('aircraft_')) {
-                     if (groupA.id !== groupB.id) return groupA.id.localeCompare(groupB.id);
-                }
-                const timeComparison = a.start_time.localeCompare(b.start_time);
-                if (timeComparison !== 0) return timeComparison;
-                const aIsSport = a.flight_type_id === 'sport';
-                const bIsSport = b.flight_type_id === 'sport';
-                if (aIsSport && !bIsSport) return -1;
-                if (!aIsSport && bIsSport) return 1;
-                return 0;
-            });
-
-            sortedEntriesForDay.forEach((entry) => {
+            
+            entriesForDay.forEach((entry) => {
               const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
               if (groupDetails.id !== previousGroupIdentifier) {
                 csvContent += `"${groupDetails.name}"\n`; 
                 previousGroupIdentifier = groupDetails.id;
               }
               const formatted = getFormattedEntry(entry);
+              // CSV doesn't support bold, so we use the raw flightType
               const row = [
                 formatted.time,
                 `"${formatted.pilot.replace(/"/g, '""')}"`,
                 `"${formatted.category.replace(/"/g, '""')}"`,
                 formatted.towAvailable,
-                `"${formatted.flightType.replace(/"/g, '""')}"`,
+                `"${formatted.flightType.replace(/"/g, '""')}"`, // Raw flight type for CSV
                 `"${formatted.aircraft.replace(/"/g, '""')}"`,
               ];
               csvContent += row.join(",") + "\n";
             });
-        } else if (obsText) {
+        } else if (hasObservationText) {
             csvContent += `"No hay turnos programados para esta fecha."\n`;
         }
-         csvContent += "\n";
     });
 
 
@@ -349,7 +317,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageTitle = `Agenda de Vuelo: ${format(exportStartDate, "PPP", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' - ' + format(exportEndDate, "PPP", { locale: es }) : ''}`;
     let currentY = 15;
-    let pageBreakAddedForPreviousDay = false; // To track if a page break was added for the content of the previous day
+    let pageBreakAddedForPreviousDay = false;
 
     doc.setFontSize(16);
     doc.text(pageTitle, 14, currentY);
@@ -365,18 +333,17 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         const hasObservationText = observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '';
 
         if (entriesForDay.length === 0 && !hasObservationText) {
-            return; // Skip this day
+            return; 
         }
 
         if (pageBreakAddedForPreviousDay) { 
             doc.addPage();
             currentY = 15;
-            // Reprint main title on new page if desired
             doc.setFontSize(16);
             doc.text(pageTitle, 14, currentY);
             currentY += 10;
         }
-        pageBreakAddedForPreviousDay = false; // Reset for the current day
+        pageBreakAddedForPreviousDay = false; 
 
 
         doc.setFontSize(14);
@@ -392,7 +359,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 if (currentY > doc.internal.pageSize.getHeight() - 20) { 
                     doc.addPage();
                     currentY = 15;
-                    // Optionally reprint date header on new page if observation spans
                     doc.setFontSize(14);
                     doc.text(`Fecha: ${format(day, "PPP", { locale: es })} (cont.)`, 14, currentY);
                     currentY +=7;
@@ -415,35 +381,11 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             }
         } else {
             const tableColumn = ["Hora", "Piloto", "Categoría", "Rem. Disp.", "Tipo Vuelo", "Aeronave"];
-            const tableRows: (string | { content: string; colSpan: number; styles: any } | null)[][] = [];
+            const tableRows: (string | { content: string; colSpan?: number; styles?: any } | null)[][] = []; // Adjusted type
             
             let previousGroupIdentifier: string | null = null;
-            const sortedEntriesForDay = [...entriesForDay].sort((a, b) => { 
-                const groupA = getEntryGroupDetails(a, categories, getCategoryName, getAircraftName);
-                const groupB = getEntryGroupDetails(b, categories, getCategoryName, getAircraftName);
-                const groupOrder = (groupId: string) => {
-                    if (groupId === 'instructor') return 1;
-                    if (groupId === 'remolcador_disponible') return 2;
-                    if (groupId === 'remolcador_no_disponible') return 3;
-                    if (groupId.startsWith('aircraft_')) return 4;
-                    return 5; 
-                };
-                const orderA = groupOrder(groupA.id);
-                const orderB = groupOrder(groupB.id);
-                if (orderA !== orderB) return orderA - orderB;
-                if (groupA.id.startsWith('aircraft_') && groupB.id.startsWith('aircraft_')) {
-                    if (groupA.id !== groupB.id) return groupA.id.localeCompare(groupB.id);
-                }
-                const timeComparison = a.start_time.localeCompare(b.start_time);
-                if (timeComparison !== 0) return timeComparison;
-                const aIsSport = a.flight_type_id === 'sport';
-                const bIsSport = b.flight_type_id === 'sport';
-                if (aIsSport && !bIsSport) return -1;
-                if (!aIsSport && bIsSport) return 1;
-                return 0;
-            });
-
-            sortedEntriesForDay.forEach(entry => {
+            
+            entriesForDay.forEach(entry => {
                 const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
                 if (groupDetails.id !== previousGroupIdentifier) {
                     tableRows.push([
@@ -456,12 +398,15 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                     previousGroupIdentifier = groupDetails.id;
                 }
                 const formatted = getFormattedEntry(entry);
+                const flightTypeCell = formatted.shouldFlightTypeBeBold 
+                    ? { content: formatted.flightType, styles: { fontStyle: 'bold' } } 
+                    : formatted.flightType;
                 tableRows.push([
                     formatted.time,
                     formatted.pilot,
                     formatted.category,
                     formatted.towAvailable || '-',
-                    formatted.flightType,
+                    flightTypeCell,
                     formatted.aircraft,
                 ]);
             });
@@ -471,7 +416,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 body: tableRows,
                 startY: currentY,
                 theme: 'grid',
-                headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+                headStyles: { fillColor: [41, 128, 185], textColor: 255 }, // Blue header
                 styles: { fontSize: 8, cellPadding: 1.5 },
                 columnStyles: {
                     0: { cellWidth: 20 },
@@ -483,30 +428,39 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 },
                 didDrawPage: (dataAfterPage) => { 
                     currentY = dataAfterPage.cursor?.y ?? currentY;
-                    if (dataAfterPage.pageNumber > doc.getNumberOfPages()) { // AutoTable added new page(s)
+                    if (dataAfterPage.pageNumber > doc.getNumberOfPages()) { 
                          pageBreakAddedForPreviousDay = true; 
-                    } else if ( dataAfterPage.pageNumber === doc.getNumberOfPages() && currentY < 20){ // Content wrapped to a new page, meaning previous was full
+                    } else if ( dataAfterPage.pageNumber === doc.getNumberOfPages() && currentY < 20){ 
                          pageBreakAddedForPreviousDay = true;
                     }
                 },
                 didParseCell: function (data) {
-                    if (data.row.raw && typeof data.row.raw[0] === 'object' && (data.row.raw[0] as any).colSpan) {
-                        data.cell.styles.fontStyle = (data.row.raw[0] as any).styles.fontStyle || 'normal';
-                        data.cell.styles.fillColor = (data.row.raw[0] as any).styles.fillColor;
-                        data.cell.styles.textColor = (data.row.raw[0] as any).styles.textColor;
-                        if (data.cell.raw && typeof data.cell.raw === 'object' && (data.cell.raw as any).colSpan) {
-                            data.cell.colSpan = (data.cell.raw as any).colSpan;
+                    if (data.row.raw && typeof data.row.raw[0] === 'object' && (data.row.raw[0] as any)?.colSpan) {
+                        // This handles group header rows that are objects
+                        const cellObject = data.row.raw[0] as { content: string; styles: any; colSpan?: number };
+                        if (cellObject.styles) {
+                            Object.assign(data.cell.styles, cellObject.styles);
                         }
+                        if (cellObject.colSpan) {
+                            data.cell.colSpan = cellObject.colSpan;
+                        }
+                    } else if (data.column.dataKey === '4' && typeof data.cell.raw === 'object' && data.cell.raw !== null && 'styles' in data.cell.raw) {
+                        // This handles individual styled cells like bold flight type
+                        const cellObject = data.cell.raw as { content: string; styles: any };
+                         if (cellObject.styles) {
+                            Object.assign(data.cell.styles, cellObject.styles);
+                        }
+                        data.cell.text = cellObject.content; // Ensure text is set correctly
                     }
                 }
             });
             currentY = (doc as any).lastAutoTable.finalY + 10; 
-            if (currentY > doc.internal.pageSize.getHeight() -20) { // If table ends close to bottom, next day on new page
+            if (currentY > doc.internal.pageSize.getHeight() -20) { 
                 pageBreakAddedForPreviousDay = true;
             }
 
         }
-        if (entriesForDay.length > 0 || hasObservationText) { // If content was added for this day, set flag for potential page break for next day
+        if (entriesForDay.length > 0 || hasObservationText) { 
             pageBreakAddedForPreviousDay = true; 
         }
     });
@@ -593,4 +547,3 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     </DropdownMenu>
   );
 }
-

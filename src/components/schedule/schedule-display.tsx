@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ScheduleEntry } from '@/types';
+import type { ScheduleEntry, PilotCategory } from '@/types'; // Added PilotCategory
 import { FLIGHT_TYPES } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/sto
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import React from 'react';
 
 interface ScheduleDisplayProps {
   entries: ScheduleEntry[];
@@ -30,7 +31,7 @@ const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = 
 
 export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
   const { getPilotName, pilots } = usePilotsStore();
-  const { getCategoryName, categories } = usePilotCategoriesStore();
+  const { getCategoryName, categories } = usePilotCategoriesStore(); // Ensure categories is available
   const { getAircraftName } = useAircraftStore();
 
   if (entries.length === 0) {
@@ -53,15 +54,30 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         let expiringBadge = null;
         let expiredBlock = null;
 
-        const pilotCategoryName = getCategoryName(entry.pilot_category_id);
-        const isTowPilotCategoryEntry = pilotCategoryName === 'Remolcador';
-        const isInstructorCategoryEntry = pilotCategoryName === 'Instructor';
+        const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id);
+        const instructorCategoryFromList = categories.find(c => c.name === 'Instructor');
+        const remolcadorCategoryFromList = categories.find(c => c.name === 'Remolcador');
+        
+        const isTurnByInstructor = entry.pilot_category_id === instructorCategoryFromList?.id;
+        const isTurnByRemolcador = entry.pilot_category_id === remolcadorCategoryFromList?.id;
+
+        const isInstructionByInstructor = entry.flight_type_id === 'instruction' && isTurnByInstructor;
+
+        const flightTypeName = getFlightTypeName(entry.flight_type_id);
+        let flightTypeDisplayNode: React.ReactNode = flightTypeName;
+
+        if (isInstructionByInstructor || isTurnByRemolcador) {
+          flightTypeDisplayNode = <strong className="text-foreground">{flightTypeName}</strong>;
+        } else if (entry.flight_type_id === 'towage') { 
+          // This handles cases where flight type is 'towage' but category might not be explicitly 'Remolcador' for the turn
+          // Though ideally, if type is towage, category for turn should be Remolcador
+          flightTypeDisplayNode = <strong className="text-foreground">{flightTypeName}</strong>;
+        }
+
 
         const displayTime = entry.start_time.substring(0, 5); // HH:MM
 
-        const isFlightTypeTowage = towageFlightType && entry.flight_type_id === towageFlightType.id;
-        // Show "Disponible desde las" if flight type is towage OR if pilot's category for the turn is Instructor
-        const showAvailableSinceText = isFlightTypeTowage || isInstructorCategoryEntry;
+        const showAvailableSinceText = (entry.flight_type_id === towageFlightType?.id) || isTurnByInstructor;
 
 
         if (pilot && pilot.medical_expiry) {
@@ -105,7 +121,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
           }
         }
 
-        const isTowageRelatedCardStyle = isTowPilotCategoryEntry || entry.flight_type_id === 'towage';
+        const isTowageRelatedCardStyle = isTurnByRemolcador || entry.flight_type_id === 'towage';
 
         return (
           <Card
@@ -129,11 +145,9 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   </CardTitle>
                   {expiredBlock}
                   <CardDescription className="flex items-center gap-2 mt-1 pt-1">
-                    <Layers className="h-4 w-4 text-muted-foreground" /> {pilotCategoryName}
+                    <Layers className="h-4 w-4 text-muted-foreground" /> {pilotCategoryNameForTurn}
                     <FlightTypeIcon typeId={entry.flight_type_id} />
-                    <span className={cn(entry.flight_type_id === 'towage' && "font-semibold text-foreground")}>
-                      {getFlightTypeName(entry.flight_type_id)}
-                    </span>
+                    {flightTypeDisplayNode}
                   </CardDescription>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -154,7 +168,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {isTowPilotCategoryEntry && (
+              {isTurnByRemolcador && ( // Changed from isTowPilotCategoryEntry to isTurnByRemolcador
                 <div className="flex items-center">
                   {entry.is_tow_pilot_available ?
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> :
