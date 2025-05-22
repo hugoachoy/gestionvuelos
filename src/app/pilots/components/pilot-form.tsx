@@ -17,6 +17,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,11 +34,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, parse, isValid } from 'date-fns';
+import { format, parseISO, parse, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useState, useEffect } from 'react';
 
-// Schema uses snake_case matching the Type and DB
 const pilotSchema = z.object({
   first_name: z.string().min(1, "El nombre es obligatorio."),
   last_name: z.string().min(1, "El apellido es obligatorio."),
@@ -46,34 +46,31 @@ const pilotSchema = z.object({
       required_error: "La fecha de vencimiento del psicofísico es obligatoria.",
       invalid_type_error: "Fecha inválida."
     })
-    .refine(date => date >= new Date(new Date().setHours(0,0,0,0)), {
+    .refine(date => date >= startOfDay(new Date()), { // Use startOfDay for comparison
       message: "La fecha de vencimiento no puede ser en el pasado."
     }),
+  is_admin: z.boolean().optional(), // Added is_admin field
 });
 
-// This FormData type will have snake_case fields
 type PilotFormData = z.infer<typeof pilotSchema>;
 
 interface PilotFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => void;
-  pilot?: Pilot; // Pilot type has snake_case fields
+  pilot?: Pilot;
   categories: PilotCategory[];
 }
 
 export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: PilotFormProps) {
   const form = useForm<PilotFormData>({
     resolver: zodResolver(pilotSchema),
-    defaultValues: { // Initial defaults for a new pilot, or if pilot prop is initially undefined
+    defaultValues: {
       first_name: '',
       last_name: '',
       category_ids: [],
       medical_expiry: new Date(),
-      ...(pilot && { // Spread pilot data if available initially (less common path for edit)
-        ...pilot,
-        medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date(),
-      })
+      is_admin: false,
     },
   });
 
@@ -81,31 +78,28 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   const [medicalExpiryDateString, setMedicalExpiryDateString] = useState('');
 
   useEffect(() => {
-    // This effect runs when the dialog opens or the pilot data changes.
-    // It's responsible for resetting the form with the pilot's data or default new pilot data.
     if (open) {
       const initialFormValues = pilot
         ? {
-            first_name: pilot.first_name || '', // Ensure string for form field
-            last_name: pilot.last_name || '',   // Ensure string for form field
+            first_name: pilot.first_name || '',
+            last_name: pilot.last_name || '',
             category_ids: pilot.category_ids || [],
             medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date(),
+            is_admin: pilot.is_admin ?? false,
           }
-        : { // Default for new pilot
+        : { 
             first_name: '',
             last_name: '',
             category_ids: [],
             medical_expiry: new Date(),
+            is_admin: false,
           };
       form.reset(initialFormValues);
 
-      // This part updates the medicalExpiryDateString for display purposes,
-      // based on the date that was just set in the form via reset.
       const currentMedicalDateInForm = initialFormValues.medical_expiry;
       if (isValid(currentMedicalDateInForm)) {
         setMedicalExpiryDateString(format(currentMedicalDateInForm, "dd/MM/yyyy", { locale: es }));
       } else {
-        // Fallback for display string if date somehow invalid (should be rare)
         setMedicalExpiryDateString(format(new Date(), "dd/MM/yyyy", { locale: es }));
       }
     }
@@ -119,7 +113,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     if (isValid(parsedDate)) {
       fieldOnChange(parsedDate);
     } else {
-      fieldOnChange(undefined);
+      fieldOnChange(undefined); // Signal invalid date to react-hook-form
     }
   };
 
@@ -135,28 +129,28 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   };
 
   const handleSubmit = (data: PilotFormData) => {
-    const dataToSubmit = {
+    const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
         ...data,
         medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
+        is_admin: data.is_admin ?? false,
     };
     onSubmit(dataToSubmit, pilot?.id);
-    // form.reset is handled by onOpenChange and the useEffect for 'open' state
-    onOpenChange(false);
+    onOpenChange(false); // form.reset is handled by the useEffect for 'open'
   };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
         onOpenChange(isOpen);
         if (!isOpen) {
-            // Reset form to initial state when closing, respecting if a pilot was being edited or if it's for a new one
             const resetValuesOnClose = pilot
               ? {
                   first_name: pilot.first_name || '',
                   last_name: pilot.last_name || '',
                   category_ids: pilot.category_ids || [],
-                  medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date()
+                  medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date(),
+                  is_admin: pilot.is_admin ?? false,
                 }
-              : { first_name: '', last_name: '', category_ids: [], medical_expiry: new Date() };
+              : { first_name: '', last_name: '', category_ids: [], medical_expiry: new Date(), is_admin: false };
             form.reset(resetValuesOnClose);
             const defaultDateOnClose = resetValuesOnClose.medical_expiry;
             setMedicalExpiryDateString(isValid(defaultDateOnClose) ? format(defaultDateOnClose, "dd/MM/yyyy", {locale: es}) : '');
@@ -247,7 +241,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                                       )
                                     );
                               }}
-                              id={`category-${category.id}`} // Added id for label association
+                              id={`category-${category.id}`}
                             />
                             <label htmlFor={`category-${category.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
                               {category.name}
@@ -292,7 +286,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                         selected={field.value instanceof Date && isValid(field.value) ? field.value : undefined}
                         onSelect={(date) => handleDateSelect(date, field.onChange)}
                         disabled={(date) =>
-                          date < new Date(new Date().setHours(0,0,0,0))
+                          date < startOfDay(new Date()) // Use startOfDay here as well
                         }
                         initialFocus
                         locale={es}
@@ -303,9 +297,28 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="is_admin"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel>Administrador</FormLabel>
+                    <FormDescription>
+                      Marcar si este piloto es administrador.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => {
-                // Reset logic handled by onOpenChange in Dialog prop
                 onOpenChange(false);
               }}>Cancelar</Button>
               <Button type="submit">{pilot ? 'Guardar Cambios' : 'Crear Piloto'}</Button>

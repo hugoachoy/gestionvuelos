@@ -2,15 +2,15 @@
 "use client";
 
 import React from 'react'; 
-import { useState } from 'react';
+import { useState, useCallback } from 'react'; // Removed useEffect as fetchPilots is called directly
 import type { Pilot, PilotCategory } from '@/types';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { PilotForm } from './pilot-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
-import { PilotReportButton } from './pilot-report-button'; // Added import
+import { PilotReportButton } from './pilot-report-button';
 import {
   Table,
   TableBody,
@@ -61,12 +61,22 @@ export function PilotClient() {
 
   const handleSubmitForm = async (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => {
     if (pilotId) {
-      await updatePilot({ ...data, id: pilotId });
+      await updatePilot({ ...data, id: pilotId } as Pilot); // Ensure type compatibility
     } else {
       await addPilot(data);
     }
     setIsFormOpen(false);
   };
+  
+  const handleRefreshAll = useCallback(() => {
+    fetchPilots();
+    fetchCategories();
+  }, [fetchPilots, fetchCategories]);
+
+  React.useEffect(() => {
+    handleRefreshAll();
+  }, [handleRefreshAll]);
+
 
   const combinedLoading = loading || categoriesLoading;
   const combinedError = error || categoriesError;
@@ -75,7 +85,7 @@ export function PilotClient() {
     return (
       <div className="text-destructive p-4">
         Error al cargar datos: {combinedError.message || JSON.stringify(combinedError)}
-        <Button onClick={() => { fetchPilots(); fetchCategories(); }} className="ml-2 mt-2">Reintentar Cargar Todo</Button>
+        <Button onClick={handleRefreshAll} className="ml-2 mt-2">Reintentar Cargar Todo</Button>
       </div>
     );
   }
@@ -86,7 +96,7 @@ export function PilotClient() {
         title="Pilotos" 
         action={
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => { fetchPilots(); fetchCategories(); }} variant="outline" size="icon" disabled={combinedLoading}>
+            <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={combinedLoading}>
               <RefreshCw className={cn("h-4 w-4", combinedLoading && "animate-spin")} />
                <span className="sr-only">Refrescar datos</span>
             </Button>
@@ -117,13 +127,14 @@ export function PilotClient() {
                 <TableHead>Apellido</TableHead>
                 <TableHead>Categorías</TableHead>
                 <TableHead>Venc. Psicofísico</TableHead>
+                <TableHead>Admin</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pilots.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">
+                  <TableCell colSpan={6} className="text-center h-24">
                     No hay pilotos registrados.
                   </TableCell>
                 </TableRow>
@@ -186,6 +197,14 @@ export function PilotClient() {
                       </TableCell>
                       <TableCell>
                         {medicalExpiryDisplay}
+                      </TableCell>
+                      <TableCell>
+                        {pilot.is_admin && (
+                          <Badge variant="outline" className="border-primary text-primary">
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                            Admin
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
