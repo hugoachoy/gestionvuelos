@@ -21,7 +21,7 @@ import {
   useScheduleStore,
   useDailyObservationsStore
 } from '@/store/data-hooks';
-import type { ScheduleEntry } from '@/types';
+import type { ScheduleEntry, PilotCategory } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -73,10 +73,10 @@ export function ScheduleClient() {
 
   useEffect(() => {
     if (observationTextareaRef.current) {
-      observationTextareaRef.current.style.height = 'auto';
-      observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
+      observationTextareaRef.current.style.height = 'auto'; // Reset height to shrink if text is removed
+      observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`; // Set height to scroll height
     }
-  }, [observationInput]);
+  }, [observationInput]); // Re-run when observationInput changes
 
   useEffect(() => {
     const runCleanup = async () => {
@@ -153,14 +153,14 @@ export function ScheduleClient() {
       .sort((a, b) => {
         const aIsInstructor = a.pilot_category_id === instructorCategory?.id;
         const bIsInstructor = b.pilot_category_id === instructorCategory?.id;
-
+        
         // 1. Instructor Pilots
         if (aIsInstructor && !bIsInstructor) return -1;
         if (!aIsInstructor && bIsInstructor) return 1;
         if (aIsInstructor && bIsInstructor) {
           return a.start_time.localeCompare(b.start_time);
         }
-        
+
         const aIsTowPilot = a.pilot_category_id === towPilotCategory?.id;
         const bIsTowPilot = b.pilot_category_id === towPilotCategory?.id;
         const aIsConfirmedTow = a.is_tow_pilot_available === true;
@@ -234,7 +234,7 @@ export function ScheduleClient() {
         return false; 
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
-    if (!towPilotCategory) {
+    if (!towPilotCategory) { // If "Remolcador" category doesn't exist, we can't confirm it, so assume not applicable.
       return true; 
     }
     return scheduleEntries.some(entry =>
@@ -248,7 +248,7 @@ export function ScheduleClient() {
       return false;
     }
     const instructorCategory = categories.find(cat => cat.name === 'Instructor');
-    if (!instructorCategory) {
+    if (!instructorCategory) { // If "Instructor" category doesn't exist, assume not applicable.
       return true; 
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
@@ -261,7 +261,7 @@ export function ScheduleClient() {
 
   const noTowageFlightsPresent = useMemo(() => {
     if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries || categoriesLoading) {
-      return false; 
+      return true; // Default to true (meaning warning might show) if data is missing/loading
     }
     return !scheduleEntries.some(entry => entry.flight_type_id === towageFlightTypeId);
   }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId, categoriesLoading]);
@@ -304,10 +304,10 @@ export function ScheduleClient() {
             <Popover>
               <PopoverTrigger asChild>
                 <Button
-                  variant={"outline"}
+                  variant={"default"}
                   className={cn(
                     "w-full sm:w-[280px] justify-start text-left font-normal",
-                    !selectedDate && "text-muted-foreground"
+                    !selectedDate && "text-primary-foreground/70" 
                   )}
                   disabled={anyLoading}
                 >
@@ -357,8 +357,8 @@ export function ScheduleClient() {
       
       {selectedDate &&
        !isTowPilotCategoryConfirmed && 
+       !anyLoading &&
        categories.some(cat => cat.name === 'Remolcador') && 
-       !anyLoading && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -369,8 +369,8 @@ export function ScheduleClient() {
 
       {selectedDate &&
        !isInstructorConfirmed && 
-       categories.some(cat => cat.name === 'Instructor') && 
        !anyLoading &&
+       categories.some(cat => cat.name === 'Instructor') && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -386,12 +386,13 @@ export function ScheduleClient() {
        noTowageFlightsPresent && 
        towageFlightTypeId && 
        !anyLoading && 
+       scheduleEntries.length > 0 && // Only show if there are entries but none are towage
         (
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay Remolcador confirmado' />
+                <UnderlineKeywords text='Aún no hay Remolcador confirmado.' />
             </strong>
           </AlertDescription>
         </Alert>
@@ -430,3 +431,5 @@ export function ScheduleClient() {
     </>
   );
 }
+
+    
