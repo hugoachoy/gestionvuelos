@@ -49,10 +49,9 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
+import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
-// Removed: import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -93,7 +92,7 @@ interface BookingConflictWarningState {
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // Only generate XX:00 for 20:00
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -119,7 +118,7 @@ export function AvailabilityForm({
 
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
-    defaultValues: { 
+    defaultValues: {
         date: selectedDate || new Date(),
         start_time: '',
         pilot_id: '',
@@ -127,10 +126,10 @@ export function AvailabilityForm({
         is_tow_pilot_available: false,
         flight_type_id: '',
         aircraft_id: '',
-        ...(entry && { 
+        ...(entry && {
           ...entry,
           date: entry.date ? parseISO(entry.date) : new Date(),
-          aircraft_id: entry.aircraft_id ?? '', 
+          aircraft_id: entry.aircraft_id ?? '',
           start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
         })
       },
@@ -151,7 +150,7 @@ export function AvailabilityForm({
             aircraft_id: entry.aircraft_id ?? '',
             start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
           }
-        : { 
+        : {
             date: selectedDate || new Date(),
             start_time: '',
             pilot_id: '',
@@ -161,9 +160,8 @@ export function AvailabilityForm({
             aircraft_id: '',
           };
       form.reset(initialFormValues);
-      setPilotSearchTerm(''); 
+      setPilotSearchTerm('');
     } else {
-      // Reset warnings when dialog closes
       setMedicalWarning(null);
       setBookingConflictWarning(null);
     }
@@ -178,14 +176,13 @@ export function AvailabilityForm({
   const watchedFlightTypeId = form.watch('flight_type_id');
 
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
-  
+
   const pilotCategoriesForSelectedPilot = useMemo(() => {
     return pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
   }, [pilotDetails, categories]);
-  
+
   const selectedCategoryDetailsForTurn = useMemo(() => categories.find(c => c.id === watchedPilotCategoryId), [categories, watchedPilotCategoryId]);
   const isTowPilotCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name === 'Remolcador';
-
 
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
@@ -194,11 +191,13 @@ export function AvailabilityForm({
 
     if (open && watchedPilotId && currentPilotDetails?.medical_expiry && isValid(formFlightDate)) {
       const medicalExpiryDate = parseISO(currentPilotDetails.medical_expiry);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const today = startOfDay(new Date()); 
 
       if (isValid(medicalExpiryDate)) {
-        const isExpiredOnFlightDate = isBefore(medicalExpiryDate, formFlightDate);
+        const normalizedMedicalExpiryDate = startOfDay(medicalExpiryDate);
+        const normalizedFormFlightDate = startOfDay(formFlightDate);
+
+        const isExpiredOnFlightDate = isBefore(normalizedMedicalExpiryDate, normalizedFormFlightDate);
 
         if (isExpiredOnFlightDate) {
           newMedicalWarningInfo = {
@@ -208,19 +207,27 @@ export function AvailabilityForm({
             variant: 'destructive',
           };
         } else {
-          const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, today);
-          if (daysUntilExpiryFromToday <= 30) {
+          const daysUntilExpiryFromToday = differenceInDays(normalizedMedicalExpiryDate, today);
+          
+          if (daysUntilExpiryFromToday < 0) { 
+             newMedicalWarningInfo = {
+                show: true,
+                title: "¡Psicofísico Vencido!",
+                message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`,
+                variant: 'destructive',
+            };
+          } else if (daysUntilExpiryFromToday <= 30) {
             newMedicalWarningInfo = {
               show: true,
               title: "¡Psicofísico Vence en Muy Poco Tiempo!",
-              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
+              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} día(s) (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
               variant: 'destructive',
             };
           } else if (daysUntilExpiryFromToday <= 60) {
             newMedicalWarningInfo = {
               show: true,
               title: "Advertencia de Psicofísico",
-              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} días (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
+              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} día(s) (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
               variant: 'default',
             };
           }
@@ -250,7 +257,7 @@ export function AvailabilityForm({
         se.date === dateString &&
         se.start_time.substring(0, 5) === formStartTimeHHMM &&
         se.aircraft_id === watchedAircraftId &&
-        (!entry || se.id !== entry.id) 
+        (!entry || se.id !== entry.id)
     );
 
     if (conflictingEntry) {
@@ -263,47 +270,41 @@ export function AvailabilityForm({
 
 
   // Effect to suggest flight_type_id if selected pilot is inherently a "Remolcador"
-  // This suggestion happens if flight_type_id is currently empty.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
       const remolcadorCategoryDefinition = categories.find(c => c.name === 'Remolcador');
       const towageFlightTypeDefinition = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
-      
+
       if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
         const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
-        
-        if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') { 
+
+        if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') {
           form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
         }
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedPilotId, pilotDetails, categories, form.getValues('flight_type_id')]); // Added form.getValues to deps
+  }, [watchedPilotId, pilotDetails, categories, form]);
 
 
   // Effect to auto-set/clear flight_type_id based on pilot_category_id (category FOR THE TURN)
-  // This has higher precedence for setting/clearing "Remolque" flight type.
   useEffect(() => {
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
-  
+
     if (!towageFlightType) {
-      console.error("Definition for flight type 'Remolque' not found in FLIGHT_TYPES.");
       return;
     }
-  
+
     if (categoryForTurn?.name === 'Remolcador') {
       if (form.getValues('flight_type_id') !== towageFlightType.id) {
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
     } else {
-      // If the category is NOT "Remolcador", and the flight type IS "Remolque", clear it.
       if (form.getValues('flight_type_id') === towageFlightType.id) {
         form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedPilotCategoryId, categories, form.getValues('flight_type_id')]); // Added form.getValues to deps
+  }, [watchedPilotCategoryId, categories, form]);
 
 
   const filteredAircraftForSelect = useMemo(() => {
@@ -320,14 +321,13 @@ export function AvailabilityForm({
 
   useEffect(() => {
     const currentAircraftId = form.getValues('aircraft_id');
-    if (currentAircraftId) { 
+    if (currentAircraftId) {
       const isCurrentAircraftInFilteredList = filteredAircraftForSelect.some(ac => ac.id === currentAircraftId);
       if (!isCurrentAircraftInFilteredList) {
-        form.setValue('aircraft_id', '', { shouldValidate: true, shouldDirty: true }); 
+        form.setValue('aircraft_id', '', { shouldValidate: true, shouldDirty: true });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredAircraftForSelect, form.getValues('aircraft_id')]); // Added form.getValues to deps
+  }, [filteredAircraftForSelect, form]);
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
@@ -340,19 +340,18 @@ export function AvailabilityForm({
         date: format(data.date, 'yyyy-MM-dd'),
     };
     onSubmit(dataToSubmit, entry?.id);
-    onOpenChange(false); 
+    onOpenChange(false);
   };
 
   useEffect(() => {
     if (watchedPilotId && pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
-      form.setValue('pilot_category_id', ''); 
+      form.setValue('pilot_category_id', '');
     }
-    if (!watchedPilotId) { 
-        setMedicalWarning(null); 
-        form.setValue('pilot_category_id', ''); 
+    if (!watchedPilotId) {
+        setMedicalWarning(null);
+        form.setValue('pilot_category_id', '');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedPilotId, pilotDetails, form.getValues('pilot_category_id')]); // Added form.getValues to deps
+  }, [watchedPilotId, pilotDetails, form]);
 
 
   const sortedAndFilteredPilots = useMemo(() => {
@@ -488,7 +487,7 @@ export function AvailabilityForm({
                                 key={pilot.id}
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id);
-                                  if (!pilot.category_ids.includes(form.getValues('pilot_category_id'))) {
+                                  if (pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
                                     form.setValue('pilot_category_id', '');
                                   }
                                   setPilotPopoverOpen(false);
@@ -602,7 +601,7 @@ export function AvailabilityForm({
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aeronave</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    value={field.value || ''} 
+                    value={field.value || ''}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -632,7 +631,7 @@ export function AvailabilityForm({
             )}
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => {
-                onOpenChange(false); 
+                onOpenChange(false);
                 }}>Cancelar</Button>
               <Button
                 type="submit"
@@ -650,3 +649,4 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
