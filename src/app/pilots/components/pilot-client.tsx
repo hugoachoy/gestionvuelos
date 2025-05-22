@@ -10,6 +10,7 @@ import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle } from 'lucide-react
 import { PilotForm } from './pilot-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
+import { PilotReportButton } from './pilot-report-button'; // Added import
 import {
   Table,
   TableBody,
@@ -23,7 +24,8 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } fro
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-// Removed: import { UnderlineKeywords } from '@/components/common/underline-keywords';
+import { UnderlineKeywords } from '@/components/common/underline-keywords';
+
 
 export function PilotClient() {
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
@@ -71,9 +73,9 @@ export function PilotClient() {
 
   if (combinedError) {
     return (
-      <div className="text-destructive">
-        Error al cargar datos: {combinedError.message}
-        <Button onClick={() => { fetchPilots(); fetchCategories(); }} className="ml-2">Reintentar</Button>
+      <div className="text-destructive p-4">
+        Error al cargar datos: {combinedError.message || JSON.stringify(combinedError)}
+        <Button onClick={() => { fetchPilots(); fetchCategories(); }} className="ml-2 mt-2">Reintentar Cargar Todo</Button>
       </div>
     );
   }
@@ -83,10 +85,16 @@ export function PilotClient() {
       <PageHeader 
         title="Pilotos" 
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={() => { fetchPilots(); fetchCategories(); }} variant="outline" size="icon" disabled={combinedLoading}>
               <RefreshCw className={cn("h-4 w-4", combinedLoading && "animate-spin")} />
+               <span className="sr-only">Refrescar datos</span>
             </Button>
+            <PilotReportButton 
+              pilots={pilots} 
+              getCategoryName={getCategoryName} 
+              disabled={combinedLoading || pilots.length === 0}
+            />
             <Button onClick={handleAddPilot} disabled={combinedLoading}>
               <PlusCircle className="mr-2 h-4 w-4" /> Agregar Piloto
             </Button>
