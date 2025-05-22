@@ -69,7 +69,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
       first_name: '',
       last_name: '',
       category_ids: [],
-      medical_expiry: new Date(),
+      medical_expiry: new Date(), // Default to today, validation will catch if past
       is_admin: false,
     },
   });
@@ -84,7 +84,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             first_name: pilot.first_name || '',
             last_name: pilot.last_name || '',
             category_ids: pilot.category_ids || [],
-            medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date(),
+            medical_expiry: pilot.medical_expiry && isValid(parseISO(pilot.medical_expiry)) ? parseISO(pilot.medical_expiry) : new Date(),
             is_admin: pilot.is_admin ?? false,
           }
         : { 
@@ -100,6 +100,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
       if (isValid(currentMedicalDateInForm)) {
         setMedicalExpiryDateString(format(currentMedicalDateInForm, "dd/MM/yyyy", { locale: es }));
       } else {
+         // If the date from DB is invalid, or new pilot, default to today for string
         setMedicalExpiryDateString(format(new Date(), "dd/MM/yyyy", { locale: es }));
       }
     }
@@ -131,7 +132,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   const handleSubmit = (data: PilotFormData) => {
     const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
         ...data,
-        medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
+        medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'), // Format for Supabase
         is_admin: data.is_admin ?? false,
     };
     onSubmit(dataToSubmit, pilot?.id);
@@ -142,18 +143,8 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     <Dialog open={open} onOpenChange={(isOpen) => {
         onOpenChange(isOpen);
         if (!isOpen) {
-            const resetValuesOnClose = pilot
-              ? {
-                  first_name: pilot.first_name || '',
-                  last_name: pilot.last_name || '',
-                  category_ids: pilot.category_ids || [],
-                  medical_expiry: pilot.medical_expiry ? parseISO(pilot.medical_expiry) : new Date(),
-                  is_admin: pilot.is_admin ?? false,
-                }
-              : { first_name: '', last_name: '', category_ids: [], medical_expiry: new Date(), is_admin: false };
-            form.reset(resetValuesOnClose);
-            const defaultDateOnClose = resetValuesOnClose.medical_expiry;
-            setMedicalExpiryDateString(isValid(defaultDateOnClose) ? format(defaultDateOnClose, "dd/MM/yyyy", {locale: es}) : '');
+            // Optionally reset form to initial pilot values or empty on close, if desired
+            // For now, rely on the useEffect above to reset when dialog 'open' state changes
         }
     }}>
       <DialogContent className="sm:max-w-[425px] md:max-w-lg">
@@ -218,12 +209,11 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                       <ScrollArea className="h-48">
                         {categories.map((category) => (
-                          <div
+                          <FormItem
                             key={category.id}
-                            className="flex items-center space-x-2 p-2 hover:bg-accent rounded-md cursor-pointer"
+                            className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md cursor-pointer"
                             onClick={(e) => {
-                              // Prevent click from propagating to label and triggering twice
-                              e.stopPropagation();
+                              e.stopPropagation(); // Prevent label click issues
                               const currentCategoryIds = field.value || [];
                               const newCategoryIds = currentCategoryIds.includes(category.id)
                                 ? currentCategoryIds.filter(id => id !== category.id)
@@ -231,29 +221,31 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                               field.onChange(newCategoryIds);
                             }}
                           >
-                            <Checkbox
-                              checked={field.value?.includes(category.id)}
-                              onCheckedChange={(checked) => {
-                                const currentCategoryIds = field.value || [];
-                                return checked
-                                  ? field.onChange([...currentCategoryIds, category.id])
-                                  : field.onChange(
-                                      currentCategoryIds.filter(
-                                        (value) => value !== category.id
-                                      )
-                                    );
-                              }}
-                              id={`category-${category.id}`}
-                              aria-labelledby={`category-label-${category.id}`}
-                            />
-                            <label 
-                              htmlFor={`category-${category.id}`} 
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes(category.id)}
+                                onCheckedChange={(checked) => {
+                                  const currentCategoryIds = field.value || [];
+                                  return checked
+                                    ? field.onChange([...currentCategoryIds, category.id])
+                                    : field.onChange(
+                                        currentCategoryIds.filter(
+                                          (value) => value !== category.id
+                                        )
+                                      );
+                                }}
+                                id={`category-${category.id}`}
+                                // aria-labelledby={`category-label-${category.id}`} // Label is now part of FormItem
+                              />
+                            </FormControl>
+                            <FormLabel
+                              htmlFor={`category-${category.id}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                              id={`category-label-${category.id}`}
+                              // id={`category-label-${category.id}`}
                             >
                               {category.name}
-                            </label>
-                          </div>
+                            </FormLabel>
+                          </FormItem>
                         ))}
                       </ScrollArea>
                     </PopoverContent>
@@ -310,16 +302,16 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                   <div className="space-y-0.5">
-                    <FormLabel>Administrador</FormLabel>
+                    <FormLabel id="is_admin_label">Administrador</FormLabel>
                     <FormDescription>
                       Marcar si este piloto es administrador.
                     </FormDescription>
                   </div>
                   <FormControl>
                     <Checkbox
-                      checked={field.value ?? false} // Ensure checked is always boolean
+                      checked={field.value ?? false}
                       onCheckedChange={field.onChange}
-                      id="is_admin_checkbox" // Add id for label association
+                      id="is_admin_checkbox"
                       aria-labelledby="is_admin_label"
                     />
                   </FormControl>
@@ -338,5 +330,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     </Dialog>
   );
 }
+    
 
     
