@@ -92,16 +92,16 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     
     let towPilotStatus = '';
     const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
-    const isTurnByInstructor = entryCategoryDetails?.name === 'Instructor';
+    // Removed: const isTurnByInstructor = entryCategoryDetails?.name === 'Instructor';
     const isTurnByRemolcador = entryCategoryDetails?.name === 'Remolcador';
 
     if (isTurnByRemolcador) {
       towPilotStatus = entry.is_tow_pilot_available ? 'Sí' : 'No';
     }
     
-    const shouldFlightTypeBeBold =
-      (entry.flight_type_id === 'instruction' && isTurnByInstructor) ||
-      isTurnByRemolcador;
+    const shouldFlightTypeBeBold = (entry.flight_type_id === 'instruction' && entryCategoryDetails?.name === 'Instructor') ||
+                                 (entryCategoryDetails?.name === 'Remolcador');
+
 
     let medicalWarningText = "";
     let medicalWarningSeverity: 'critical' | 'warning' | 'none' = 'none';
@@ -178,47 +178,31 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         const dateComparison = a.date.localeCompare(b.date);
         if (dateComparison !== 0) return dateComparison;
       
+        // Grouping Logic (simplified for example, use your detailed one)
         const aIsInstructor = a.pilot_category_id === instructorCategory?.id;
         const bIsInstructor = b.pilot_category_id === instructorCategory?.id;
-      
+        const aIsRemolcador = a.pilot_category_id === remolcadorCategory?.id;
+        const bIsRemolcador = b.pilot_category_id === remolcadorCategory?.id;
+        const aIsRemolcadorDisponible = aIsRemolcador && a.is_tow_pilot_available === true;
+        const bIsRemolcadorDisponible = bIsRemolcador && b.is_tow_pilot_available === true;
+
         if (aIsInstructor && !bIsInstructor) return -1;
         if (!aIsInstructor && bIsInstructor) return 1;
-        if (aIsInstructor && bIsInstructor) return a.start_time.localeCompare(b.start_time);
-      
-        const aIsTowPilot = a.pilot_category_id === remolcadorCategory?.id;
-        const bIsTowPilot = b.pilot_category_id === remolcadorCategory?.id;
-        const aIsConfirmedTow = a.is_tow_pilot_available === true;
-        const bIsConfirmedTow = b.is_tow_pilot_available === true;
-      
-        if (aIsTowPilot && aIsConfirmedTow && !(bIsTowPilot && bIsConfirmedTow)) return -1;
-        if (!(aIsTowPilot && aIsConfirmedTow) && (bIsTowPilot && bIsConfirmedTow)) return 1;
-        if (aIsTowPilot && aIsConfirmedTow && bIsTowPilot && bIsConfirmedTow) {
-          return a.start_time.localeCompare(b.start_time);
-        }
-      
-        if (aIsTowPilot && !aIsConfirmedTow && !(bIsTowPilot && !bIsConfirmedTow)) return -1;
-        if (!(aIsTowPilot && !aIsConfirmedTow) && (bIsTowPilot && !bIsConfirmedTow)) return 1;
-        if (aIsTowPilot && !aIsConfirmedTow && bIsTowPilot && !bIsConfirmedTow) {
-          return a.start_time.localeCompare(b.start_time);
-        }
-      
-        const aHasAircraft = !!a.aircraft_id;
-        const bHasAircraft = !!b.aircraft_id;
-      
-        if (aHasAircraft && !bHasAircraft) return -1;
-        if (!aHasAircraft && bHasAircraft) return 1;
+
+        if (aIsRemolcadorDisponible && !bIsRemolcadorDisponible) return -1;
+        if (!aIsRemolcadorDisponible && bIsRemolcadorDisponible) return 1;
         
-        if (aHasAircraft && bHasAircraft && a.aircraft_id && b.aircraft_id) {
-            const aircraftComparison = (a.aircraft_id).localeCompare(b.aircraft_id);
-            if (aircraftComparison !== 0) return aircraftComparison;
-        }
-      
+        if (aIsRemolcador && !bIsRemolcador && !bIsInstructor && !bIsRemolcadorDisponible) return -1;
+        if (!aIsRemolcador && bIsRemolcador && !aIsInstructor && !aIsRemolcadorDisponible) return 1;
+
+
         const timeComparison = a.start_time.localeCompare(b.start_time);
         if (timeComparison !== 0) return timeComparison;
-      
+
+        // Fallback sorting for other types or tie-breaking
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
-        if (aIsSport && !bIsSport) return -1;
+        if (aIsSport && !bIsSport) return -1; // Sport flights first within other groups
         if (!aIsSport && bIsSport) return 1;
         
         return 0;
@@ -253,25 +237,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       const observationForDay = allObservations.find(obs => obs.date === dayStr);
       const hasObservationText = observationForDay?.observation_text && observationForDay.observation_text.trim() !== '';
 
-      const remolcadorCategory = categories.find(cat => cat.name === 'Remolcador');
-      const instructorCategory = categories.find(cat => cat.name === 'Instructor');
-      const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
-
-      const isRemolcadorCategoryConfirmedForDay = remolcadorCategory 
-        ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategory.id && entry.is_tow_pilot_available === true) 
-        : true; 
-      const isInstructorCategoryConfirmedForDay = instructorCategory 
-        ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategory.id) 
-        : true; 
-      const noTowageFlightsPresentForDay = towageFlightTypeId 
-        ? !entriesForDay.some(entry => entry.flight_type_id === towageFlightTypeId && entriesForDay.length > 0) 
-        : false;
-      
-      const dayHasData = entriesForDay.length > 0 || hasObservationText ||
-        (categories.some(c => c.name === 'Remolcador') && !isRemolcadorCategoryConfirmedForDay) ||
-        (categories.some(c => c.name === 'Instructor') && !isInstructorCategoryConfirmedForDay) ||
-        (towageFlightTypeId && noTowageFlightsPresentForDay);
-
+      const dayHasData = entriesForDay.length > 0 || hasObservationText;
       if (!dayHasData) {
         return; 
       }
@@ -287,15 +253,30 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         fullText += `\nObservaciones:\n${observationForDay!.observation_text!.trim()}\n`;
       }
 
+      // Warnings section
+      const remolcadorCategory = categories.find(cat => cat.name === 'Remolcador');
+      const instructorCategory = categories.find(cat => cat.name === 'Instructor');
+      const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
+
+      const isRemolcadorCategoryConfirmedForDay = remolcadorCategory 
+        ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategory.id && entry.is_tow_pilot_available === true) 
+        : true; 
+      const isInstructorCategoryConfirmedForDay = instructorCategory 
+        ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategory.id) 
+        : true; 
+      const noTowageFlightsPresentForDay = towageFlightTypeId 
+        ? !entriesForDay.some(entry => entry.flight_type_id === towageFlightTypeId && entriesForDay.length > 0) 
+        : false;
+      
       let warningsText = "";
-      if (categories.some(c => c.name === 'Remolcador') && !isRemolcadorCategoryConfirmedForDay) {
+      if (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) {
         warningsText += formatTextForExport('Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.\n');
       }
-      if (categories.some(c => c.name === 'Instructor') && !isInstructorCategoryConfirmedForDay) {
+      if (instructorCategory && !isInstructorCategoryConfirmedForDay) {
         warningsText += formatTextForExport('Aviso: Aún no hay Instructor confirmado para esta fecha.\n');
       }
       if (towageFlightTypeId && noTowageFlightsPresentForDay) {
-        warningsText += 'Aviso: Aún no hay _Remolcador_ confirmado.\n'; 
+        warningsText += formatTextForExport('Aviso: Aún no hay Remolcador confirmado.\n'); 
       }
       if (warningsText) {
         fullText += `\n${warningsText}`;
@@ -379,21 +360,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         const hasObservationText = observationForDay?.observation_text && observationForDay.observation_text.trim() !== '';
         const obsText = hasObservationText ? `"${observationForDay!.observation_text!.trim().replace(/"/g, '""')}"` : "";
         
-        const remolcadorCategory = categories.find(cat => cat.name === 'Remolcador');
-        const instructorCategory = categories.find(cat => cat.name === 'Instructor');
-        const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
-
-        const isRemolcadorCategoryConfirmedForDay = remolcadorCategory ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategory.id && entry.is_tow_pilot_available === true) : true;
-        const isInstructorCategoryConfirmedForDay = instructorCategory ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategory.id) : true;
-        const noTowageFlightsPresentForDay = towageFlightTypeId ? !entriesForDay.some(entry => entry.flight_type_id === towageFlightTypeId && entriesForDay.length > 0) : false;
-
-        const dayHasData = entriesForDay.length > 0 || hasObservationText ||
-          (categories.some(c => c.name === 'Remolcador') && !isRemolcadorCategoryConfirmedForDay) ||
-          (categories.some(c => c.name === 'Instructor') && !isInstructorCategoryConfirmedForDay) ||
-          (towageFlightTypeId && noTowageFlightsPresentForDay);
-
+        const dayHasData = entriesForDay.length > 0 || hasObservationText;
         if (!dayHasData) {
-          return;
+          return; 
         }
 
         if (contentAddedForPreviousDay) { 
@@ -406,15 +375,30 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             csvContent += `"Observaciones:",${obsText}\n`; 
         }
         
+        // Warnings section
+        const remolcadorCategory = categories.find(cat => cat.name === 'Remolcador');
+        const instructorCategory = categories.find(cat => cat.name === 'Instructor');
+        const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
+
+        const isRemolcadorCategoryConfirmedForDay = remolcadorCategory 
+          ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategory.id && entry.is_tow_pilot_available === true) 
+          : true; 
+        const isInstructorCategoryConfirmedForDay = instructorCategory 
+          ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategory.id) 
+          : true; 
+        const noTowageFlightsPresentForDay = towageFlightTypeId 
+          ? !entriesForDay.some(entry => entry.flight_type_id === towageFlightTypeId && entriesForDay.length > 0) 
+          : false;
+
         let warningsText = "";
-        if (categories.some(c => c.name === 'Remolcador') && !isRemolcadorCategoryConfirmedForDay) {
-          warningsText += `"Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha."\n`;
+        if (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) {
+          warningsText += `"${formatTextForExport('Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.')}"\n`;
         }
-        if (categories.some(c => c.name === 'Instructor') && !isInstructorCategoryConfirmedForDay) {
-          warningsText += `"Aviso: Aún no hay Instructor confirmado para esta fecha."\n`;
+        if (instructorCategory && !isInstructorCategoryConfirmedForDay) {
+          warningsText += `"${formatTextForExport('Aviso: Aún no hay Instructor confirmado para esta fecha.')}"\n`;
         }
         if (towageFlightTypeId && noTowageFlightsPresentForDay) {
-          warningsText += `"Aviso: Aún no hay Remolcador confirmado."\n`;
+          warningsText += `"${formatTextForExport('Aviso: Aún no hay Remolcador confirmado.')}"\n`; 
         }
         if (warningsText) {
           csvContent += warningsText;
@@ -428,7 +412,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             entriesForDay.forEach((entry) => {
               const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
               if (groupDetails.id !== previousGroupIdentifier) {
-                csvContent += `"${groupDetails.name.replace(/"/g, '""')}",,,,,,\n`; 
+                csvContent += `"${formatTextForExport(groupDetails.name).replace(/"/g, '""')}",,,,,,\n`; 
                 previousGroupIdentifier = groupDetails.id;
               }
               const formatted = getFormattedEntry(entry, data.allPilots);
@@ -436,7 +420,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 formatted.time,
                 `"${formatted.pilot.replace(/"/g, '""')}"`,
                 `"${formatted.medicalWarningText.replace(/"/g, '""')}"`,
-                `"${formatted.category.replace(/"/g, '""')}"`,
+                `"${formatTextForExport(formatted.category).replace(/"/g, '""')}"`,
                 formatted.towAvailable,
                 `"${(formatted.shouldFlightTypeBeBold ? `${formatted.flightType}` : formatted.flightType).replace(/"/g, '""')}"`,
                 `"${formatted.aircraft.replace(/"/g, '""')}"`,
@@ -463,6 +447,22 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       toast({ title: "Error de Exportación", description: "Tu navegador no soporta la descarga de archivos.", variant: "destructive"});
     }
   };
+  
+  const addPdfWarning = (doc: jsPDF, text: string, currentY: number, isBold: boolean = false): number => {
+    let newY = currentY;
+    if (newY > doc.internal.pageSize.getHeight() - 15) { 
+        doc.addPage(); newY = 20; 
+        // Optional: Add continuation header if needed
+    }
+    doc.setFontSize(9);
+    doc.setTextColor(150, 0, 0); 
+    doc.setFont(undefined, isBold ? 'bold' : 'normal');
+    doc.text(text, 14, newY);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    return newY + 5;
+  };
+
 
   const handleExportPdf = async () => {
     const data = await fetchDataForRange();
@@ -478,23 +478,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     currentY += 10;
 
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
-
-    const addPdfWarningText = (text: string, isBold: boolean = false) => {
-      if (currentY > doc.internal.pageSize.getHeight() - 15) { 
-          doc.addPage(); currentY = 20; 
-          const currentDayStr = data.entries.find(e => e.date === dayStr)?.date || dayStr || format(new Date(), "yyyy-MM-dd");
-          doc.setFontSize(14); doc.text(`Fecha: ${format(parseISO(currentDayStr), "PPP", { locale: es })} (cont.)`, 14, currentY); currentY +=7;
-      }
-      doc.setFontSize(9);
-      doc.setTextColor(150, 0, 0); // Darker red for warnings
-      doc.setFont(undefined, isBold ? 'bold' : 'normal');
-      doc.text(text, 14, currentY);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(0, 0, 0);
-      currentY += 5;
-    };
     
-    let dayStr = ""; // Define dayStr in a scope accessible by addPdfWarningText if needed
+    let dayStr = ""; 
 
     dateInterval.forEach((day, dayIndex) => {
         dayStr = format(day, "yyyy-MM-dd"); 
@@ -502,21 +487,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         const observationForDay = data.observations.find(obs => obs.date === dayStr);
         const hasObservationText = observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '';
         
-        const remolcadorCategory = categories.find(cat => cat.name === 'Remolcador');
-        const instructorCategory = categories.find(cat => cat.name === 'Instructor');
-        const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
-
-        const isRemolcadorCategoryConfirmedForDay = remolcadorCategory ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategory.id && entry.is_tow_pilot_available === true) : true;
-        const isInstructorCategoryConfirmedForDay = instructorCategory ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategory.id) : true;
-        const noTowageFlightsPresentForDay = towageFlightTypeId ? !entriesForDay.some(entry => entry.flight_type_id === towageFlightTypeId && entriesForDay.length > 0) : false;
-
-        const dayHasData = entriesForDay.length > 0 || hasObservationText ||
-          (categories.some(c => c.name === 'Remolcador') && !isRemolcadorCategoryConfirmedForDay) ||
-          (categories.some(c => c.name === 'Instructor') && !isInstructorCategoryConfirmedForDay) ||
-          (towageFlightTypeId && noTowageFlightsPresentForDay);
-
+        const dayHasData = entriesForDay.length > 0 || hasObservationText;
         if (!dayHasData) {
-          return;
+          return; 
         }
 
         if (pageBreakAddedForPreviousDay || (dayIndex > 0 && dayHasData)) { 
@@ -552,18 +525,33 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             currentY += 3; 
         }
         
-        if (categories.some(c => c.name === 'Remolcador') && !isRemolcadorCategoryConfirmedForDay) {
-            addPdfWarningText('Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.');
+        // Warnings section
+        const remolcadorCategory = categories.find(cat => cat.name === 'Remolcador');
+        const instructorCategory = categories.find(cat => cat.name === 'Instructor');
+        const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
+
+        const isRemolcadorCategoryConfirmedForDay = remolcadorCategory 
+          ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategory.id && entry.is_tow_pilot_available === true) 
+          : true; 
+        const isInstructorCategoryConfirmedForDay = instructorCategory 
+          ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategory.id) 
+          : true; 
+        const noTowageFlightsPresentForDay = towageFlightTypeId 
+          ? !entriesForDay.some(entry => entry.flight_type_id === towageFlightTypeId && entriesForDay.length > 0) 
+          : false;
+
+        if (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) {
+            currentY = addPdfWarning(doc, 'Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.', currentY);
         }
-        if (categories.some(c => c.name === 'Instructor') && !isInstructorCategoryConfirmedForDay) {
-           addPdfWarningText('Aviso: Aún no hay Instructor confirmado para esta fecha.');
+        if (instructorCategory && !isInstructorCategoryConfirmedForDay) {
+           currentY = addPdfWarning(doc, 'Aviso: Aún no hay Instructor confirmado para esta fecha.', currentY);
         }
         if (towageFlightTypeId && noTowageFlightsPresentForDay) {
-           addPdfWarningText('Aviso: Aún no hay Remolcador confirmado.', true); // Pass true for bold
+           currentY = addPdfWarning(doc, 'Aviso: Aún no hay Remolcador confirmado.', currentY, true); 
         }
         doc.setTextColor(0, 0, 0); 
-        if ( (categories.some(c => c.name === 'Remolcador') && !isRemolcadorCategoryConfirmedForDay) ||
-             (categories.some(c => c.name === 'Instructor') && !isInstructorCategoryConfirmedForDay) ||
+        if ( (remolcadorCategory && !isRemolcadorCategoryConfirmedForDay) ||
+             (instructorCategory && !isInstructorCategoryConfirmedForDay) ||
              (towageFlightTypeId && noTowageFlightsPresentForDay)
            ) {
             currentY +=2; 
@@ -628,7 +616,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 columnStyles: {
                     0: { cellWidth: 15 }, 
                     1: { cellWidth: 'auto' }, 
-                    2: { cellWidth: 30 }, // Adv. Psicof.
+                    2: { cellWidth: 30 }, 
                     3: { cellWidth: 28 }, 
                     4: { cellWidth: 20 }, 
                     5: { cellWidth: 25 }, 
@@ -645,17 +633,17 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                     }
                 },
                 didParseCell: function (hookData) {
-                    // Group Headers
+                    
                     if (hookData.row.raw && typeof hookData.row.raw[0] === 'object' && (hookData.row.raw[0] as any)?.colSpan) {
                         const cellObject = hookData.row.raw[0] as { content: string; styles: any; colSpan?: number };
                         if (cellObject.styles) Object.assign(hookData.cell.styles, cellObject.styles);
                         if (cellObject.colSpan) hookData.cell.colSpan = cellObject.colSpan;
                     } 
-                    // Flight Type and Medical Warning cells
+                    
                     else if (hookData.cell.raw && typeof hookData.cell.raw === 'object' && hookData.cell.raw !== null && 'styles' in hookData.cell.raw) {
                         const cellObject = hookData.cell.raw as { content: string; styles: any };
                          if (cellObject.styles) Object.assign(hookData.cell.styles, cellObject.styles);
-                        hookData.cell.text = cellObject.content; // Ensure text is correctly set from content
+                        hookData.cell.text = cellObject.content; 
                     }
                 }
             });
@@ -751,3 +739,4 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     </DropdownMenu>
   );
 }
+
