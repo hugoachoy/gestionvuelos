@@ -52,6 +52,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
+import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -92,7 +93,7 @@ interface BookingConflictWarningState {
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // Only 20:00, no 20:30
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -118,7 +119,7 @@ export function AvailabilityForm({
 
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
-    defaultValues: { // Default values for a new entry or when entry prop is initially undefined
+    defaultValues: { 
         date: selectedDate || new Date(),
         start_time: '',
         pilot_id: '',
@@ -126,10 +127,10 @@ export function AvailabilityForm({
         is_tow_pilot_available: false,
         flight_type_id: '',
         aircraft_id: '',
-        ...(entry && { // Spread entry data if available initially
+        ...(entry && { 
           ...entry,
           date: entry.date ? parseISO(entry.date) : new Date(),
-          aircraft_id: entry.aircraft_id ?? '', // Ensure aircraft_id is a string for the form
+          aircraft_id: entry.aircraft_id ?? '', 
           start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
         })
       },
@@ -142,8 +143,6 @@ export function AvailabilityForm({
 
 
   useEffect(() => {
-    // This effect runs when the dialog opens or the entry/selectedDate data changes.
-    // It's responsible for resetting the form with the entry's data or default new entry data.
     if (open) {
       const initialFormValues = entry
         ? {
@@ -152,7 +151,7 @@ export function AvailabilityForm({
             aircraft_id: entry.aircraft_id ?? '',
             start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
           }
-        : { // Default for new entry
+        : { 
             date: selectedDate || new Date(),
             start_time: '',
             pilot_id: '',
@@ -162,9 +161,8 @@ export function AvailabilityForm({
             aircraft_id: '',
           };
       form.reset(initialFormValues);
-      setPilotSearchTerm(''); // Reset search term when dialog opens/entry changes
+      setPilotSearchTerm(''); 
     } else {
-      // Clear warnings when dialog closes
       setMedicalWarning(null);
       setBookingConflictWarning(null);
     }
@@ -263,8 +261,8 @@ export function AvailabilityForm({
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
 
 
-  // Effect to SUGGEST flight_type_id if selected pilot is inherently a "Remolcador"
-  // This only suggests if the flight_type_id is currently empty.
+  // Effect to suggest flight_type_id if selected pilot is inherently a "Remolcador"
+  // This suggestion happens if flight_type_id is currently empty.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
       const remolcadorCategoryDefinition = categories.find(c => c.name === 'Remolcador');
@@ -288,14 +286,14 @@ export function AvailabilityForm({
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
 
     if (!towageFlightType) {
-      // console.error("Flight type 'Remolque' not found in FLIGHT_TYPES definitions.");
       return;
     }
 
     if (categoryForTurn?.name === 'Remolcador') {
-      form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
+      if (form.getValues('flight_type_id') !== towageFlightType.id) {
+        form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
+      }
     } else {
-      // If the category is NOT "Remolcador", and the flight type IS "Remolque", clear it.
       if (form.getValues('flight_type_id') === towageFlightType.id) {
         form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
@@ -336,17 +334,16 @@ export function AvailabilityForm({
         date: format(data.date, 'yyyy-MM-dd'),
     };
     onSubmit(dataToSubmit, entry?.id);
-    onOpenChange(false); // This should trigger the useEffect for 'open' to reset form
+    onOpenChange(false); 
   };
 
-  // Effect to clear pilot_category_id if selected pilot doesn't have it or if pilot is deselected.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
-      form.setValue('pilot_category_id', ''); // Clear if category not valid for pilot
+      form.setValue('pilot_category_id', ''); 
     }
-    if (!watchedPilotId) { // If pilot is deselected
-        setMedicalWarning(null); // Clear medical warning
-        form.setValue('pilot_category_id', ''); // Clear category for turn
+    if (!watchedPilotId) { 
+        setMedicalWarning(null); 
+        form.setValue('pilot_category_id', ''); 
     }
   }, [watchedPilotId, pilotDetails, form]);
 
@@ -535,7 +532,9 @@ export function AvailabilityForm({
                       </FormControl>
                       <SelectContent>
                         {pilotCategoriesForSelectedPilot.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                          <SelectItem key={cat.id} value={cat.id}>
+                             <UnderlineKeywords text={cat.name} />
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -596,7 +595,7 @@ export function AvailabilityForm({
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aeronave</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    value={field.value || ''} // Ensure value is not undefined for Select
+                    value={field.value || ''} 
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -626,7 +625,7 @@ export function AvailabilityForm({
             )}
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => {
-                onOpenChange(false); // This will trigger the reset in useEffect
+                onOpenChange(false); 
                 }}>Cancelar</Button>
               <Button
                 type="submit"
@@ -644,5 +643,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    

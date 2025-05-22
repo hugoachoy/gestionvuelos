@@ -433,7 +433,6 @@ export function useScheduleStore() {
   }, [fetchScheduleEntries]);
 
   const cleanupOldScheduleEntries = useCallback(async () => {
-    // console.log('Running cleanup of old schedule entries...');
     try {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -441,15 +440,13 @@ export function useScheduleStore() {
 
       const { error: deleteError, count } = await supabase
         .from('schedule_entries')
-        .delete({ count: 'exact'}) // Request count
+        .delete({ count: 'exact'}) 
         .lt('date', thresholdDate);
 
       if (deleteError) {
         logSupabaseError('Error cleaning up old schedule entries', deleteError);
         return { success: false, error: deleteError, count: 0 };
       }
-
-      // console.log(`Successfully deleted ${count ?? 0} old schedule entries.`);
       return { success: true, count: count ?? 0 };
     } catch (e) {
       logSupabaseError('Unexpected error during old schedule entry cleanup', e);
@@ -474,7 +471,6 @@ export function useDailyObservationsStore() {
      if (fetchingRef.current && date) {
        const currentFetchIsForSpecificDate = !!date;
        if(currentFetchIsForSpecificDate && !fetchingRef.current) {
-         // Allow if not already fetching, even for specific date
        } else if (fetchingRef.current) {
          return;
        }
@@ -497,7 +493,6 @@ export function useDailyObservationsStore() {
         (data || []).forEach(obs => {
           newObservationsMap[obs.date] = obs;
         });
-        // If fetching for a specific date, merge with existing observations. Otherwise, replace.
         setDailyObservations(prev => date ? {...prev, ...newObservationsMap} : newObservationsMap);
       }
     } catch (e) {
@@ -551,7 +546,6 @@ export function useDailyObservationsStore() {
       return null;
     }
     if (upsertedObservation) {
-      // Instead of replacing, ensure this specific date is updated or added.
       setDailyObservations(prev => ({
         ...prev,
         [date]: upsertedObservation,
@@ -562,4 +556,3 @@ export function useDailyObservationsStore() {
 
   return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations, fetchObservationsForRange };
 }
-

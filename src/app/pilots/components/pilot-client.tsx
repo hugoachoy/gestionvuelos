@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react'; // Added explicit React import
+import React from 'react'; 
 import { useState } from 'react';
 import type { Pilot, PilotCategory } from '@/types';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
@@ -23,6 +23,7 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } fro
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 export function PilotClient() {
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
@@ -169,7 +170,9 @@ export function PilotClient() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {pilot.category_ids.map(catId => (
-                            <Badge key={catId} variant="secondary">{getCategoryName(catId)}</Badge>
+                            <Badge key={catId} variant="secondary">
+                              <UnderlineKeywords text={getCategoryName(catId)} />
+                            </Badge>
                           ))}
                         </div>
                       </TableCell>

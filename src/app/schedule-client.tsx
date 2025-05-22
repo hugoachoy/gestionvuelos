@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
@@ -85,7 +86,6 @@ export function ScheduleClient() {
         const oneDayInMs = 24 * 60 * 60 * 1000;
 
         if (!lastCleanupTimestamp || (now - parseInt(lastCleanupTimestamp, 10)) > oneDayInMs) {
-          console.log("Performing scheduled cleanup of old entries...");
           const result = await cleanupOldScheduleEntries();
           if (result.success && result.count > 0) {
             toast({
@@ -161,7 +161,6 @@ export function ScheduleClient() {
           return a.start_time.localeCompare(b.start_time);
         }
         
-        // At this point, neither a nor b is an Instructor.
         const aIsTowPilot = a.pilot_category_id === towPilotCategory?.id;
         const bIsTowPilot = b.pilot_category_id === towPilotCategory?.id;
         const aIsConfirmedTow = a.is_tow_pilot_available === true;
@@ -173,8 +172,7 @@ export function ScheduleClient() {
         if (aIsTowPilot && aIsConfirmedTow && bIsTowPilot && bIsConfirmedTow) {
           return a.start_time.localeCompare(b.start_time);
         }
-
-        // At this point, a and b are not Instructors, and not Confirmed Tow Pilots.
+        
         // 3. Unconfirmed/Unavailable Tow Pilots
         if (aIsTowPilot && !aIsConfirmedTow && !(bIsTowPilot && !bIsConfirmedTow)) return -1;
         if (!(aIsTowPilot && !aIsConfirmedTow) && (bIsTowPilot && !bIsConfirmedTow)) return 1;
@@ -182,7 +180,6 @@ export function ScheduleClient() {
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // At this point, a and b are not Instructors, and not any kind of Tow Pilot.
         // 4. Other Pilots: Group by aircraft, then time, then sport preference.
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
@@ -234,11 +231,11 @@ export function ScheduleClient() {
 
   const isTowPilotCategoryConfirmed = useMemo(() => {
     if (categoriesLoading || scheduleLoading || !categories || !categories.length || !scheduleEntries) {
-        return false;
+        return false; 
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
     if (!towPilotCategory) {
-      return false;
+      return true; 
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
@@ -252,7 +249,7 @@ export function ScheduleClient() {
     }
     const instructorCategory = categories.find(cat => cat.name === 'Instructor');
     if (!instructorCategory) {
-      return false;
+      return true; 
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
   }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
@@ -365,7 +362,7 @@ export function ScheduleClient() {
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Aún no hay piloto de categoría &quot;Remolcador&quot; confirmado para esta fecha.
+            <UnderlineKeywords text='Aún no hay piloto de categoría "Remolcador" confirmado para esta fecha.' />
           </AlertDescription>
         </Alert>
       }
@@ -377,7 +374,9 @@ export function ScheduleClient() {
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
-            <strong className="text-orange-700">Aún no hay instructor confirmado para esta fecha.</strong>
+            <strong className="text-orange-700">
+                <UnderlineKeywords text='Aún no hay Instructor confirmado para esta fecha.' />
+            </strong>
           </AlertDescription>
         </Alert>
       }
@@ -391,7 +390,9 @@ export function ScheduleClient() {
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
-            <strong className="text-orange-700">Aún no hay Remolcador confirmado</strong>
+            <strong className="text-orange-700">
+                <UnderlineKeywords text='Aún no hay Remolcador confirmado' />
+            </strong>
           </AlertDescription>
         </Alert>
       )}
