@@ -46,10 +46,10 @@ const pilotSchema = z.object({
       required_error: "La fecha de vencimiento del psicofísico es obligatoria.",
       invalid_type_error: "Fecha inválida."
     })
-    .refine(date => date >= startOfDay(new Date()), { // Use startOfDay for comparison
+    .refine(date => date >= startOfDay(new Date()), {
       message: "La fecha de vencimiento no puede ser en el pasado."
     }),
-  is_admin: z.boolean().optional(), // Added is_admin field
+  is_admin: z.boolean().optional(),
 });
 
 type PilotFormData = z.infer<typeof pilotSchema>;
@@ -113,7 +113,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     if (isValid(parsedDate)) {
       fieldOnChange(parsedDate);
     } else {
-      fieldOnChange(undefined); // Signal invalid date to react-hook-form
+      fieldOnChange(undefined); 
     }
   };
 
@@ -135,7 +135,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
         is_admin: data.is_admin ?? false,
     };
     onSubmit(dataToSubmit, pilot?.id);
-    onOpenChange(false); // form.reset is handled by the useEffect for 'open'
+    onOpenChange(false); 
   };
 
   return (
@@ -221,7 +221,9 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                           <div
                             key={category.id}
                             className="flex items-center space-x-2 p-2 hover:bg-accent rounded-md cursor-pointer"
-                            onClick={() => {
+                            onClick={(e) => {
+                              // Prevent click from propagating to label and triggering twice
+                              e.stopPropagation();
                               const currentCategoryIds = field.value || [];
                               const newCategoryIds = currentCategoryIds.includes(category.id)
                                 ? currentCategoryIds.filter(id => id !== category.id)
@@ -242,8 +244,13 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                                     );
                               }}
                               id={`category-${category.id}`}
+                              aria-labelledby={`category-label-${category.id}`}
                             />
-                            <label htmlFor={`category-${category.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                            <label 
+                              htmlFor={`category-${category.id}`} 
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                              id={`category-label-${category.id}`}
+                            >
                               {category.name}
                             </label>
                           </div>
@@ -286,7 +293,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                         selected={field.value instanceof Date && isValid(field.value) ? field.value : undefined}
                         onSelect={(date) => handleDateSelect(date, field.onChange)}
                         disabled={(date) =>
-                          date < startOfDay(new Date()) // Use startOfDay here as well
+                          date < startOfDay(new Date())
                         }
                         initialFocus
                         locale={es}
@@ -310,8 +317,10 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                   </div>
                   <FormControl>
                     <Checkbox
-                      checked={field.value}
+                      checked={field.value ?? false} // Ensure checked is always boolean
                       onCheckedChange={field.onChange}
+                      id="is_admin_checkbox" // Add id for label association
+                      aria-labelledby="is_admin_label"
                     />
                   </FormControl>
                 </FormItem>
@@ -329,3 +338,5 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     </Dialog>
   );
 }
+
+    
