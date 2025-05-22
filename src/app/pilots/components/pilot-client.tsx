@@ -23,7 +23,7 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } fro
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { UnderlineKeywords } from '@/components/common/underline-keywords';
+// Removed: import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 export function PilotClient() {
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
@@ -171,7 +171,7 @@ export function PilotClient() {
                         <div className="flex flex-wrap gap-1">
                           {pilot.category_ids.map(catId => (
                             <Badge key={catId} variant="secondary">
-                              <UnderlineKeywords text={getCategoryName(catId)} />
+                              {getCategoryName(catId)}
                             </Badge>
                           ))}
                         </div>

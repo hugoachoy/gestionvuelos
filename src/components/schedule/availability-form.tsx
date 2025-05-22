@@ -52,7 +52,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
-import { UnderlineKeywords } from '@/components/common/underline-keywords';
+// Removed: import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -93,7 +93,7 @@ interface BookingConflictWarningState {
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
-    const minutesToGenerate = (h === 20) ? [0] : [0, 30];
+    const minutesToGenerate = (h === 20) ? [0] : [0, 30]; // Only generate XX:00 for 20:00
     for (const m of minutesToGenerate) {
       const hour = h.toString().padStart(2, '0');
       const minute = m.toString().padStart(2, '0');
@@ -163,6 +163,7 @@ export function AvailabilityForm({
       form.reset(initialFormValues);
       setPilotSearchTerm(''); 
     } else {
+      // Reset warnings when dialog closes
       setMedicalWarning(null);
       setBookingConflictWarning(null);
     }
@@ -276,7 +277,8 @@ export function AvailabilityForm({
         }
       }
     }
-  }, [watchedPilotId, pilotDetails, categories, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedPilotId, pilotDetails, categories, form.getValues('flight_type_id')]); // Added form.getValues to deps
 
 
   // Effect to auto-set/clear flight_type_id based on pilot_category_id (category FOR THE TURN)
@@ -284,21 +286,24 @@ export function AvailabilityForm({
   useEffect(() => {
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
-
+  
     if (!towageFlightType) {
+      console.error("Definition for flight type 'Remolque' not found in FLIGHT_TYPES.");
       return;
     }
-
+  
     if (categoryForTurn?.name === 'Remolcador') {
       if (form.getValues('flight_type_id') !== towageFlightType.id) {
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
     } else {
+      // If the category is NOT "Remolcador", and the flight type IS "Remolque", clear it.
       if (form.getValues('flight_type_id') === towageFlightType.id) {
         form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
     }
-  }, [watchedPilotCategoryId, categories, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedPilotCategoryId, categories, form.getValues('flight_type_id')]); // Added form.getValues to deps
 
 
   const filteredAircraftForSelect = useMemo(() => {
@@ -321,7 +326,8 @@ export function AvailabilityForm({
         form.setValue('aircraft_id', '', { shouldValidate: true, shouldDirty: true }); 
       }
     }
-  }, [filteredAircraftForSelect, form]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredAircraftForSelect, form.getValues('aircraft_id')]); // Added form.getValues to deps
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
@@ -345,7 +351,8 @@ export function AvailabilityForm({
         setMedicalWarning(null); 
         form.setValue('pilot_category_id', ''); 
     }
-  }, [watchedPilotId, pilotDetails, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedPilotId, pilotDetails, form.getValues('pilot_category_id')]); // Added form.getValues to deps
 
 
   const sortedAndFilteredPilots = useMemo(() => {
@@ -533,7 +540,7 @@ export function AvailabilityForm({
                       <SelectContent>
                         {pilotCategoriesForSelectedPilot.map(cat => (
                           <SelectItem key={cat.id} value={cat.id}>
-                             <UnderlineKeywords text={cat.name} />
+                             {cat.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
