@@ -46,7 +46,7 @@ const pilotSchema = z.object({
       required_error: "La fecha de vencimiento del psicofísico es obligatoria.",
       invalid_type_error: "Fecha inválida."
     })
-    .refine(date => date >= startOfDay(new Date()), {
+    .refine(date => date >= startOfDay(new Date()), { // Ensure it's not in the past from today
       message: "La fecha de vencimiento no puede ser en el pasado."
     }),
   is_admin: z.boolean().optional(),
@@ -69,7 +69,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
       first_name: '',
       last_name: '',
       category_ids: [],
-      medical_expiry: new Date(), // Default to today, validation will catch if past
+      medical_expiry: new Date(), 
       is_admin: false,
     },
   });
@@ -91,7 +91,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             first_name: '',
             last_name: '',
             category_ids: [],
-            medical_expiry: new Date(),
+            medical_expiry: new Date(), // Default to today for new pilot
             is_admin: false,
           };
       form.reset(initialFormValues);
@@ -100,7 +100,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
       if (isValid(currentMedicalDateInForm)) {
         setMedicalExpiryDateString(format(currentMedicalDateInForm, "dd/MM/yyyy", { locale: es }));
       } else {
-         // If the date from DB is invalid, or new pilot, default to today for string
         setMedicalExpiryDateString(format(new Date(), "dd/MM/yyyy", { locale: es }));
       }
     }
@@ -132,7 +131,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   const handleSubmit = (data: PilotFormData) => {
     const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
         ...data,
-        medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'), // Format for Supabase
+        medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'), 
         is_admin: data.is_admin ?? false,
     };
     onSubmit(dataToSubmit, pilot?.id);
@@ -142,10 +141,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
         onOpenChange(isOpen);
-        if (!isOpen) {
-            // Optionally reset form to initial pilot values or empty on close, if desired
-            // For now, rely on the useEffect above to reset when dialog 'open' state changes
-        }
     }}>
       <DialogContent className="sm:max-w-[425px] md:max-w-lg">
         <DialogHeader>
@@ -213,7 +208,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                             key={category.id}
                             className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md cursor-pointer"
                             onClick={(e) => {
-                              e.stopPropagation(); // Prevent label click issues
+                              e.stopPropagation(); 
                               const currentCategoryIds = field.value || [];
                               const newCategoryIds = currentCategoryIds.includes(category.id)
                                 ? currentCategoryIds.filter(id => id !== category.id)
@@ -235,13 +230,13 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                                       );
                                 }}
                                 id={`category-${category.id}`}
-                                // aria-labelledby={`category-label-${category.id}`} // Label is now part of FormItem
+                                aria-labelledby={`category-label-${category.id}`}
                               />
                             </FormControl>
                             <FormLabel
                               htmlFor={`category-${category.id}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                              // id={`category-label-${category.id}`}
+                              id={`category-label-${category.id}`}
                             >
                               {category.name}
                             </FormLabel>
@@ -285,13 +280,18 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                         selected={field.value instanceof Date && isValid(field.value) ? field.value : undefined}
                         onSelect={(date) => handleDateSelect(date, field.onChange)}
                         disabled={(date) =>
-                          date < startOfDay(new Date())
+                          date < startOfDay(new Date()) 
                         }
                         initialFocus
                         locale={es}
                       />
                     </PopoverContent>
                   </Popover>
+                  {pilot && (
+                    <FormDescription className="text-xs text-muted-foreground/80 mt-1">
+                      Nota: La modificación de este campo para pilotos existentes es una operación privilegiada (Administrador).
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
