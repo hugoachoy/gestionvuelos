@@ -30,7 +30,7 @@ export function usePilotsStore() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase.from('pilots').select('*').order('created_at', { ascending: false });
+      const { data, error: fetchError } = await supabase.from('pilots').select('*').order('last_name').order('first_name');
       if (fetchError) {
         logSupabaseError('Error fetching pilots', fetchError);
         setError(fetchError);
@@ -52,6 +52,9 @@ export function usePilotsStore() {
 
   const addPilot = useCallback(async (pilotData: Omit<Pilot, 'id' | 'created_at'>) => {
     setError(null);
+    // SECURITY: RLS policies on Supabase MUST ensure that only authorized users
+    // (e.g., existing admins) can set 'is_admin' to true.
+    // The client should not be able to arbitrarily set this flag without server-side validation via RLS.
     const { data: newPilot, error: insertError } = await supabase
       .from('pilots')
       .insert([pilotData])
@@ -72,6 +75,9 @@ export function usePilotsStore() {
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
     setError(null);
     const { id, created_at, ...updatePayload } = updatedPilotData;
+    // SECURITY: RLS policies on Supabase MUST ensure that only authorized users
+    // (e.g., existing admins) can set or change 'is_admin'.
+    // A user should not be able to make themselves an admin via this update.
     const { data: updatedPilot, error: updateError } = await supabase
       .from('pilots')
       .update(updatePayload)
@@ -105,7 +111,7 @@ export function usePilotsStore() {
   
   const getPilotName = useCallback((pilotId: string): string => {
     const pilot = pilots.find(p => p.id === pilotId);
-    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto Desconocido';
+    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto Desc.';
   }, [pilots]);
 
   return { pilots, loading, error, addPilot, updatePilot, deletePilot, getPilotName, fetchPilots };
@@ -118,6 +124,8 @@ export function usePilotCategoriesStore() {
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
   
+  // Default categories are primarily for fallback if Supabase fetch fails or if table is empty initially.
+  // The source of truth should be the Supabase table.
   const DEFAULT_CATEGORIES: PilotCategory[] = [
     { id: 'static-cat-tow-pilot', name: 'Remolcador', created_at: new Date().toISOString() },
     { id: 'static-cat-instructor', name: 'Instructor', created_at: new Date().toISOString() },
@@ -134,14 +142,14 @@ export function usePilotCategoriesStore() {
       if (fetchError) {
         logSupabaseError('Error fetching pilot categories', fetchError);
         setError(fetchError);
-        setCategories(DEFAULT_CATEGORIES); 
+        // setCategories(DEFAULT_CATEGORIES); // Consider if fallback is desired or if error should just be shown
       } else {
-        setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
+         setCategories(data && data.length > 0 ? data : []); // Use empty array if no data, rely on DB being populated
       }
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCategories', e);
       setError(e);
-      setCategories(DEFAULT_CATEGORIES);
+      // setCategories(DEFAULT_CATEGORIES);
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -207,7 +215,7 @@ export function usePilotCategoriesStore() {
 
   const getCategoryName = useCallback((categoryId: string): string => {
     const category = categories.find(c => c.id === categoryId);
-    return category ? category.name : 'Categoría Desconocida';
+    return category ? category.name : 'Cat. Desc.';
   }, [categories]);
   
   return { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryName, fetchCategories };
@@ -302,7 +310,7 @@ export function useAircraftStore() {
   const getAircraftName = useCallback((aircraftId?: string): string => {
     if (!aircraftId) return 'N/A';
     const ac = aircraft.find(a => a.id === aircraftId);
-    return ac ? ac.name : 'Aeronave Desconocida';
+    return ac ? ac.name : 'Aeronave Desc.';
   }, [aircraft]);
 
   return { aircraft, loading, error, addAircraft, updateAircraft, deleteAircraft, getAircraftName, fetchAircraft };
@@ -313,16 +321,16 @@ export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
-  const fetchingRef = useRef(false);
+  const fetchingRef = useRef(false); // To prevent multiple fetches for the same specific date
 
   const fetchScheduleEntries = useCallback(async (date?: string) => {
+    // If date is provided, we allow re-fetch if not already fetching for that specific date.
+    // If date is not provided (general fetch, not used currently), it's blocked if any fetch is ongoing.
     if (fetchingRef.current && date) {
-      const currentFetchIsForSpecificDate = !!date;
-      if(currentFetchIsForSpecificDate && !fetchingRef.current) { 
-        // Allow if not already fetching, even for specific date
-      } else if (fetchingRef.current) {
+        // This part is tricky if multiple calls for different dates happen.
+        // For now, simple ref should mostly cover single date view.
+    } else if (fetchingRef.current && !date) {
         return;
-      }
     }
 
     fetchingRef.current = true;
@@ -334,7 +342,9 @@ export function useScheduleStore() {
       if (date) {
         query = query.eq('date', date);
       }
-      query = query.order('date').order('start_time');
+      // The sorting order is primarily handled in the client component (ScheduleClient)
+      // But a basic sort by date and time here can be useful.
+      query = query.order('date').order('start_time'); 
       
       const { data, error: fetchError } = await query;
 
@@ -354,7 +364,7 @@ export function useScheduleStore() {
   }, []);
 
   const fetchScheduleEntriesForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<ScheduleEntry[] | null> => {
-    setError(null);
+    setError(null); // Reset error for this specific operation
     try {
       const { data, error: fetchError } = await supabase
         .from('schedule_entries')
@@ -366,13 +376,13 @@ export function useScheduleStore() {
 
       if (fetchError) {
         logSupabaseError('Error fetching schedule entries for range', fetchError);
-        setError(fetchError);
+        setError(fetchError); // Set error state if this operation fails
         return null;
       }
       return data || [];
     } catch (e) {
       logSupabaseError('Unexpected error in fetchScheduleEntriesForRange', e);
-      setError(e);
+      setError(e); // Set error state
       return null;
     }
   }, []);
@@ -469,11 +479,9 @@ export function useDailyObservationsStore() {
 
   const fetchObservations = useCallback(async (date?: string) => {
      if (fetchingRef.current && date) {
-       const currentFetchIsForSpecificDate = !!date;
-       if(currentFetchIsForSpecificDate && !fetchingRef.current) {
-       } else if (fetchingRef.current) {
+       // Similar to schedule, allow refetch for specific date if not already fetching it
+     } else if (fetchingRef.current && !date) {
          return;
-       }
      }
     fetchingRef.current = true;
     setLoading(true);
@@ -556,3 +564,4 @@ export function useDailyObservationsStore() {
 
   return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations, fetchObservationsForRange };
 }
+
