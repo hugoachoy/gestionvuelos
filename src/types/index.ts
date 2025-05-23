@@ -5,7 +5,7 @@ export interface Pilot {
   last_name: string;
   category_ids: string[]; // IDs of PilotCategory
   medical_expiry: string; // Store as ISO string YYYY-MM-DD
-  is_admin?: boolean; // New field for admin status
+  // is_admin?: boolean; // Field removed
   created_at?: string; // Timestamps from Supabase
 }
 

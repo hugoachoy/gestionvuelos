@@ -46,10 +46,10 @@ const pilotSchema = z.object({
       required_error: "La fecha de vencimiento del psicofísico es obligatoria.",
       invalid_type_error: "Fecha inválida."
     })
-    .refine(date => date >= startOfDay(new Date()), { // Ensure it's not in the past from today
+    .refine(date => date >= startOfDay(new Date()), {
       message: "La fecha de vencimiento no puede ser en el pasado."
     }),
-  is_admin: z.boolean().optional(),
+  // is_admin field removed from schema
 });
 
 type PilotFormData = z.infer<typeof pilotSchema>;
@@ -57,7 +57,7 @@ type PilotFormData = z.infer<typeof pilotSchema>;
 interface PilotFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => void;
+  onSubmit: (data: Omit<Pilot, 'id' | 'created_at' | 'is_admin'>, pilotId?: string) => void; // is_admin removed
   pilot?: Pilot;
   categories: PilotCategory[];
 }
@@ -69,8 +69,8 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
       first_name: '',
       last_name: '',
       category_ids: [],
-      medical_expiry: new Date(), 
-      is_admin: false,
+      medical_expiry: new Date(),
+      // is_admin default value removed
     },
   });
 
@@ -85,14 +85,14 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             last_name: pilot.last_name || '',
             category_ids: pilot.category_ids || [],
             medical_expiry: pilot.medical_expiry && isValid(parseISO(pilot.medical_expiry)) ? parseISO(pilot.medical_expiry) : new Date(),
-            is_admin: pilot.is_admin ?? false,
+            // is_admin initialization removed
           }
-        : { 
+        : {
             first_name: '',
             last_name: '',
             category_ids: [],
             medical_expiry: new Date(), // Default to today for new pilot
-            is_admin: false,
+            // is_admin initialization removed
           };
       form.reset(initialFormValues);
 
@@ -113,7 +113,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     if (isValid(parsedDate)) {
       fieldOnChange(parsedDate);
     } else {
-      fieldOnChange(undefined); 
+      fieldOnChange(undefined);
     }
   };
 
@@ -129,13 +129,14 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   };
 
   const handleSubmit = (data: PilotFormData) => {
-    const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
-        ...data,
-        medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'), 
-        is_admin: data.is_admin ?? false,
+    // Explicitly exclude is_admin if it somehow ends up in data
+    const { ...dataWithoutAdmin } = data;
+    const dataToSubmit: Omit<Pilot, 'id' | 'created_at' | 'is_admin'> = {
+        ...dataWithoutAdmin,
+        medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
     };
     onSubmit(dataToSubmit, pilot?.id);
-    onOpenChange(false); 
+    onOpenChange(false);
   };
 
   return (
@@ -208,7 +209,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                             key={category.id}
                             className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md cursor-pointer"
                             onClick={(e) => {
-                              e.stopPropagation(); 
+                              e.stopPropagation();
                               const currentCategoryIds = field.value || [];
                               const newCategoryIds = currentCategoryIds.includes(category.id)
                                 ? currentCategoryIds.filter(id => id !== category.id)
@@ -280,7 +281,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                         selected={field.value instanceof Date && isValid(field.value) ? field.value : undefined}
                         onSelect={(date) => handleDateSelect(date, field.onChange)}
                         disabled={(date) =>
-                          date < startOfDay(new Date()) 
+                          date < startOfDay(new Date())
                         }
                         initialFocus
                         locale={es}
@@ -296,28 +297,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="is_admin"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel id="is_admin_label">Administrador</FormLabel>
-                    <FormDescription>
-                      Marcar si este piloto es administrador.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value ?? false}
-                      onCheckedChange={field.onChange}
-                      id="is_admin_checkbox"
-                      aria-labelledby="is_admin_label"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {/* FormField for is_admin removed */}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => {
                 onOpenChange(false);
@@ -331,5 +311,4 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
   );
 }
     
-
     

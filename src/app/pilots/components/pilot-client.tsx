@@ -1,12 +1,12 @@
 
 "use client";
 
-import React from 'react'; 
-import { useState, useCallback } from 'react'; // Removed useEffect as fetchPilots is called directly
-import type { Pilot, PilotCategory } from '@/types';
+import React from 'react';
+import { useState, useCallback } from 'react';
+import type { Pilot } from '@/types'; // PilotCategory removed as it's not directly used here after removing admin badge.
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle } from 'lucide-react'; // ShieldCheck removed
 import { PilotForm } from './pilot-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
@@ -24,13 +24,12 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } fro
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { UnderlineKeywords } from '@/components/common/underline-keywords';
-
+// UnderlineKeywords removed as it's not used after admin badge removal
 
 export function PilotClient() {
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
   const { categories: pilotCategories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
-  
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPilot, setEditingPilot] = useState<Pilot | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -59,15 +58,15 @@ export function PilotClient() {
     setPilotToDelete(null);
   };
 
-  const handleSubmitForm = async (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => {
+  const handleSubmitForm = async (data: Omit<Pilot, 'id' | 'created_at' | 'is_admin'>, pilotId?: string) => { // is_admin removed
     if (pilotId) {
-      await updatePilot({ ...data, id: pilotId } as Pilot); // Ensure type compatibility
+      await updatePilot({ ...data, id: pilotId } as Pilot); // Ensure type compatibility, is_admin won't be in data
     } else {
       await addPilot(data);
     }
     setIsFormOpen(false);
   };
-  
+
   const handleRefreshAll = useCallback(() => {
     fetchPilots();
     fetchCategories();
@@ -92,26 +91,26 @@ export function PilotClient() {
 
   return (
     <>
-      <PageHeader 
-        title="Pilotos" 
+      <PageHeader
+        title="Pilotos"
         action={
           <div className="flex flex-wrap gap-2">
             <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={combinedLoading}>
               <RefreshCw className={cn("h-4 w-4", combinedLoading && "animate-spin")} />
                <span className="sr-only">Refrescar datos</span>
             </Button>
-            <PilotReportButton 
-              pilots={pilots} 
-              getCategoryName={getCategoryName} 
+            <PilotReportButton
+              pilots={pilots}
+              getCategoryName={getCategoryName}
               disabled={combinedLoading || pilots.length === 0}
             />
             <Button onClick={handleAddPilot} disabled={combinedLoading}>
               <PlusCircle className="mr-2 h-4 w-4" /> Agregar Piloto
             </Button>
           </div>
-        } 
+        }
       />
-      
+
       {combinedLoading && !pilots.length ? (
         <div className="space-y-2">
           <Skeleton className="h-10 w-full" />
@@ -127,14 +126,14 @@ export function PilotClient() {
                 <TableHead>Apellido</TableHead>
                 <TableHead>Categorías</TableHead>
                 <TableHead>Venc. Psicofísico</TableHead>
-                <TableHead>Admin</TableHead>
+                {/* Admin column removed */}
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pilots.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center h-24">
+                  <TableCell colSpan={5} className="text-center h-24"> {/* ColSpan reduced */}
                     No hay pilotos registrados.
                   </TableCell>
                 </TableRow>
@@ -198,14 +197,7 @@ export function PilotClient() {
                       <TableCell>
                         {medicalExpiryDisplay}
                       </TableCell>
-                      <TableCell>
-                        {pilot.is_admin && (
-                          <Badge variant="outline" className="border-primary text-primary">
-                            <ShieldCheck className="h-3 w-3 mr-1" />
-                            Admin
-                          </Badge>
-                        )}
-                      </TableCell>
+                      {/* Admin cell removed */}
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
                           <Edit className="h-4 w-4" />
