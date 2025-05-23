@@ -34,7 +34,7 @@ import { UnderlineKeywords } from '@/components/common/underline-keywords';
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
 export function ScheduleClient() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined); // Initialize to undefined
   const { toast } = useToast();
 
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
@@ -55,6 +55,12 @@ export function ScheduleClient() {
     return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
   }, [selectedDate]);
 
+  // Set initial date on client-side to prevent hydration mismatch
+  useEffect(() => {
+    setSelectedDate(new Date());
+  }, []);
+
+
    useEffect(() => {
     if (selectedDate) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -73,10 +79,10 @@ export function ScheduleClient() {
 
   useEffect(() => {
     if (observationTextareaRef.current) {
-      observationTextareaRef.current.style.height = 'auto'; // Reset height to shrink if text is removed
-      observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`; // Set height to scroll height
+      observationTextareaRef.current.style.height = 'auto';
+      observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
-  }, [observationInput]); // Re-run when observationInput changes
+  }, [observationInput]);
 
   useEffect(() => {
     const runCleanup = async () => {
@@ -147,13 +153,17 @@ export function ScheduleClient() {
     if (!selectedDate || !scheduleEntries || categoriesLoading || !categories || !categories.length) return [];
     
     const instructorCategory = categories.find(c => c.name === 'Instructor');
-    const towPilotCategory = categories.find(c => c.name === 'Remolcador');
+    const remolcadorCategory = categories.find(c => c.name === 'Remolcador');
 
     return [...scheduleEntries]
       .sort((a, b) => {
         const aIsInstructor = a.pilot_category_id === instructorCategory?.id;
         const bIsInstructor = b.pilot_category_id === instructorCategory?.id;
-        
+        const aIsRemolcador = a.pilot_category_id === remolcadorCategory?.id;
+        const bIsRemolcador = b.pilot_category_id === remolcadorCategory?.id;
+        const aIsConfirmedTow = aIsRemolcador && a.is_tow_pilot_available === true;
+        const bIsConfirmedTow = bIsRemolcador && b.is_tow_pilot_available === true;
+
         // 1. Instructor Pilots
         if (aIsInstructor && !bIsInstructor) return -1;
         if (!aIsInstructor && bIsInstructor) return 1;
@@ -161,22 +171,17 @@ export function ScheduleClient() {
           return a.start_time.localeCompare(b.start_time);
         }
 
-        const aIsTowPilot = a.pilot_category_id === towPilotCategory?.id;
-        const bIsTowPilot = b.pilot_category_id === towPilotCategory?.id;
-        const aIsConfirmedTow = a.is_tow_pilot_available === true;
-        const bIsConfirmedTow = b.is_tow_pilot_available === true;
-
         // 2. Confirmed Tow Pilots
-        if (aIsTowPilot && aIsConfirmedTow && !(bIsTowPilot && bIsConfirmedTow)) return -1;
-        if (!(aIsTowPilot && aIsConfirmedTow) && (bIsTowPilot && bIsConfirmedTow)) return 1;
-        if (aIsTowPilot && aIsConfirmedTow && bIsTowPilot && bIsConfirmedTow) {
+        if (aIsConfirmedTow && !bIsConfirmedTow) return -1;
+        if (!aIsConfirmedTow && bIsConfirmedTow) return 1;
+        if (aIsConfirmedTow && bIsConfirmedTow) {
           return a.start_time.localeCompare(b.start_time);
         }
         
-        // 3. Unconfirmed/Unavailable Tow Pilots
-        if (aIsTowPilot && !aIsConfirmedTow && !(bIsTowPilot && !bIsConfirmedTow)) return -1;
-        if (!(aIsTowPilot && !aIsConfirmedTow) && (bIsTowPilot && !bIsConfirmedTow)) return 1;
-        if (aIsTowPilot && !aIsConfirmedTow && bIsTowPilot && !bIsConfirmedTow) {
+        // 3. Unconfirmed/Unavailable Tow Pilots (but still Remolcador category)
+        if (aIsRemolcador && !bIsRemolcador) return -1;
+        if (!aIsRemolcador && bIsRemolcador) return 1;
+        if (aIsRemolcador && bIsRemolcador) { // both are unconfirmed/unavailable tow pilots
           return a.start_time.localeCompare(b.start_time);
         }
 
@@ -205,12 +210,6 @@ export function ScheduleClient() {
   }, [selectedDate, scheduleEntries, categories, categoriesLoading]);
 
 
-  useEffect(() => {
-    if (!selectedDate) {
-      setSelectedDate(new Date());
-    }
-  }, [selectedDate]);
-
   const handleRefreshAll = useCallback(() => {
     fetchPilots();
     fetchCategories();
@@ -230,29 +229,29 @@ export function ScheduleClient() {
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
 
   const isTowPilotCategoryConfirmed = useMemo(() => {
-    if (categoriesLoading || scheduleLoading || !categories || !categories.length || !scheduleEntries) {
+    if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
         return false; 
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
-    if (!towPilotCategory) { // If "Remolcador" category doesn't exist, we can't confirm it, so assume not applicable.
+    if (!towPilotCategory) {
       return true; 
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true 
     );
-  }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
   const isInstructorConfirmed = useMemo(() => {
-    if (categoriesLoading || scheduleLoading || !categories || !categories.length || !scheduleEntries) {
+    if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
       return false;
     }
     const instructorCategory = categories.find(cat => cat.name === 'Instructor');
-    if (!instructorCategory) { // If "Instructor" category doesn't exist, assume not applicable.
+    if (!instructorCategory) {
       return true; 
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
-  }, [scheduleEntries, categories, categoriesLoading, scheduleLoading]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
 
   const towageFlightTypeId = useMemo(() => {
@@ -261,7 +260,7 @@ export function ScheduleClient() {
 
   const noTowageFlightsPresent = useMemo(() => {
     if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries || categoriesLoading) {
-      return true; // Default to true (meaning warning might show) if data is missing/loading
+      return false; // Default to false (meaning no warning unless specific conditions met) if data is missing/loading for this check
     }
     return !scheduleEntries.some(entry => entry.flight_type_id === towageFlightTypeId);
   }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId, categoriesLoading]);
@@ -375,7 +374,7 @@ export function ScheduleClient() {
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay Instructor confirmado para esta fecha.' />
+                <UnderlineKeywords text='Aún no hay "Instructor" confirmado para esta fecha.' />
             </strong>
           </AlertDescription>
         </Alert>
@@ -386,13 +385,13 @@ export function ScheduleClient() {
        noTowageFlightsPresent && 
        towageFlightTypeId && 
        !anyLoading && 
-       scheduleEntries.length > 0 && // Only show if there are entries but none are towage
+       categories.some(cat => cat.name === 'Remolcador') && // Added condition to ensure "Remolcador" category is relevant
         (
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay Remolcador confirmado.' />
+                <UnderlineKeywords text='Aún no hay "Remolcador" confirmado.' />
             </strong>
           </AlertDescription>
         </Alert>
@@ -431,5 +430,3 @@ export function ScheduleClient() {
     </>
   );
 }
-
-    
