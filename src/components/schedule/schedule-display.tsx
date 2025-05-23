@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookOpen, AlertTriangle, PlaneTakeoff, PlaneLanding } from 'lucide-react';
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
-import { format, parseISO, differenceInDays, isBefore, isValid } from 'date-fns';
+import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import React from 'react';
@@ -63,9 +63,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const flightTypeName = getFlightTypeName(entry.flight_type_id);
         let flightTypeDisplayNode: React.ReactNode = flightTypeName;
 
+        const towageFlightId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
+
         const shouldFlightTypeBeBold = 
           (entry.flight_type_id === 'instruction' && isTurnByInstructor) ||
-          isTurnByRemolcador; 
+          isTurnByRemolcador ||
+          entry.flight_type_id === towageFlightId;
 
         if (shouldFlightTypeBeBold) {
           flightTypeDisplayNode = <strong className="text-foreground">{flightTypeName}</strong>;
@@ -74,22 +77,22 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
 
         const displayTime = entry.start_time.substring(0, 5); 
 
-        const showAvailableSinceText = entry.flight_type_id === 'towage' || isTurnByInstructor;
+        const showAvailableSinceText = 
+            (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available === true) ||
+            isTurnByInstructor;
 
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
           const entryDate = parseISO(entry.date);
+          const todayNormalized = startOfDay(new Date());
 
           if (isValid(medicalExpiryDate) && isValid(entryDate)) {
-            const today = new Date();
-            const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-            todayNormalized.setHours(0,0,0,0); 
+            const normalizedMedicalExpiryDate = startOfDay(medicalExpiryDate);
+            const entryDateNormalized = startOfDay(entryDate);
 
-            const entryDateNormalized = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
-
-            const isExpiredOnEntryDate = isBefore(medicalExpiryDate, entryDateNormalized);
-            const daysUntilExpiryFromToday = differenceInDays(medicalExpiryDate, todayNormalized);
+            const isExpiredOnEntryDate = isBefore(normalizedMedicalExpiryDate, entryDateNormalized);
+            const daysUntilExpiryFromToday = differenceInDays(normalizedMedicalExpiryDate, todayNormalized);
 
             if (isExpiredOnEntryDate) {
               expiredBlock = (
@@ -118,7 +121,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
           }
         }
 
-        const isTowageRelatedCardStyle = isTurnByRemolcador || entry.flight_type_id === 'towage';
+        const isTowageRelatedCardStyle = isTurnByRemolcador || entry.flight_type_id === towageFlightId;
 
         return (
           <Card
