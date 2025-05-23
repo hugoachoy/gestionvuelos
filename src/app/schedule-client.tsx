@@ -21,7 +21,7 @@ import {
   useScheduleStore,
   useDailyObservationsStore
 } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory } from '@/types';
+import type { ScheduleEntry } from '@/types'; // PilotCategory removed as it's not directly used in this file's top level
 import { FLIGHT_TYPES } from '@/types';
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -34,11 +34,11 @@ import { UnderlineKeywords } from '@/components/common/underline-keywords';
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
 export function ScheduleClient() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined); // Initialize to undefined
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
-  const { categories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
+  const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries, cleanupOldScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
@@ -51,15 +51,14 @@ export function ScheduleClient() {
   const [observationInput, setObservationInput] = useState('');
   const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const formattedSelectedDate = useMemo(() => {
-    return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
-  }, [selectedDate]);
-
-  // Set initial date on client-side to prevent hydration mismatch
+  // Set initial date on client-side to prevent hydration mismatch for selectedDate
   useEffect(() => {
     setSelectedDate(new Date());
   }, []);
 
+  const formattedSelectedDate = useMemo(() => {
+    return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+  }, [selectedDate]);
 
    useEffect(() => {
     if (selectedDate) {
@@ -79,7 +78,7 @@ export function ScheduleClient() {
 
   useEffect(() => {
     if (observationTextareaRef.current) {
-      observationTextareaRef.current.style.height = 'auto';
+      observationTextareaRef.current.style.height = 'auto'; // Reset height to recalculate
       observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
   }, [observationInput]);
@@ -92,6 +91,7 @@ export function ScheduleClient() {
         const oneDayInMs = 24 * 60 * 60 * 1000;
 
         if (!lastCleanupTimestamp || (now - parseInt(lastCleanupTimestamp, 10)) > oneDayInMs) {
+          console.log("Running daily schedule cleanup...");
           const result = await cleanupOldScheduleEntries();
           if (result.success && result.count > 0) {
             toast({
@@ -133,8 +133,8 @@ export function ScheduleClient() {
   };
 
   const confirmDelete = async () => {
-    if (entryToDelete) {
-      await removeEntry(entryToDelete.id, entryToDelete.date);
+    if (entryToDelete && selectedDate) { // ensure selectedDate is available for refetch
+      await removeEntry(entryToDelete.id, format(selectedDate, 'yyyy-MM-dd'));
     }
     setIsDeleteDialogOpen(false);
     setEntryToDelete(null);
@@ -170,18 +170,18 @@ export function ScheduleClient() {
         if (aIsInstructor && bIsInstructor) {
           return a.start_time.localeCompare(b.start_time);
         }
-
-        // 2. Confirmed Tow Pilots
+        
+        // 2. Confirmed Tow Pilots (Category: Remolcador, Available: true)
         if (aIsConfirmedTow && !bIsConfirmedTow) return -1;
         if (!aIsConfirmedTow && bIsConfirmedTow) return 1;
         if (aIsConfirmedTow && bIsConfirmedTow) {
           return a.start_time.localeCompare(b.start_time);
         }
         
-        // 3. Unconfirmed/Unavailable Tow Pilots (but still Remolcador category)
+        // 3. Unconfirmed/Unavailable Tow Pilots (Category: Remolcador, Available: false/undefined)
         if (aIsRemolcador && !bIsRemolcador) return -1;
         if (!aIsRemolcador && bIsRemolcador) return 1;
-        if (aIsRemolcador && bIsRemolcador) { // both are unconfirmed/unavailable tow pilots
+        if (aIsRemolcador && bIsRemolcador) { 
           return a.start_time.localeCompare(b.start_time);
         }
 
@@ -202,7 +202,7 @@ export function ScheduleClient() {
 
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
-        if (aIsSport && !bIsSport) return -1;
+        if (aIsSport && !bIsSport) return -1; // Sport flights first
         if (!aIsSport && bIsSport) return 1;
         
         return 0;
@@ -218,9 +218,9 @@ export function ScheduleClient() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
-    } else {
+    } else { // If no date is selected yet (e.g., initial load before client-side effect sets it)
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        fetchScheduleEntries(todayStr);
+        fetchScheduleEntries(todayStr); // Fetch for today by default
         fetchObservations(todayStr);
     }
   }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
@@ -234,7 +234,7 @@ export function ScheduleClient() {
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
     if (!towPilotCategory) {
-      return true; 
+      return true; // If category doesn't exist, don't show warning for it
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
@@ -248,7 +248,7 @@ export function ScheduleClient() {
     }
     const instructorCategory = categories.find(cat => cat.name === 'Instructor');
     if (!instructorCategory) {
-      return true; 
+      return true; // If category doesn't exist, don't show warning for it
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
@@ -259,11 +259,11 @@ export function ScheduleClient() {
   }, []);
 
   const noTowageFlightsPresent = useMemo(() => {
-    if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries || categoriesLoading) {
-      return false; // Default to false (meaning no warning unless specific conditions met) if data is missing/loading for this check
+    if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries) {
+      return false;
     }
     return !scheduleEntries.some(entry => entry.flight_type_id === towageFlightTypeId);
-  }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId, categoriesLoading]);
+  }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId]);
 
 
   if (anyError) {
@@ -356,8 +356,8 @@ export function ScheduleClient() {
       
       {selectedDate &&
        !isTowPilotCategoryConfirmed && 
-       !anyLoading &&
-       categories.some(cat => cat.name === 'Remolcador') && 
+       !anyLoading && // Only show if not loading
+       categories.some(cat => cat.name === 'Remolcador') && // Only if "Remolcador" category is defined
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -368,8 +368,8 @@ export function ScheduleClient() {
 
       {selectedDate &&
        !isInstructorConfirmed && 
-       !anyLoading &&
-       categories.some(cat => cat.name === 'Instructor') && 
+       !anyLoading && // Only show if not loading
+       categories.some(cat => cat.name === 'Instructor') && // Only if "Instructor" category is defined
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -380,22 +380,19 @@ export function ScheduleClient() {
         </Alert>
       }
 
-
       {selectedDate &&
        noTowageFlightsPresent && 
-       towageFlightTypeId && 
-       !anyLoading && 
-       categories.some(cat => cat.name === 'Remolcador') && // Added condition to ensure "Remolcador" category is relevant
-        (
+       towageFlightTypeId && // Ensure towage type ID is found
+       !anyLoading && // Only show if not loading
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay "Remolcador" confirmado.' />
+                <UnderlineKeywords text='Aún no hay "Remolcador" confirmado para esta fecha.' />
             </strong>
           </AlertDescription>
         </Alert>
-      )}
+      }
 
       {scheduleLoading && !filteredAndSortedEntries.length ? (
         <div className="space-y-4 mt-6">
