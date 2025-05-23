@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader as UiSheetHeader, SheetTitle as UiSheetTitle } from "@/components/ui/sheet" // MODIFIED: Import SheetHeader & SheetTitle
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -199,7 +199,7 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden flex flex-col" // MODIFIED: Added flex flex-col
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -207,7 +207,16 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
-            <div className="flex h-full w-full flex-col">{children}</div>
+            {/* Accessible Title (Visually Hidden) */}
+            <UiSheetHeader className="sr-only"> {/* MODIFIED: Added sr-only SheetHeader */}
+              <UiSheetTitle>Menú Principal</UiSheetTitle> {/* MODIFIED: Added SheetTitle */}
+            </UiSheetHeader>
+
+            {/* Original children, including the visual SidebarHeader from AppShell */}
+            {/* This div wrapper was already there for children */}
+            <div className="flex h-full w-full flex-col overflow-y-auto"> {/* MODIFIED: Added overflow-y-auto to allow content to scroll if needed */}
+                {children}
+            </div>
           </SheetContent>
         </Sheet>
       )
@@ -762,3 +771,4 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
