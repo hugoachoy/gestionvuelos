@@ -52,6 +52,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
+import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -65,23 +66,12 @@ const availabilitySchema = z.object({
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
 
-interface AvailabilityFormProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => void;
-  entry?: ScheduleEntry;
-  pilots: Pilot[];
-  categories: PilotCategory[];
-  aircraft: Aircraft[];
-  selectedDate?: Date;
-  existingEntries: ScheduleEntry[];
-}
-
 interface MedicalWarningState {
   show: boolean;
   title: string;
   message: string;
-  variant: 'default' | 'destructive';
+  variant: 'default' | 'destructive'; // Controls button disable if 'destructive'
+  displayType?: 'critical_non_blocking' | 'warning_non_blocking'; // For visual styling of non-blocking alerts
 }
 
 interface BookingConflictWarningState {
@@ -126,12 +116,6 @@ export function AvailabilityForm({
         is_tow_pilot_available: false,
         flight_type_id: '',
         aircraft_id: '',
-        ...(entry && {
-          ...entry,
-          date: entry.date ? parseISO(entry.date) : new Date(),
-          aircraft_id: entry.aircraft_id ?? '',
-          start_time: entry.start_time ? entry.start_time.substring(0,5) : ''
-        })
       },
   });
 
@@ -162,6 +146,7 @@ export function AvailabilityForm({
       form.reset(initialFormValues);
       setPilotSearchTerm('');
     } else {
+      // Reset warnings when dialog closes
       setMedicalWarning(null);
       setBookingConflictWarning(null);
     }
@@ -176,7 +161,7 @@ export function AvailabilityForm({
   const watchedFlightTypeId = form.watch('flight_type_id');
 
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
-
+  
   const pilotCategoriesForSelectedPilot = useMemo(() => {
     return pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
   }, [pilotDetails, categories]);
@@ -191,11 +176,11 @@ export function AvailabilityForm({
 
     if (open && watchedPilotId && currentPilotDetails?.medical_expiry && isValid(formFlightDate)) {
       const medicalExpiryDate = parseISO(currentPilotDetails.medical_expiry);
-      const today = startOfDay(new Date()); 
-
+      
       if (isValid(medicalExpiryDate)) {
-        const normalizedMedicalExpiryDate = startOfDay(medicalExpiryDate);
+        const today = startOfDay(new Date());
         const normalizedFormFlightDate = startOfDay(formFlightDate);
+        const normalizedMedicalExpiryDate = startOfDay(medicalExpiryDate);
 
         const isExpiredOnFlightDate = isBefore(normalizedMedicalExpiryDate, normalizedFormFlightDate);
 
@@ -203,32 +188,36 @@ export function AvailabilityForm({
           newMedicalWarningInfo = {
             show: true,
             title: "¡Psicofísico Vencido para esta Fecha!",
-            message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}. No puede ser asignado.`,
-            variant: 'destructive',
+            message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(normalizedMedicalExpiryDate, 'dd/MM/yyyy', { locale: es })}. No puede ser asignado.`,
+            variant: 'destructive', // This WILL disable the button
           };
         } else {
+          // Not expired for the flight date, but check proximity from today
           const daysUntilExpiryFromToday = differenceInDays(normalizedMedicalExpiryDate, today);
-          
-          if (daysUntilExpiryFromToday < 0) { 
-             newMedicalWarningInfo = {
-                show: true,
-                title: "¡Psicofísico Vencido!",
-                message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}.`,
-                variant: 'destructive',
+
+          if (daysUntilExpiryFromToday < 0) { // Expired today (but not for the flight date, implies flight date is in the past before expiry)
+            newMedicalWarningInfo = {
+              show: true,
+              title: "¡Psicofísico Vencido!",
+              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(normalizedMedicalExpiryDate, 'dd/MM/yyyy', { locale: es })}. Revise la fecha del turno.`,
+              variant: 'default', // NOT disabling button
+              displayType: 'critical_non_blocking',
             };
-          } else if (daysUntilExpiryFromToday <= 30) {
+          } else if (daysUntilExpiryFromToday <= 30) { // Expiring within 30 days
             newMedicalWarningInfo = {
               show: true,
               title: "¡Psicofísico Vence en Muy Poco Tiempo!",
-              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} día(s) (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
-              variant: 'destructive',
+              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} día(s) (el ${format(normalizedMedicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
+              variant: 'default', // NOT disabling button
+              displayType: 'critical_non_blocking',
             };
-          } else if (daysUntilExpiryFromToday <= 60) {
+          } else if (daysUntilExpiryFromToday <= 60) { // Expiring within 60 days
             newMedicalWarningInfo = {
               show: true,
               title: "Advertencia de Psicofísico",
-              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} día(s) (el ${format(medicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
-              variant: 'default',
+              message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} vence en ${daysUntilExpiryFromToday} día(s) (el ${format(normalizedMedicalExpiryDate, 'dd/MM/yyyy', { locale: es })}).`,
+              variant: 'default', // NOT disabling button
+              displayType: 'warning_non_blocking',
             };
           }
         }
@@ -236,6 +225,7 @@ export function AvailabilityForm({
     }
     setMedicalWarning(newMedicalWarningInfo);
   }, [watchedPilotId, watchedDate, open, pilots]);
+
 
   useEffect(() => {
     setBookingConflictWarning(null);
@@ -257,7 +247,7 @@ export function AvailabilityForm({
         se.date === dateString &&
         se.start_time.substring(0, 5) === formStartTimeHHMM &&
         se.aircraft_id === watchedAircraftId &&
-        (!entry || se.id !== entry.id)
+        (!entry || se.id !== entry.id) // Ignore self if editing
     );
 
     if (conflictingEntry) {
@@ -268,8 +258,8 @@ export function AvailabilityForm({
     }
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
 
-
   // Effect to suggest flight_type_id if selected pilot is inherently a "Remolcador"
+  // This acts as an initial suggestion if flight_type_id is empty.
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
       const remolcadorCategoryDefinition = categories.find(c => c.name === 'Remolcador');
@@ -277,42 +267,47 @@ export function AvailabilityForm({
 
       if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
         const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
-
+        
         if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') {
           form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
         }
       }
     }
-  }, [watchedPilotId, pilotDetails, categories, form]);
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedPilotId, pilotDetails, categories, form.getValues('flight_type_id')]); // form.getValues might cause re-runs, consider form if needed for other fields
 
   // Effect to auto-set/clear flight_type_id based on pilot_category_id (category FOR THE TURN)
+  // This has higher precedence for "Remolcador" category for the turn.
   useEffect(() => {
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
 
     if (!towageFlightType) {
-      return;
+        console.error("Flight type 'Remolque' not found in FLIGHT_TYPES definition.");
+        return;
     }
-
+    
     if (categoryForTurn?.name === 'Remolcador') {
       if (form.getValues('flight_type_id') !== towageFlightType.id) {
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
     } else {
+      // If the category is NOT "Remolcador", and the flight type IS "Remolque", clear it.
+      // This allows other suggestions (like from pilot's inherent category) if category for turn is not Remolcador.
       if (form.getValues('flight_type_id') === towageFlightType.id) {
-        form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
+         form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
     }
-  }, [watchedPilotCategoryId, categories, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedPilotCategoryId, categories, form.getValues('flight_type_id')]);
 
 
   const filteredAircraftForSelect = useMemo(() => {
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
-    const isRemolcadorCategorySelected = selectedCategoryDetailsForTurn?.name === 'Remolcador';
+    const isRemolcadorCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name === 'Remolcador';
     const isRemolqueFlightTypeSelected = watchedFlightTypeId === towageFlightType?.id;
 
-    if (isRemolcadorCategorySelected || isRemolqueFlightTypeSelected) {
+    if (isRemolcadorCategorySelectedForTurn || isRemolqueFlightTypeSelected) {
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
     return aircraft;
@@ -332,6 +327,8 @@ export function AvailabilityForm({
 
   const handleSubmit = (data: AvailabilityFormData) => {
     if ((medicalWarning && medicalWarning.variant === 'destructive' && medicalWarning.show) || (bookingConflictWarning && bookingConflictWarning.show)) {
+        // This check is a safeguard, the button should already be disabled.
+        console.error("Form submission attempted with blocking warnings.");
         return;
     }
 
@@ -343,12 +340,12 @@ export function AvailabilityForm({
     onOpenChange(false);
   };
 
+  // Effect to reset pilot_category_id if selected pilot doesn't have it
   useEffect(() => {
-    if (watchedPilotId && pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
+    if (watchedPilotId && pilotDetails && form.getValues('pilot_category_id') && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
       form.setValue('pilot_category_id', '');
     }
-    if (!watchedPilotId) {
-        setMedicalWarning(null);
+    if (!watchedPilotId) { // If pilot is deselected, clear their category for the turn.
         form.setValue('pilot_category_id', '');
     }
   }, [watchedPilotId, pilotDetails, form]);
@@ -487,11 +484,9 @@ export function AvailabilityForm({
                                 key={pilot.id}
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id);
-                                  if (pilotDetails && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
-                                    form.setValue('pilot_category_id', '');
-                                  }
+                                  // Logic to reset category_id if current pilot doesn't have it is in a separate useEffect
                                   setPilotPopoverOpen(false);
-                                  setPilotSearchTerm('');
+                                  setPilotSearchTerm(''); // Clear search term after selection
                                 }}
                               >
                                 <Check
@@ -516,10 +511,35 @@ export function AvailabilityForm({
             />
 
             {medicalWarning && medicalWarning.show && (
-              <Alert variant={medicalWarning.variant} className={cn(medicalWarning.variant === 'default' ? "border-yellow-500" : "")}>
-                <AlertTriangle className={cn("h-4 w-4", medicalWarning.variant === 'default' && "text-yellow-500")} />
-                <AlertTitle>{medicalWarning.title}</AlertTitle>
-                <AlertDescription>{medicalWarning.message}</AlertDescription>
+              <Alert 
+                variant={medicalWarning.variant}
+                className={cn(
+                  medicalWarning.variant === 'default' && medicalWarning.displayType === 'warning_non_blocking' && "border-yellow-500",
+                  medicalWarning.variant === 'default' && medicalWarning.displayType === 'critical_non_blocking' && "border-red-500"
+                )}
+              >
+                <AlertTriangle 
+                  className={cn(
+                    "h-4 w-4", 
+                    medicalWarning.variant === 'default' && medicalWarning.displayType === 'warning_non_blocking' && "text-yellow-500",
+                    medicalWarning.variant === 'default' && medicalWarning.displayType === 'critical_non_blocking' && "text-red-500"
+                    // Destructive variant icon color is handled by Alert's own destructive styles for its svg
+                  )} 
+                />
+                <AlertTitle 
+                  className={cn(
+                    medicalWarning.variant === 'default' && medicalWarning.displayType === 'critical_non_blocking' && "text-red-700"
+                  )}
+                >
+                  {medicalWarning.title}
+                </AlertTitle>
+                <AlertDescription 
+                  className={cn(
+                    medicalWarning.variant === 'default' && medicalWarning.displayType === 'critical_non_blocking' && "text-red-700/90"
+                  )}
+                >
+                  {medicalWarning.message}
+                </AlertDescription>
               </Alert>
             )}
 
@@ -529,7 +549,9 @@ export function AvailabilityForm({
                 name="pilot_category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Categoría del Piloto para este Turno</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">
+                        Categoría del Piloto para este Turno
+                    </FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger disabled={!pilotDetails || pilotCategoriesForSelectedPilot.length === 0}>
@@ -649,4 +671,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
