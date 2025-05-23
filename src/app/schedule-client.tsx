@@ -21,7 +21,7 @@ import {
   useScheduleStore,
   useDailyObservationsStore
 } from '@/store/data-hooks';
-import type { ScheduleEntry } from '@/types'; // PilotCategory removed as it's not directly used in this file's top level
+import type { ScheduleEntry, PilotCategory } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,27 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
+
+// Helper function to determine sort priority for schedule entries
+// Lower number means higher priority
+function getSortPriority(
+  entry: ScheduleEntry,
+  instructorCategoryId: string | undefined,
+  remolcadorCategoryId: string | undefined
+): number {
+  const isRemolcador = entry.pilot_category_id === remolcadorCategoryId;
+  const isInstructor = entry.pilot_category_id === instructorCategoryId;
+
+  if (isRemolcador) {
+    // Further differentiate confirmed tow pilots
+    return entry.is_tow_pilot_available === true ? 1 : 2; // 1 for confirmed, 2 for unconfirmed/unavailable
+  }
+  if (isInstructor) {
+    return 3;
+  }
+  return 4; // Others
+}
+
 
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -157,55 +178,47 @@ export function ScheduleClient() {
 
     return [...scheduleEntries]
       .sort((a, b) => {
-        const aIsInstructor = a.pilot_category_id === instructorCategory?.id;
-        const bIsInstructor = b.pilot_category_id === instructorCategory?.id;
-        const aIsRemolcador = a.pilot_category_id === remolcadorCategory?.id;
-        const bIsRemolcador = b.pilot_category_id === remolcadorCategory?.id;
-        const aIsConfirmedTow = aIsRemolcador && a.is_tow_pilot_available === true;
-        const bIsConfirmedTow = bIsRemolcador && b.is_tow_pilot_available === true;
+        const priorityA = getSortPriority(a, instructorCategory?.id, remolcadorCategory?.id);
+        const priorityB = getSortPriority(b, instructorCategory?.id, remolcadorCategory?.id);
 
-        // 1. Instructor Pilots
-        if (aIsInstructor && !bIsInstructor) return -1;
-        if (!aIsInstructor && bIsInstructor) return 1;
-        if (aIsInstructor && bIsInstructor) {
-          return a.start_time.localeCompare(b.start_time);
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
         }
-        
-        // 2. Confirmed Tow Pilots (Category: Remolcador, Available: true)
-        if (aIsConfirmedTow && !bIsConfirmedTow) return -1;
-        if (!aIsConfirmedTow && bIsConfirmedTow) return 1;
-        if (aIsConfirmedTow && bIsConfirmedTow) {
-          return a.start_time.localeCompare(b.start_time);
-        }
-        
-        // 3. Unconfirmed/Unavailable Tow Pilots (Category: Remolcador, Available: false/undefined)
-        if (aIsRemolcador && !bIsRemolcador) return -1;
-        if (!aIsRemolcador && bIsRemolcador) return 1;
-        if (aIsRemolcador && bIsRemolcador) { 
+
+        // If priorities are the same (within Remolcador groups or Instructor group), sort by start_time
+        if (priorityA <= 3) { // Covers Remolcador (1 or 2) and Instructor (3)
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // 4. Other Pilots: Group by aircraft, then time, then sport preference.
+        // If both are "Others" (priorityA === 4), apply existing complex sort:
+        // 1. Group by aircraft_id (assigned aircrafts first, then no aircraft)
+        // 2. Sort by aircraft_id (alphabetically if both have aircraft)
+        // 3. Sort by start_time
+        // 4. Prioritize 'sport' flight_type_id
+
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
 
-        if (aHasAircraft && !bHasAircraft) return -1;
-        if (!aHasAircraft && bHasAircraft) return 1;
+        if (aHasAircraft && !bHasAircraft) return -1; // a (with aircraft) comes before b (no aircraft)
+        if (!aHasAircraft && bHasAircraft) return 1;  // b (with aircraft) comes before a (no aircraft)
         
         if (aHasAircraft && bHasAircraft && a.aircraft_id && b.aircraft_id) {
+            // Both have aircraft, sort by aircraft_id (alphabetically)
             const aircraftComparison = (a.aircraft_id).localeCompare(b.aircraft_id);
             if (aircraftComparison !== 0) return aircraftComparison;
         }
+        // If aircraft status is the same (both have or both don't, or same aircraft_id), sort by time
 
         const timeComparison = a.start_time.localeCompare(b.start_time);
         if (timeComparison !== 0) return timeComparison;
 
+        // If time is also the same, prioritize sport flights
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
         if (aIsSport && !bIsSport) return -1; // Sport flights first
         if (!aIsSport && bIsSport) return 1;
         
-        return 0;
+        return 0; // Should be very rare to reach here, means all criteria are identical
       });
   }, [selectedDate, scheduleEntries, categories, categoriesLoading]);
 
@@ -218,9 +231,9 @@ export function ScheduleClient() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
-    } else { // If no date is selected yet (e.g., initial load before client-side effect sets it)
+    } else { 
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        fetchScheduleEntries(todayStr); // Fetch for today by default
+        fetchScheduleEntries(todayStr); 
         fetchObservations(todayStr);
     }
   }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
@@ -234,7 +247,7 @@ export function ScheduleClient() {
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
     if (!towPilotCategory) {
-      return true; // If category doesn't exist, don't show warning for it
+      return true; 
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
@@ -248,7 +261,7 @@ export function ScheduleClient() {
     }
     const instructorCategory = categories.find(cat => cat.name === 'Instructor');
     if (!instructorCategory) {
-      return true; // If category doesn't exist, don't show warning for it
+      return true; 
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
@@ -356,8 +369,8 @@ export function ScheduleClient() {
       
       {selectedDate &&
        !isTowPilotCategoryConfirmed && 
-       !anyLoading && // Only show if not loading
-       categories.some(cat => cat.name === 'Remolcador') && // Only if "Remolcador" category is defined
+       !anyLoading && 
+       categories.some(cat => cat.name === 'Remolcador') && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -368,8 +381,8 @@ export function ScheduleClient() {
 
       {selectedDate &&
        !isInstructorConfirmed && 
-       !anyLoading && // Only show if not loading
-       categories.some(cat => cat.name === 'Instructor') && // Only if "Instructor" category is defined
+       !anyLoading && 
+       categories.some(cat => cat.name === 'Instructor') && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -382,8 +395,8 @@ export function ScheduleClient() {
 
       {selectedDate &&
        noTowageFlightsPresent && 
-       towageFlightTypeId && // Ensure towage type ID is found
-       !anyLoading && // Only show if not loading
+       towageFlightTypeId && 
+       !anyLoading && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
