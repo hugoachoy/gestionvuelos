@@ -44,10 +44,10 @@ function getSortPriority(
   const isCategoryInstructor = entry.pilot_category_id === instructorCategoryId;
 
   if (isCategoryRemolcador) {
-    return entry.is_tow_pilot_available === true ? 1 : 3; // 1 for confirmed, 3 for unconfirmed/unavailable
+    return entry.is_tow_pilot_available === true ? 1 : 2; // 1 for confirmed, 2 for unconfirmed/unavailable
   }
   if (isCategoryInstructor) {
-    return 2; // Instructor
+    return 3; // Instructor
   }
   return 4; // Others
 }
@@ -70,6 +70,7 @@ export function ScheduleClient() {
 
   const [observationInput, setObservationInput] = useState('');
   const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false); // State for date picker popover
 
   // Set initial date on client-side to prevent hydration mismatch for selectedDate
   useEffect(() => {
@@ -126,7 +127,8 @@ export function ScheduleClient() {
       }
     };
     runCleanup();
-  }, [cleanupOldScheduleEntries, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // cleanupOldScheduleEntries and toast are stable due to useCallback
 
 
   const handleSaveObservation = async () => {
@@ -185,17 +187,14 @@ export function ScheduleClient() {
         }
 
         // If priorities are the same (within Remolcador groups or Instructor group), sort by start_time
-        // Priority 1: Remolcador Disponible
-        // Priority 2: Instructor
-        // Priority 3: Remolcador No Disponible
-        if (priorityA <= 3) { // Covers Remolcador (1 or 3) and Instructor (2)
+        if (priorityA <= 3) { // Covers Remolcador (1 or 2) and Instructor (3)
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // If both are "Others" (priorityA === 4), apply the new complex sort:
+        // If both are "Others" (priorityA === 4), apply the complex sort:
         // 1. Group by aircraft_id (assigned aircrafts first, then no aircraft)
         // 2. Sort by aircraft_id (alphabetically if both have aircraft)
-        // 3. Prioritize 'sport' flight_type_id within the same aircraft group
+        // 3. Prioritize 'sport' flight_type_id within the same aircraft group, regardless of time
         // 4. Sort by start_time
 
         const aHasAircraft = !!a.aircraft_id;
@@ -246,7 +245,7 @@ export function ScheduleClient() {
         return false; 
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
-    if (!towPilotCategory) { // If "Remolcador" category doesn't exist, we can't confirm it, so assume it's not a requirement / or trivially true.
+    if (!towPilotCategory) { 
       return true; 
     }
     return scheduleEntries.some(entry =>
@@ -260,7 +259,7 @@ export function ScheduleClient() {
       return false;
     }
     const instructorCategory = categories.find(cat => cat.name === 'Instructor');
-    if (!instructorCategory) { // If "Instructor" category doesn't exist, assume not a requirement / or trivially true.
+    if (!instructorCategory) { 
       return true; 
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
@@ -297,11 +296,9 @@ export function ScheduleClient() {
             <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={anyLoading}>
               <RefreshCw className={cn("h-4 w-4", anyLoading && "animate-spin")} />
             </Button>
-            {selectedDate && (filteredAndSortedEntries.length > 0 || (savedObservationText && savedObservationText.trim() !== '')) && (
+            {selectedDate && (
               <ShareButton
                 scheduleDate={selectedDate}
-                entries={filteredAndSortedEntries} // Pass sorted entries for export
-                observations={ (formattedSelectedDate && getObservation(formattedSelectedDate)) ? [{ date: formattedSelectedDate, observation_text: getObservation(formattedSelectedDate) || ''}] : []}
               />
             )}
             <Button onClick={handleAddEntry} disabled={!selectedDate || anyLoading}>
@@ -315,7 +312,7 @@ export function ScheduleClient() {
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <p className="font-medium">Seleccionar fecha:</p>
-            <Popover>
+            <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant={"default"}
@@ -333,7 +330,10 @@ export function ScheduleClient() {
                 <Calendar
                   mode="single"
                   selected={selectedDate}
-                  onSelect={setSelectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    setIsDatePickerOpen(false); // Close popover on date select
+                  }}
                   initialFocus
                   locale={es}
                   disabled={anyLoading}
@@ -399,6 +399,7 @@ export function ScheduleClient() {
        noTowageFlightsPresent && 
        towageFlightTypeId && 
        !anyLoading && 
+       categories.some(cat => cat.name === 'Remolcador') && // Check if Remolcador category exists before showing this warning
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -442,5 +443,4 @@ export function ScheduleClient() {
     </>
   );
 }
-
     
