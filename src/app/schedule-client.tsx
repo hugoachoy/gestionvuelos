@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React from 'react'; // Explicit React import
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -21,8 +21,8 @@ import {
   useScheduleStore,
   useDailyObservationsStore
 } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory } from '@/types';
-import { FLIGHT_TYPES } from '@/types';
+import type { ScheduleEntry, PilotCategory } from '@/types'; // PilotCategory import added
+import { FLIGHT_TYPES } from '@/types'; // FLIGHT_TYPES import added
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,15 +40,14 @@ function getSortPriority(
   instructorCategoryId: string | undefined,
   remolcadorCategoryId: string | undefined
 ): number {
-  const isRemolcador = entry.pilot_category_id === remolcadorCategoryId;
-  const isInstructor = entry.pilot_category_id === instructorCategoryId;
+  const isCategoryRemolcador = entry.pilot_category_id === remolcadorCategoryId;
+  const isCategoryInstructor = entry.pilot_category_id === instructorCategoryId;
 
-  if (isRemolcador) {
-    // Further differentiate confirmed tow pilots
-    return entry.is_tow_pilot_available === true ? 1 : 2; // 1 for confirmed, 2 for unconfirmed/unavailable
+  if (isCategoryRemolcador) {
+    return entry.is_tow_pilot_available === true ? 1 : 3; // 1 for confirmed, 3 for unconfirmed/unavailable
   }
-  if (isInstructor) {
-    return 3;
+  if (isCategoryInstructor) {
+    return 2; // Instructor
   }
   return 4; // Others
 }
@@ -186,39 +185,40 @@ export function ScheduleClient() {
         }
 
         // If priorities are the same (within Remolcador groups or Instructor group), sort by start_time
-        if (priorityA <= 3) { // Covers Remolcador (1 or 2) and Instructor (3)
+        // Priority 1: Remolcador Disponible
+        // Priority 2: Instructor
+        // Priority 3: Remolcador No Disponible
+        if (priorityA <= 3) { // Covers Remolcador (1 or 3) and Instructor (2)
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // If both are "Others" (priorityA === 4), apply existing complex sort:
+        // If both are "Others" (priorityA === 4), apply the new complex sort:
         // 1. Group by aircraft_id (assigned aircrafts first, then no aircraft)
         // 2. Sort by aircraft_id (alphabetically if both have aircraft)
-        // 3. Sort by start_time
-        // 4. Prioritize 'sport' flight_type_id
+        // 3. Prioritize 'sport' flight_type_id within the same aircraft group
+        // 4. Sort by start_time
 
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
 
-        if (aHasAircraft && !bHasAircraft) return -1; // a (with aircraft) comes before b (no aircraft)
-        if (!aHasAircraft && bHasAircraft) return 1;  // b (with aircraft) comes before a (no aircraft)
+        if (aHasAircraft && !bHasAircraft) return -1;
+        if (!aHasAircraft && bHasAircraft) return 1;
         
         if (aHasAircraft && bHasAircraft && a.aircraft_id && b.aircraft_id) {
-            // Both have aircraft, sort by aircraft_id (alphabetically)
             const aircraftComparison = (a.aircraft_id).localeCompare(b.aircraft_id);
             if (aircraftComparison !== 0) return aircraftComparison;
         }
-        // If aircraft status is the same (both have or both don't, or same aircraft_id), sort by time
-
-        const timeComparison = a.start_time.localeCompare(b.start_time);
-        if (timeComparison !== 0) return timeComparison;
-
-        // If time is also the same, prioritize sport flights
+        
+        // At this point, they are in the same aircraft group (or both have no aircraft)
+        // Now, prioritize by flight_type_id ('sport' first), then by start_time
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
+
         if (aIsSport && !bIsSport) return -1; // Sport flights first
-        if (!aIsSport && bIsSport) return 1;
-        
-        return 0; // Should be very rare to reach here, means all criteria are identical
+        if (!aIsSport && bIsSport) return 1;  // Sport flights first
+
+        // If both are sport or both are not sport (or different non-sport types), then sort by time
+        return a.start_time.localeCompare(b.start_time);
       });
   }, [selectedDate, scheduleEntries, categories, categoriesLoading]);
 
@@ -246,7 +246,7 @@ export function ScheduleClient() {
         return false; 
     }
     const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
-    if (!towPilotCategory) {
+    if (!towPilotCategory) { // If "Remolcador" category doesn't exist, we can't confirm it, so assume it's not a requirement / or trivially true.
       return true; 
     }
     return scheduleEntries.some(entry =>
@@ -260,7 +260,7 @@ export function ScheduleClient() {
       return false;
     }
     const instructorCategory = categories.find(cat => cat.name === 'Instructor');
-    if (!instructorCategory) {
+    if (!instructorCategory) { // If "Instructor" category doesn't exist, assume not a requirement / or trivially true.
       return true; 
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
@@ -300,6 +300,8 @@ export function ScheduleClient() {
             {selectedDate && (filteredAndSortedEntries.length > 0 || (savedObservationText && savedObservationText.trim() !== '')) && (
               <ShareButton
                 scheduleDate={selectedDate}
+                entries={filteredAndSortedEntries} // Pass sorted entries for export
+                observations={ (formattedSelectedDate && getObservation(formattedSelectedDate)) ? [{ date: formattedSelectedDate, observation_text: getObservation(formattedSelectedDate) || ''}] : []}
               />
             )}
             <Button onClick={handleAddEntry} disabled={!selectedDate || anyLoading}>
@@ -440,3 +442,5 @@ export function ScheduleClient() {
     </>
   );
 }
+
+    
