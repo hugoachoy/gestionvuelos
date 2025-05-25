@@ -1,12 +1,8 @@
+
 {
   "name": "Turnos de Vuelo",
   "short_name": "TurnosVuelo",
-  "description": "Gestión de Turnos de Vuelo a Vela",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#E2E8EB",
-  "theme_color": "#67A8D6",
-  "orientation": "portrait-primary",
+  "description": "Aplicación para la gestión de turnos de vuelo a vela en Aeroclub 9 de Julio.",
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -49,5 +45,12 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "theme_color": "#87CEEB",
+  "background_color": "#F0F8FF",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
+  "orientation": "portrait-primary"
 }
