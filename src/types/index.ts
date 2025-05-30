@@ -12,7 +12,7 @@ export interface Pilot {
   category_ids: string[]; // IDs of PilotCategory
   medical_expiry: string; // Store as ISO string YYYY-MM-DD
   auth_user_id?: string | null; // ID del usuario de Supabase Auth vinculado
-  // is_admin?: boolean; // Comentado según solicitud previa de eliminarlo de la UI
+  // is_admin?: boolean; // Eliminado según solicitud previa
   created_at?: string; // Timestamps from Supabase
 }
 
@@ -43,12 +43,13 @@ export type FlightTypeId = FlightType['id'];
 export interface ScheduleEntry {
   id: string;
   date: string; // Store as ISO string YYYY-MM-DD
-  start_time: string; // e.g., "09:00:00"
+  start_time: string; // e.g., "09:00"
   pilot_id: string;
   pilot_category_id: string; // Category chosen for this specific flight/slot
   is_tow_pilot_available?: boolean; // Relevant if pilot_category_id corresponds to "Remolcador"
   flight_type_id: FlightTypeId;
-  aircraft_id?: string; // Optional: which specific aircraft
+  aircraft_id?: string | null; // Optional: which specific aircraft, can be null
+  auth_user_id?: string | null; // ID of the user who created this entry
   created_at?: string;
 }
 

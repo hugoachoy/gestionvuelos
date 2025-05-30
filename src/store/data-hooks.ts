@@ -55,10 +55,16 @@ export function usePilotsStore() {
 
   const addPilot = useCallback(async (pilotData: Omit<Pilot, 'id' | 'created_at'>) => {
     setError(null);
+    setLoading(true);
     // SECURITY WARNING: RLS is disabled or not yet configured for granular auth.
     // The 'auth_user_id' field should ideally be set by a secure backend process or RLS policy,
     // not directly from client input unless properly validated.
-    console.warn("SECURITY/FUNCTIONALITY NOTE: `addPilot` called. Ensure `pilotData.auth_user_id` is correctly set if linking to an auth user. RLS must protect this if called client-side with user-provided `auth_user_id`.");
+    if(pilotData.auth_user_id) {
+      console.warn("SECURITY/FUNCTIONALITY NOTE: `addPilot` called with `auth_user_id`. Ensure RLS protects this if called client-side with user-provided `auth_user_id`.");
+    } else {
+      console.warn("NOTE: `addPilot` called without `auth_user_id`. Pilot profile will not be linked to an auth user.");
+    }
+
 
     const { data: newPilot, error: insertError } = await supabase
       .from('pilots')
@@ -66,6 +72,7 @@ export function usePilotsStore() {
       .select()
       .single();
 
+    setLoading(false);
     if (insertError) {
       logSupabaseError('Error adding pilot', insertError);
       setError(insertError);
@@ -79,11 +86,10 @@ export function usePilotsStore() {
 
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
     setError(null);
+    setLoading(true);
     const { id, created_at, ...updatePayload } = updatedPilotData;
-    // SECURITY WARNING: RLS is disabled or not yet configured for granular auth.
-    // Ensure RLS policies protect sensitive fields like 'medical_expiry' and 'auth_user_id'
-    // from unauthorized updates.
-    console.warn("SECURITY NOTE: `updatePilot` called. Ensure RLS policies correctly restrict who can update pilot data and which fields.");
+    
+    console.warn("SECURITY NOTE (RLS Disabled): `updatePilot` called. Fields like 'medical_expiry' are not protected by database-level security (RLS). Any client can attempt to update any pilot's data.");
     console.log('Attempting to update pilot with ID:', id, 'Payload:', updatePayload);
 
 
@@ -93,7 +99,8 @@ export function usePilotsStore() {
       .eq('id', id)
       .select()
       .single();
-
+    
+    setLoading(false);
     if (updateError) {
       logSupabaseError('Error updating pilot', updateError);
       setError(updateError);
@@ -107,8 +114,9 @@ export function usePilotsStore() {
 
   const deletePilot = useCallback(async (pilotId: string) => {
     setError(null);
+    setLoading(true);
     const { error: deleteError } = await supabase.from('pilots').delete().eq('id', pilotId);
-
+    setLoading(false);
     if (deleteError) {
       logSupabaseError('Error deleting pilot', deleteError);
       setError(deleteError);
@@ -120,7 +128,7 @@ export function usePilotsStore() {
 
   const getPilotName = useCallback((pilotId: string): string => {
     const pilot = pilots.find(p => p.id === pilotId);
-    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto Desconocido';
+    return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto desconocido';
   }, [pilots]);
 
   return { pilots, loading, error, addPilot, updatePilot, deletePilot, getPilotName, fetchPilots };
@@ -149,19 +157,19 @@ export function usePilotCategoriesStore() {
       if (fetchError) {
         logSupabaseError('Error fetching pilot categories', fetchError);
         setError(fetchError);
-        setCategories(DEFAULT_CATEGORIES);
+        setCategories(DEFAULT_CATEGORIES); // Fallback to default if fetch fails
       } else {
          setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
       }
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCategories', e);
       setError(e);
-      setCategories(DEFAULT_CATEGORIES);
+      setCategories(DEFAULT_CATEGORIES); // Fallback on unexpected error
     } finally {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, []);
+  }, []); // No dependencies, DEFAULT_CATEGORIES is stable
 
   useEffect(() => {
     fetchCategories();
@@ -169,12 +177,13 @@ export function usePilotCategoriesStore() {
 
   const addCategory = useCallback(async (categoryData: Omit<PilotCategory, 'id' | 'created_at'>) => {
     setError(null);
+    setLoading(true);
     const { data: newCategory, error: insertError } = await supabase
       .from('pilot_categories')
       .insert([categoryData])
       .select()
       .single();
-
+    setLoading(false);
     if (insertError) {
       logSupabaseError('Error adding pilot category', insertError);
       setError(insertError);
@@ -188,6 +197,7 @@ export function usePilotCategoriesStore() {
 
   const updateCategory = useCallback(async (updatedCategoryData: PilotCategory) => {
     setError(null);
+    setLoading(true);
     const { id, created_at, ...updatePayload } = updatedCategoryData;
     const { data: updatedCategory, error: updateError } = await supabase
       .from('pilot_categories')
@@ -195,7 +205,7 @@ export function usePilotCategoriesStore() {
       .eq('id', id)
       .select()
       .single();
-
+    setLoading(false);
     if (updateError) {
       logSupabaseError('Error updating pilot category', updateError);
       setError(updateError);
@@ -209,8 +219,9 @@ export function usePilotCategoriesStore() {
 
   const deleteCategory = useCallback(async (categoryId: string) => {
     setError(null);
+    setLoading(true);
     const { error: deleteError } = await supabase.from('pilot_categories').delete().eq('id', categoryId);
-
+    setLoading(false);
     if (deleteError) {
       logSupabaseError('Error deleting pilot category', deleteError);
       setError(deleteError);
@@ -222,7 +233,7 @@ export function usePilotCategoriesStore() {
 
   const getCategoryName = useCallback((categoryId: string): string => {
     const category = categories.find(c => c.id === categoryId);
-    return category ? category.name : 'Categoría Desconocida';
+    return category ? category.name : 'Categoría desconocida';
   }, [categories]);
 
   return { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryName, fetchCategories };
@@ -263,12 +274,13 @@ export function useAircraftStore() {
 
   const addAircraft = useCallback(async (aircraftData: Omit<Aircraft, 'id' | 'created_at'>) => {
     setError(null);
+    setLoading(true);
     const { data: newAircraft, error: insertError } = await supabase
       .from('aircraft')
       .insert([aircraftData])
       .select()
       .single();
-
+    setLoading(false);
     if (insertError) {
       logSupabaseError('Error adding aircraft', insertError);
       setError(insertError);
@@ -282,6 +294,7 @@ export function useAircraftStore() {
 
   const updateAircraft = useCallback(async (updatedAircraftData: Aircraft) => {
     setError(null);
+    setLoading(true);
     const { id, created_at, ...updatePayload } = updatedAircraftData;
     const { data: updatedAircraft, error: updateError } = await supabase
       .from('aircraft')
@@ -289,7 +302,7 @@ export function useAircraftStore() {
       .eq('id', id)
       .select()
       .single();
-
+    setLoading(false);
     if (updateError) {
       logSupabaseError('Error updating aircraft', updateError);
       setError(updateError);
@@ -303,8 +316,9 @@ export function useAircraftStore() {
 
   const deleteAircraft = useCallback(async (aircraftId: string) => {
     setError(null);
+    setLoading(true);
     const { error: deleteError } = await supabase.from('aircraft').delete().eq('id', aircraftId);
-
+    setLoading(false);
     if (deleteError) {
       logSupabaseError('Error deleting aircraft', deleteError);
       setError(deleteError);
@@ -314,10 +328,10 @@ export function useAircraftStore() {
     return true;
   }, [fetchAircraft]);
 
-  const getAircraftName = useCallback((aircraftId?: string): string => {
+  const getAircraftName = useCallback((aircraftId?: string | null): string => {
     if (!aircraftId) return 'N/A';
     const ac = aircraft.find(a => a.id === aircraftId);
-    return ac ? ac.name : 'Aeronave Desconocida';
+    return ac ? ac.name : 'Aeronave desconocida';
   }, [aircraft]);
 
   return { aircraft, loading, error, addAircraft, updateAircraft, deleteAircraft, getAircraftName, fetchAircraft };
@@ -331,7 +345,7 @@ export function useScheduleStore() {
   const fetchingRef = useRef(false);
 
   const fetchScheduleEntries = useCallback(async (date?: string) => {
-    if (fetchingRef.current) return;
+    if (fetchingRef.current && !date) return; // Allow refetch if specific date changes
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
@@ -340,7 +354,8 @@ export function useScheduleStore() {
       if (date) {
         query = query.eq('date', date);
       }
-      query = query.order('date').order('start_time');
+      // The sorting is now handled in ScheduleClient's useMemo, so keep it simple here
+      query = query.order('date').order('start_time'); 
       const { data, error: fetchError } = await query;
       if (fetchError) {
         logSupabaseError('Error fetching schedule entries', fetchError);
@@ -358,8 +373,6 @@ export function useScheduleStore() {
   }, []);
 
   const fetchScheduleEntriesForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<ScheduleEntry[] | null> => {
-    // This function doesn't use the hook's loading/error state directly
-    // as it's intended for one-off calls (e.g., for exports).
     try {
       const { data, error: fetchError } = await supabase
         .from('schedule_entries')
@@ -381,11 +394,13 @@ export function useScheduleStore() {
 
   const addScheduleEntry = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>) => {
     setError(null);
+    setLoading(true);
     const { data: newEntry, error: insertError } = await supabase
       .from('schedule_entries')
       .insert([entryData])
       .select()
       .single();
+    setLoading(false);
     if (insertError) {
       logSupabaseError('Error adding schedule entry', insertError);
       setError(insertError);
@@ -399,6 +414,7 @@ export function useScheduleStore() {
 
   const updateScheduleEntry = useCallback(async (updatedEntryData: ScheduleEntry) => {
     setError(null);
+    setLoading(true);
     const { created_at, id, ...updatePayload } = updatedEntryData;
     const { data: updatedEntry, error: updateError } = await supabase
       .from('schedule_entries')
@@ -406,6 +422,7 @@ export function useScheduleStore() {
       .eq('id', id)
       .select()
       .single();
+    setLoading(false);
     if (updateError) {
       logSupabaseError('Error updating schedule entry', updateError);
       setError(updateError);
@@ -419,7 +436,9 @@ export function useScheduleStore() {
 
   const deleteScheduleEntry = useCallback(async (entryId: string, entryDate: string) => {
     setError(null);
+    setLoading(true);
     const { error: deleteError } = await supabase.from('schedule_entries').delete().eq('id', entryId);
+    setLoading(false);
     if (deleteError) {
       logSupabaseError('Error deleting schedule entry', deleteError);
       setError(deleteError);
@@ -462,7 +481,7 @@ export function useDailyObservationsStore() {
   const fetchingRef = useRef(false);
 
   const fetchObservations = useCallback(async (date?: string) => {
-    if (fetchingRef.current) return;
+    if (fetchingRef.current && !date) return;
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
@@ -492,7 +511,6 @@ export function useDailyObservationsStore() {
   }, []);
 
   const fetchObservationsForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<DailyObservation[] | null> => {
-    // This function doesn't use the hook's loading/error state directly
     try {
       const { data, error: fetchError } = await supabase
         .from('daily_observations')
@@ -517,12 +535,13 @@ export function useDailyObservationsStore() {
 
   const updateObservation = useCallback(async (date: string, text: string) => {
     setError(null);
+    setLoading(true);
     const { data: upsertedObservation, error: upsertError } = await supabase
       .from('daily_observations')
       .upsert({ date: date, observation_text: text, updated_at: new Date().toISOString() }, { onConflict: 'date' })
       .select()
       .single();
-
+    setLoading(false);
     if (upsertError) {
       logSupabaseError('Error updating daily observation', upsertError);
       setError(upsertError);
