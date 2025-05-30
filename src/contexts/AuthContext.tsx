@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import type { Session, User, AuthError, SignInWithPasswordCredentials, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
+import type { Session, User, AuthError, SignInWithPasswordCredentials, SignUpWithPasswordCredentials, Subscription } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import type { AuthUser } from '@/types';
 
@@ -38,22 +38,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     getSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, currentSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
       setUser(currentSession?.user ? { id: currentSession.user.id, email: currentSession.user.email } : null);
-      setLoading(event === 'INITIAL_SESSION' ? false : loading); // Keep loading true until initial session is processed
+      // Only stop initial loading spinner after initial session is processed
+      if (event === 'INITIAL_SESSION') {
+        setLoading(false);
+      }
     });
 
     return () => {
-      authListener?.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [loading]); // Added loading to dependencies to ensure initial check completes
+  }, []); // Removed loading from dependency array as INITIAL_SESSION handles it
 
   const login = async (credentials: SignInWithPasswordCredentials) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword(credentials);
     if (error) console.error("Login error:", error.message);
-    setLoading(false);
+    // setLoading(false) will be handled by onAuthStateChange or if error occurs directly
+    if (error) setLoading(false);
     return { error };
   };
 
@@ -62,7 +66,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.auth.signOut();
     if (error) console.error("Logout error:", error.message);
     // setUser and setSession will be updated by onAuthStateChange
-    setLoading(false);
+    // setLoading(false) will be handled by onAuthStateChange or if error occurs directly
+    if (error) setLoading(false);
     return { error };
   };
 
@@ -73,7 +78,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data, error } = await supabase.auth.signUp(credentials);
     if (error) console.error("Sign up error:", error.message);
     // setUser and setSession will be updated by onAuthStateChange if sign up is successful and auto-confirms (or after email confirmation)
-    setLoading(false);
+    // setLoading(false) will be handled by onAuthStateChange or if error occurs directly
+    if (error) setLoading(false);
     return { data: { user: data.user, session: data.session }, error };
   };
 
