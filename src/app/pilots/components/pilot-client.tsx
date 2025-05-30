@@ -78,13 +78,13 @@ export function PilotClient() {
   useEffect(() => {
     // Fetch initial data if not already loading or loaded by AuthContext's user fetch
     // This ensures data is available even if AuthContext is slow or user is not logged in
-    if (!pilotsLoading && pilots.length === 0) {
+    if (!loading && pilots.length === 0) { // Changed pilotsLoading to loading
         fetchPilots();
     }
     if (!categoriesLoading && pilotCategories.length === 0) {
         fetchCategories();
     }
-  }, [fetchPilots, fetchCategories, pilotsLoading, categoriesLoading, pilots.length, pilotCategories.length]);
+  }, [fetchPilots, fetchCategories, loading, categoriesLoading, pilots.length, pilotCategories.length]); // Changed pilotsLoading to loading
 
 
   const combinedLoading = loading || categoriesLoading || !currentUser; // Considerar currentUser loading para UI
@@ -139,13 +139,13 @@ export function PilotClient() {
                 <TableHead>Categorías</TableHead>
                 <TableHead>Venc. Psicofísico</TableHead>
                 <TableHead>Admin</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {pilots.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center h-24"> 
+                  <TableCell colSpan={currentUser?.is_admin ? 6 : 5} className="text-center h-24"> 
                     No hay pilotos registrados.
                   </TableCell>
                 </TableRow>
@@ -212,31 +212,33 @@ export function PilotClient() {
                       <TableCell>
                         {pilot.is_admin ? <ShieldCheck className="h-5 w-5 text-primary" /> : '-'}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {currentUser?.is_admin && ( // Solo mostrar si el usuario actual es admin
-                            <>
-                            <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
-                                <Edit className="h-4 w-4" />
-                                <span className="sr-only">Editar</span>
-                            </Button>
-                            {/* Un admin no puede eliminar su propio perfil desde esta lista para evitar auto-bloqueo accidental */}
-                            {pilot.auth_user_id !== currentUser?.id && (
-                                <Button variant="ghost" size="icon" onClick={() => handleDeletePilot(pilot)} className="hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Eliminar</span>
-                                </Button>
-                            )}
-                            </>
-                        )}
-                        {/* Un usuario NO admin puede editar su propio perfil si está vinculado */}
-                        {!currentUser?.is_admin && pilot.auth_user_id === currentUser?.id && (
-                             <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
-                                <Edit className="h-4 w-4" />
-                                <span className="sr-only">Editar</span>
-                            </Button>
-                            // No se permite auto-eliminación desde aquí
-                        )}
-                      </TableCell>
+                      {currentUser?.is_admin && (
+                        <TableCell className="text-right">
+                              <>
+                              <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
+                                  <Edit className="h-4 w-4" />
+                                  <span className="sr-only">Editar</span>
+                              </Button>
+                              {/* Un admin no puede eliminar su propio perfil desde esta lista para evitar auto-bloqueo accidental */}
+                              {pilot.auth_user_id !== currentUser?.id && (
+                                  <Button variant="ghost" size="icon" onClick={() => handleDeletePilot(pilot)} className="hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Eliminar</span>
+                                  </Button>
+                              )}
+                              </>
+                        </TableCell>
+                       )}
+                       {/* Un usuario NO admin puede editar su propio perfil si está vinculado Y la columna de acciones no se renderizó para admin */}
+                       {!currentUser?.is_admin && pilot.auth_user_id === currentUser?.id && (
+                           <TableCell className="text-right">
+                               <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
+                                  <Edit className="h-4 w-4" />
+                                  <span className="sr-only">Editar</span>
+                              </Button>
+                              {/* No se permite auto-eliminación desde aquí */}
+                           </TableCell>
+                       )}
                     </TableRow>
                   );
                 })
@@ -246,7 +248,8 @@ export function PilotClient() {
         </div>
       )}
 
-      {currentUser?.is_admin && ( // Solo montar el formulario si es admin
+      {/* Render PilotForm if the current user is an admin */}
+      {currentUser?.is_admin && (
         <PilotForm
             open={isFormOpen}
             onOpenChange={setIsFormOpen}
@@ -255,7 +258,7 @@ export function PilotClient() {
             categories={pilotCategories}
         />
       )}
-       {/* Formulario de edición para el propio usuario no admin */}
+       {/* Render PilotForm for a non-admin user if they are editing their own linked profile */}
       {!currentUser?.is_admin && editingPilot && editingPilot.auth_user_id === currentUser?.id && (
          <PilotForm
             open={isFormOpen}
