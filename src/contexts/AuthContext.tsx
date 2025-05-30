@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import type { Session, User, AuthError, SignInWithPasswordCredentials, SignUpWithPasswordCredentials, Subscription } from '@supabase/supabase-js';
+import type { Session, User, AuthError, SignInWithPasswordCredentials, SignUpWithPasswordCredentials, Subscription } from '@supabase/supabase-js'; // Import Subscription
 import { supabase } from '@/lib/supabaseClient';
 import type { AuthUser } from '@/types';
 
@@ -26,14 +26,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const getSession = async () => {
       const { data: { session: currentSession }, error } = await supabase.auth.getSession();
       if (error) {
-        console.error("Error getting session:", error);
+        console.error("Error al obtener la sesión:", error);
         setLoading(false);
         return;
       }
       
       setSession(currentSession);
       setUser(currentSession?.user ? { id: currentSession.user.id, email: currentSession.user.email } : null);
-      setLoading(false);
+      setLoading(false); // Detener la carga inicial aquí, incluso si no hay sesión
     };
 
     getSession();
@@ -41,8 +41,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
       setUser(currentSession?.user ? { id: currentSession.user.id, email: currentSession.user.email } : null);
-      // Only stop initial loading spinner after initial session is processed
-      if (event === 'INITIAL_SESSION') {
+      // Solo detener la carga inicial si este evento es el que procesa la sesión inicial
+      // o si el evento de getSession() ya lo hizo.
+      // Esto evita que setLoading(false) se llame múltiples veces innecesariamente.
+      if (event === 'INITIAL_SESSION' && loading) { // Solo si loading es true
+        setLoading(false);
+      } else if (!currentSession && loading) { // Si no hay sesión y aún estamos cargando inicialmente
         setLoading(false);
       }
     });
@@ -50,36 +54,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription?.unsubscribe();
     };
-  }, []); // Removed loading from dependency array as INITIAL_SESSION handles it
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // El array de dependencias vacío asegura que esto se ejecute solo una vez al montar/desmontar
 
   const login = async (credentials: SignInWithPasswordCredentials) => {
-    setLoading(true);
+    // No establecer setLoading(true) aquí, onAuthStateChange manejará las actualizaciones de estado
     const { error } = await supabase.auth.signInWithPassword(credentials);
-    if (error) console.error("Login error:", error.message);
-    // setLoading(false) will be handled by onAuthStateChange or if error occurs directly
-    if (error) setLoading(false);
+    if (error) {
+        console.error("Error de inicio de sesión:", error.message);
+        // Si hay un error, y no hay cambio de estado de auth, la carga podría no detenerse
+        // Si no hay usuario/sesión después de un error, es seguro detener la carga si no se hizo.
+        if (!supabase.auth.getSession()) setLoading(false); 
+    }
+    // setUser, setSession, y setLoading(false) serán manejados por onAuthStateChange
     return { error };
   };
 
   const logout = async () => {
-    setLoading(true);
+    // No establecer setLoading(true) aquí
     const { error } = await supabase.auth.signOut();
-    if (error) console.error("Logout error:", error.message);
-    // setUser and setSession will be updated by onAuthStateChange
-    // setLoading(false) will be handled by onAuthStateChange or if error occurs directly
-    if (error) setLoading(false);
+    if (error) {
+        console.error("Error de cierre de sesión:", error.message);
+        if (supabase.auth.getSession()) setLoading(false);
+    }
+    // setUser, setSession, y setLoading(false) serán manejados por onAuthStateChange
     return { error };
   };
 
   const signUp = async (credentials: SignUpWithPasswordCredentials) => {
-    setLoading(true);
-    // Note: This only creates the Supabase auth user.
-    // You'll need additional logic to create a corresponding profile in your 'pilots' table.
+    // No establecer setLoading(true) aquí
     const { data, error } = await supabase.auth.signUp(credentials);
-    if (error) console.error("Sign up error:", error.message);
-    // setUser and setSession will be updated by onAuthStateChange if sign up is successful and auto-confirms (or after email confirmation)
-    // setLoading(false) will be handled by onAuthStateChange or if error occurs directly
-    if (error) setLoading(false);
+    if (error) {
+        console.error("Error de registro:", error.message);
+        if (!supabase.auth.getSession()) setLoading(false);
+    }
+    // setUser, setSession, y setLoading(false) serán manejados por onAuthStateChange
     return { data: { user: data.user, session: data.session }, error };
   };
 
@@ -94,7 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth debe usarse dentro de un AuthProvider');
   }
   return context;
 };
