@@ -2,11 +2,12 @@
 "use client";
 
 import React from 'react';
-import { useState, useCallback } from 'react';
-import type { Pilot } from '@/types'; // PilotCategory removed as it's not directly used here after removing admin badge.
+import { useState, useCallback, useEffect } from 'react'; // useEffect importado
+import type { Pilot } from '@/types';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
+import { useAuth } from '@/contexts/AuthContext'; // Importar useAuth
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle } from 'lucide-react'; // ShieldCheck removed
+import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { PilotForm } from './pilot-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
@@ -24,9 +25,11 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } fro
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-// UnderlineKeywords removed as it's not used after admin badge removal
+import { UnderlineKeywords } from '@/components/common/underline-keywords';
+
 
 export function PilotClient() {
+  const { user: currentUser } = useAuth(); // Obtener el usuario actual del contexto
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
   const { categories: pilotCategories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
 
@@ -58,9 +61,9 @@ export function PilotClient() {
     setPilotToDelete(null);
   };
 
-  const handleSubmitForm = async (data: Omit<Pilot, 'id' | 'created_at' | 'is_admin'>, pilotId?: string) => { // is_admin removed
+  const handleSubmitForm = async (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => {
     if (pilotId) {
-      await updatePilot({ ...data, id: pilotId } as Pilot); // Ensure type compatibility, is_admin won't be in data
+      await updatePilot({ ...data, id: pilotId } as Pilot);
     } else {
       await addPilot(data);
     }
@@ -72,12 +75,19 @@ export function PilotClient() {
     fetchCategories();
   }, [fetchPilots, fetchCategories]);
 
-  React.useEffect(() => {
-    handleRefreshAll();
-  }, [handleRefreshAll]);
+  useEffect(() => {
+    // Fetch initial data if not already loading or loaded by AuthContext's user fetch
+    // This ensures data is available even if AuthContext is slow or user is not logged in
+    if (!pilotsLoading && pilots.length === 0) {
+        fetchPilots();
+    }
+    if (!categoriesLoading && pilotCategories.length === 0) {
+        fetchCategories();
+    }
+  }, [fetchPilots, fetchCategories, pilotsLoading, categoriesLoading, pilots.length, pilotCategories.length]);
 
 
-  const combinedLoading = loading || categoriesLoading;
+  const combinedLoading = loading || categoriesLoading || !currentUser; // Considerar currentUser loading para UI
   const combinedError = error || categoriesError;
 
   if (combinedError) {
@@ -104,9 +114,11 @@ export function PilotClient() {
               getCategoryName={getCategoryName}
               disabled={combinedLoading || pilots.length === 0}
             />
-            <Button onClick={handleAddPilot} disabled={combinedLoading}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Piloto
-            </Button>
+            {currentUser?.is_admin && ( // Solo mostrar si es admin
+                <Button onClick={handleAddPilot} disabled={combinedLoading}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Agregar Piloto
+                </Button>
+            )}
           </div>
         }
       />
@@ -126,14 +138,14 @@ export function PilotClient() {
                 <TableHead>Apellido</TableHead>
                 <TableHead>Categorías</TableHead>
                 <TableHead>Venc. Psicofísico</TableHead>
-                {/* Admin column removed */}
+                <TableHead>Admin</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pilots.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24"> {/* ColSpan reduced */}
+                  <TableCell colSpan={6} className="text-center h-24"> 
                     No hay pilotos registrados.
                   </TableCell>
                 </TableRow>
@@ -197,16 +209,33 @@ export function PilotClient() {
                       <TableCell>
                         {medicalExpiryDisplay}
                       </TableCell>
-                      {/* Admin cell removed */}
+                      <TableCell>
+                        {pilot.is_admin ? <ShieldCheck className="h-5 w-5 text-primary" /> : '-'}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Editar</span>
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeletePilot(pilot)} className="hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Eliminar</span>
-                        </Button>
+                        {currentUser?.is_admin && ( // Solo mostrar si el usuario actual es admin
+                            <>
+                            <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Editar</span>
+                            </Button>
+                            {/* Un admin no puede eliminar su propio perfil desde esta lista para evitar auto-bloqueo accidental */}
+                            {pilot.auth_user_id !== currentUser?.id && (
+                                <Button variant="ghost" size="icon" onClick={() => handleDeletePilot(pilot)} className="hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Eliminar</span>
+                                </Button>
+                            )}
+                            </>
+                        )}
+                        {/* Un usuario NO admin puede editar su propio perfil si está vinculado */}
+                        {!currentUser?.is_admin && pilot.auth_user_id === currentUser?.id && (
+                             <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Editar</span>
+                            </Button>
+                            // No se permite auto-eliminación desde aquí
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -217,13 +246,27 @@ export function PilotClient() {
         </div>
       )}
 
-      <PilotForm
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        onSubmit={handleSubmitForm}
-        pilot={editingPilot}
-        categories={pilotCategories}
-      />
+      {currentUser?.is_admin && ( // Solo montar el formulario si es admin
+        <PilotForm
+            open={isFormOpen}
+            onOpenChange={setIsFormOpen}
+            onSubmit={handleSubmitForm}
+            pilot={editingPilot}
+            categories={pilotCategories}
+        />
+      )}
+       {/* Formulario de edición para el propio usuario no admin */}
+      {!currentUser?.is_admin && editingPilot && editingPilot.auth_user_id === currentUser?.id && (
+         <PilotForm
+            open={isFormOpen}
+            onOpenChange={setIsFormOpen}
+            onSubmit={handleSubmitForm}
+            pilot={editingPilot}
+            categories={pilotCategories}
+        />
+      )}
+
+
       <DeleteDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}

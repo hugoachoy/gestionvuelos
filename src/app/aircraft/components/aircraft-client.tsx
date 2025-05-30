@@ -1,10 +1,11 @@
 
 "use client";
 
-import React from 'react'; // Added explicit React import
-import { useState } from 'react';
+import React from 'react'; 
+import { useState, useEffect } from 'react'; // Importar useEffect
 import type { Aircraft } from '@/types';
 import { useAircraftStore } from '@/store/data-hooks';
+import { useAuth } from '@/contexts/AuthContext'; // Importar useAuth
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
 import { AircraftForm } from './aircraft-form';
@@ -28,6 +29,7 @@ const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
 };
 
 export function AircraftClient() {
+  const { user: currentUser } = useAuth(); // Obtener el usuario actual
   const { aircraft, addAircraft, updateAircraft, deleteAircraft: removeAircraft, loading, error, fetchAircraft } = useAircraftStore();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -67,6 +69,12 @@ export function AircraftClient() {
     setIsFormOpen(false);
   };
 
+  useEffect(() => {
+    if (!loading && aircraft.length === 0) {
+      fetchAircraft();
+    }
+  }, [fetchAircraft, loading, aircraft.length]);
+
   if (error) {
     return (
       <div className="text-destructive">
@@ -76,23 +84,27 @@ export function AircraftClient() {
     );
   }
 
+  const isLoadingUI = loading || !currentUser;
+
   return (
     <>
       <PageHeader 
         title="Aeronaves"
         action={
           <div className="flex gap-2">
-            <Button onClick={() => fetchAircraft()} variant="outline" size="icon" disabled={loading}>
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            <Button onClick={() => fetchAircraft()} variant="outline" size="icon" disabled={isLoadingUI}>
+              <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
-            <Button onClick={handleAddAircraft} disabled={loading}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Aeronave
-            </Button>
+            {currentUser?.is_admin && ( // Solo mostrar si es admin
+              <Button onClick={handleAddAircraft} disabled={isLoadingUI}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Agregar Aeronave
+              </Button>
+            )}
           </div>
         }
       />
       
-      {loading && !aircraft.length ? (
+      {isLoadingUI && !aircraft.length ? (
         <div className="space-y-2">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
@@ -105,13 +117,13 @@ export function AircraftClient() {
               <TableRow>
                 <TableHead>Nombre/Matrícula</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {aircraft.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center h-24">
+                  <TableCell colSpan={currentUser?.is_admin ? 3 : 2} className="text-center h-24">
                     No hay aeronaves registradas.
                   </TableCell>
                 </TableRow>
@@ -124,16 +136,18 @@ export function AircraftClient() {
                         {aircraftTypeTranslations[ac.type]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEditAircraft(ac)} className="mr-2 hover:text-primary">
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteAircraft(ac)} className="hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Eliminar</span>
-                      </Button>
-                    </TableCell>
+                    {currentUser?.is_admin && ( // Solo mostrar si es admin
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditAircraft(ac)} className="mr-2 hover:text-primary">
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Editar</span>
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteAircraft(ac)} className="hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Eliminar</span>
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -142,12 +156,14 @@ export function AircraftClient() {
         </div>
       )}
 
-      <AircraftForm
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        onSubmit={handleSubmitForm}
-        aircraft={editingAircraft}
-      />
+      {currentUser?.is_admin && ( // Solo montar el formulario si es admin
+        <AircraftForm
+            open={isFormOpen}
+            onOpenChange={setIsFormOpen}
+            onSubmit={handleSubmitForm}
+            aircraft={editingAircraft}
+        />
+      )}
       <DeleteDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}

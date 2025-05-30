@@ -2,9 +2,10 @@
 "use client";
 
 import React from 'react'; // Added explicit React import
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Importar useEffect
 import type { PilotCategory } from '@/types';
 import { usePilotCategoriesStore } from '@/store/data-hooks';
+import { useAuth } from '@/contexts/AuthContext'; // Importar useAuth
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
 import { CategoryForm } from './category-form';
@@ -22,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 export function CategoryClient() {
+  const { user: currentUser } = useAuth(); // Obtener el usuario actual
   const { categories, addCategory, updateCategory, deleteCategory: removeCategory, loading, error, fetchCategories } = usePilotCategoriesStore();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -61,6 +63,12 @@ export function CategoryClient() {
     setIsFormOpen(false);
   };
 
+  useEffect(() => {
+    if (!loading && categories.length === 0) {
+      fetchCategories();
+    }
+  }, [fetchCategories, loading, categories.length]);
+
   if (error) {
     return (
       <div className="text-destructive">
@@ -69,6 +77,9 @@ export function CategoryClient() {
       </div>
     );
   }
+  
+  const isLoadingUI = loading || !currentUser;
+
 
   return (
     <>
@@ -76,17 +87,19 @@ export function CategoryClient() {
         title="Categorías de Pilotos" 
         action={
           <div className="flex gap-2">
-            <Button onClick={() => fetchCategories()} variant="outline" size="icon" disabled={loading}>
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            <Button onClick={() => fetchCategories()} variant="outline" size="icon" disabled={isLoadingUI}>
+              <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
-            <Button onClick={handleAddCategory} disabled={loading}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Categoría
-            </Button>
+            {currentUser?.is_admin && ( // Solo mostrar si es admin
+              <Button onClick={handleAddCategory} disabled={isLoadingUI}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Agregar Categoría
+              </Button>
+            )}
           </div>
         }
       />
       
-      {loading && !categories.length ? (
+      {isLoadingUI && !categories.length ? (
          <div className="space-y-2">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
@@ -98,13 +111,13 @@ export function CategoryClient() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {categories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={2} className="text-center h-24">
+                  <TableCell colSpan={currentUser?.is_admin ? 2 : 1} className="text-center h-24">
                     No hay categorías registradas. (Asegúrese de crearlas en Supabase si es la primera vez)
                   </TableCell>
                 </TableRow>
@@ -112,16 +125,18 @@ export function CategoryClient() {
                 categories.map((category) => (
                   <TableRow key={category.id}>
                     <TableCell>{category.name}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEditCategory(category)} className="mr-2 hover:text-primary">
-                        <Edit className="h-4 w-4" />
-                         <span className="sr-only">Editar</span>
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(category)} className="hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                         <span className="sr-only">Eliminar</span>
-                      </Button>
-                    </TableCell>
+                    {currentUser?.is_admin && ( // Solo mostrar si es admin
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditCategory(category)} className="mr-2 hover:text-primary">
+                          <Edit className="h-4 w-4" />
+                           <span className="sr-only">Editar</span>
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(category)} className="hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                           <span className="sr-only">Eliminar</span>
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -130,12 +145,14 @@ export function CategoryClient() {
         </div>
       )}
 
-      <CategoryForm
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        onSubmit={handleSubmitForm}
-        category={editingCategory}
-      />
+      {currentUser?.is_admin && ( // Solo montar el formulario si es admin
+        <CategoryForm
+            open={isFormOpen}
+            onOpenChange={setIsFormOpen}
+            onSubmit={handleSubmitForm}
+            category={editingCategory}
+        />
+      )}
       <DeleteDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}

@@ -2,9 +2,9 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import type { Session, User, AuthError, SignInWithPasswordCredentials, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
+import type { Session, User as SupabaseAuthUser, AuthError, SignInWithPasswordCredentials, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
-import type { AuthUser } from '@/types';
+import type { AuthUser, Pilot } from '@/types'; // Importar Pilot
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -12,7 +12,7 @@ interface AuthContextType {
   loading: boolean;
   login: (credentials: SignInWithPasswordCredentials) => Promise<{ error: AuthError | null }>;
   logout: () => Promise<{ error: AuthError | null }>;
-  signUp: (credentials: SignUpWithPasswordCredentials) => Promise<{ data: { user: User | null, session: Session | null }, error: AuthError | null }>;
+  signUp: (credentials: SignUpWithPasswordCredentials) => Promise<{ data: { user: SupabaseAuthUser | null, session: Session | null }, error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,85 +20,99 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true); // Manages initial loading state
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const getInitialSession = async () => {
-      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error("Error al obtener la sesión inicial:", error);
-        // If getSession fails, onAuthStateChange might still fire with INITIAL_SESSION
-        // but it's good to ensure loading stops if this path clearly indicates no session.
-        if (loading) setLoading(false); 
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error("Error al obtener la sesión inicial:", sessionError);
+        // No set user/session here, let onAuthStateChange handle it or lack thereof.
+        // setLoading(false); // onAuthStateChange should handle this for INITIAL_SESSION
         return;
       }
-      
-      // Set initial session and user, but rely on onAuthStateChange for INITIAL_SESSION 
-      // to set loading to false to prevent race conditions.
-      // If there's no session from getSession, and onAuthStateChange doesn't fire INITIAL_SESSION quickly,
-      // loading might remain true. The listener below is the primary controller for loading state.
-      setSession(currentSession);
-      setUser(currentSession?.user ? { id: currentSession.user.id, email: currentSession.user.email } : null);
-      
-      // If getSession returns null and onAuthStateChange hasn't fired INITIAL_SESSION yet,
-      // we might still be in a loading state.
-      // However, the onAuthStateChange listener is more robust for handling INITIAL_SESSION.
+
+      if (currentSession) {
+        // Fetch pilot profile if session exists
+        const { data: pilotProfile, error: pilotError } = await supabase
+          .from('pilots')
+          .select('is_admin')
+          .eq('auth_user_id', currentSession.user.id)
+          .single();
+
+        if (pilotError && pilotError.code !== 'PGRST116') { // PGRST116 means no rows, which is fine
+          console.error("Error fetching pilot profile on initial session:", pilotError);
+        }
+        
+        setUser({ 
+          id: currentSession.user.id, 
+          email: currentSession.user.email,
+          is_admin: pilotProfile?.is_admin ?? false
+        });
+        setSession(currentSession);
+      } else {
+        setUser(null);
+        setSession(null);
+      }
+      // setLoading(false); // Moved to onAuthStateChange for INITIAL_SESSION
     };
 
     getInitialSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      setSession(currentSession);
-      setUser(currentSession?.user ? { id: currentSession.user.id, email: currentSession.user.email } : null);
-      
-      // Set loading to false once the initial session is established or confirmed to be null.
-      if (event === 'INITIAL_SESSION') {
-        setLoading(false);
-      } else if (event === 'SIGNED_IN' && loading) { 
-        setLoading(false);
-      } else if (event === 'SIGNED_OUT' && loading) { 
-         setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      if (currentSession) {
+        // Fetch pilot profile when auth state changes to a valid session
+        const { data: pilotProfile, error: pilotError } = await supabase
+          .from('pilots')
+          .select('is_admin')
+          .eq('auth_user_id', currentSession.user.id)
+          .single();
+
+        if (pilotError && pilotError.code !== 'PGRST116') { // Ignore "no rows" error, means no pilot profile yet
+          console.error("Error fetching pilot profile on auth change:", pilotError);
+        }
+
+        setUser({ 
+          id: currentSession.user.id, 
+          email: currentSession.user.email,
+          is_admin: pilotProfile?.is_admin ?? false
+        });
+        setSession(currentSession);
+      } else {
+        setUser(null);
+        setSession(null);
       }
-      // Fallback: If no session and still loading after other events, and it's not an ongoing process.
-      // This helps if INITIAL_SESSION somehow doesn't fire or is missed with a null session.
-      else if (!currentSession && loading && 
-               event !== 'USER_UPDATED' && 
-               event !== 'PASSWORD_RECOVERY' && 
-               event !== 'TOKEN_REFRESHED' && 
-               event !== 'MFA_CHALLENGE_VERIFIED') {
+
+      if (_event === 'INITIAL_SESSION') {
         setLoading(false);
+      } else if (_event === 'SIGNED_IN' && loading) {
+        setLoading(false);
+      } else if (_event === 'SIGNED_OUT') {
+        setLoading(false); // Ensure loading is false on sign out
       }
     });
 
     return () => {
       subscription?.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Empty dependency array means this effect runs once on mount
 
   const login = async (credentials: SignInWithPasswordCredentials) => {
     const { error } = await supabase.auth.signInWithPassword(credentials);
-    if (error) {
-        // console.error("Error de inicio de sesión:", error.message); // Removed as per user request
-        // The onAuthStateChange listener will handle session updates and loading state.
-    }
+    // onAuthStateChange will handle user and session state.
     return { error };
   };
 
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) {
-        // console.error("Error de cierre de sesión:", error.message); // Removed for consistency
-    }
-    // setUser(null) and setSession(null) will be triggered by onAuthStateChange
+    // onAuthStateChange will handle user and session state being set to null.
     return { error };
   };
 
   const signUp = async (credentials: SignUpWithPasswordCredentials) => {
     const { data, error } = await supabase.auth.signUp(credentials);
-    if (error) {
-        // console.error("Error de registro:", error.message); // Removed for consistency
-    }
+    // onAuthStateChange will handle new user session if successful and email is confirmed (if required).
     return { data: { user: data.user, session: data.session }, error };
   };
 

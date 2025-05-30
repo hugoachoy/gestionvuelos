@@ -2,7 +2,7 @@
 export interface AuthUser {
   id: string;
   email?: string;
-  // Agrega otros campos de Supabase User que necesites
+  is_admin?: boolean; // Añadido para almacenar el estado de admin
 }
 
 export interface Pilot {
@@ -12,7 +12,7 @@ export interface Pilot {
   category_ids: string[]; // IDs of PilotCategory
   medical_expiry: string; // Store as ISO string YYYY-MM-DD
   auth_user_id?: string | null; // ID del usuario de Supabase Auth vinculado
-  // is_admin?: boolean; // Eliminado según solicitud previa
+  is_admin?: boolean; // Re-añadido para el estado de administrador
   created_at?: string; // Timestamps from Supabase
 }
 
