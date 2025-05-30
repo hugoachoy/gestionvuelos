@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
-import { format } from 'date-fns'; // Ensure format is imported
+import { format } from 'date-fns';
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -53,56 +53,54 @@ export function usePilotsStore() {
     fetchPilots();
   }, [fetchPilots]);
 
-  const addPilot = useCallback(async (pilotData: Omit<Pilot, 'id' | 'created_at' | 'is_admin'>) => { // is_admin removed from type
+  const addPilot = useCallback(async (pilotData: Omit<Pilot, 'id' | 'created_at'>) => {
     setError(null);
-    // console.warn("SECURITY WARNING: RLS is disabled. 'is_admin' field is not protected by database-level security for addPilot.");
+    // SECURITY WARNING: RLS is disabled or not yet configured for granular auth.
+    // The 'auth_user_id' field should ideally be set by a secure backend process or RLS policy,
+    // not directly from client input unless properly validated.
+    console.warn("SECURITY/FUNCTIONALITY NOTE: `addPilot` called. Ensure `pilotData.auth_user_id` is correctly set if linking to an auth user. RLS must protect this if called client-side with user-provided `auth_user_id`.");
+
     const { data: newPilot, error: insertError } = await supabase
       .from('pilots')
-      .insert([pilotData]) // pilotData no longer contains is_admin
+      .insert([pilotData])
       .select()
       .single();
 
     if (insertError) {
       logSupabaseError('Error adding pilot', insertError);
-      let displayError = insertError;
-      if (insertError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the pilot after adding (Error PGRST116). This often happens if Row Level Security (RLS) policies prevent selecting the record after it's inserted. Please check your RLS SELECT policies for the 'pilots' table.");
-      }
-      setError(displayError);
+      setError(insertError);
       return null;
     }
     if (newPilot) {
-      await fetchPilots();
+      await fetchPilots(); // Refetch to update list
     }
     return newPilot;
   }, [fetchPilots]);
 
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
     setError(null);
-    // Explicitly remove is_admin if it's somehow passed in updatedPilotData, though type system should prevent it
-    const { id, created_at, is_admin, ...updatePayloadToSend } = updatedPilotData as any; // Cast to any to destructure is_admin if present
-    
-    // console.warn("SECURITY WARNING: RLS is disabled. 'is_admin' and 'medical_expiry' fields are not protected by database-level security for updatePilot.");
-    console.log('Attempting to update pilot with ID:', id, 'Payload:', updatePayloadToSend);
+    const { id, created_at, ...updatePayload } = updatedPilotData;
+    // SECURITY WARNING: RLS is disabled or not yet configured for granular auth.
+    // Ensure RLS policies protect sensitive fields like 'medical_expiry' and 'auth_user_id'
+    // from unauthorized updates.
+    console.warn("SECURITY NOTE: `updatePilot` called. Ensure RLS policies correctly restrict who can update pilot data and which fields.");
+    console.log('Attempting to update pilot with ID:', id, 'Payload:', updatePayload);
+
 
     const { data: updatedPilot, error: updateError } = await supabase
       .from('pilots')
-      .update(updatePayloadToSend) // updatePayloadToSend no longer contains is_admin
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();
 
     if (updateError) {
       logSupabaseError('Error updating pilot', updateError);
-      let displayError = updateError;
-      if (updateError.code === 'PGRST116') {
-         displayError = new Error("Failed to retrieve the pilot after updating (Error PGRST116: JSON object requested, multiple (or no) rows returned). This often happens if Row Level Security (RLS) policies prevent selecting the record after it's updated. Please check your RLS SELECT policies for the 'pilots' table.");
-      }
-      setError(displayError);
+      setError(updateError);
       return null;
     }
     if (updatedPilot) {
-      await fetchPilots();
+      await fetchPilots(); // Refetch to update list
     }
     return updatedPilot;
   }, [fetchPilots]);
@@ -116,7 +114,7 @@ export function usePilotsStore() {
       setError(deleteError);
       return false;
     }
-    await fetchPilots();
+    await fetchPilots(); // Refetch to update list
     return true;
   }, [fetchPilots]);
 
@@ -151,14 +149,14 @@ export function usePilotCategoriesStore() {
       if (fetchError) {
         logSupabaseError('Error fetching pilot categories', fetchError);
         setError(fetchError);
-        setCategories(DEFAULT_CATEGORIES); // Fallback to default on error
+        setCategories(DEFAULT_CATEGORIES);
       } else {
          setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
       }
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCategories', e);
       setError(e);
-      setCategories(DEFAULT_CATEGORIES); // Fallback to default on error
+      setCategories(DEFAULT_CATEGORIES);
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -179,11 +177,7 @@ export function usePilotCategoriesStore() {
 
     if (insertError) {
       logSupabaseError('Error adding pilot category', insertError);
-      let displayError = insertError;
-      if (insertError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the category after adding (Error PGRST116). Check RLS SELECT policies for 'pilot_categories'.");
-      }
-      setError(displayError);
+      setError(insertError);
       return null;
     }
     if (newCategory) {
@@ -204,11 +198,7 @@ export function usePilotCategoriesStore() {
 
     if (updateError) {
       logSupabaseError('Error updating pilot category', updateError);
-       let displayError = updateError;
-      if (updateError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the category after updating (Error PGRST116). Check RLS SELECT policies for 'pilot_categories'.");
-      }
-      setError(displayError);
+      setError(updateError);
       return null;
     }
     if (updatedCategory) {
@@ -281,11 +271,7 @@ export function useAircraftStore() {
 
     if (insertError) {
       logSupabaseError('Error adding aircraft', insertError);
-      let displayError = insertError;
-      if (insertError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the aircraft after adding (Error PGRST116). Check RLS SELECT policies for 'aircraft'.");
-      }
-      setError(displayError);
+      setError(insertError);
       return null;
     }
     if (newAircraft) {
@@ -306,11 +292,7 @@ export function useAircraftStore() {
 
     if (updateError) {
       logSupabaseError('Error updating aircraft', updateError);
-      let displayError = updateError;
-      if (updateError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the aircraft after updating (Error PGRST116). Check RLS SELECT policies for 'aircraft'.");
-      }
-      setError(displayError);
+      setError(updateError);
       return null;
     }
     if (updatedAircraft) {
@@ -376,6 +358,8 @@ export function useScheduleStore() {
   }, []);
 
   const fetchScheduleEntriesForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<ScheduleEntry[] | null> => {
+    // This function doesn't use the hook's loading/error state directly
+    // as it's intended for one-off calls (e.g., for exports).
     try {
       const { data, error: fetchError } = await supabase
         .from('schedule_entries')
@@ -404,11 +388,7 @@ export function useScheduleStore() {
       .single();
     if (insertError) {
       logSupabaseError('Error adding schedule entry', insertError);
-      let displayError = insertError;
-      if (insertError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the schedule entry after adding (Error PGRST116). Check RLS SELECT policies for 'schedule_entries'.");
-      }
-      setError(displayError);
+      setError(insertError);
       return null;
     }
     if (newEntry) {
@@ -428,11 +408,7 @@ export function useScheduleStore() {
       .single();
     if (updateError) {
       logSupabaseError('Error updating schedule entry', updateError);
-      let displayError = updateError;
-      if (updateError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the schedule entry after updating (Error PGRST116). Check RLS SELECT policies for 'schedule_entries'.");
-      }
-      setError(displayError);
+      setError(updateError);
       return null;
     }
     if (updatedEntry) {
@@ -516,6 +492,7 @@ export function useDailyObservationsStore() {
   }, []);
 
   const fetchObservationsForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<DailyObservation[] | null> => {
+    // This function doesn't use the hook's loading/error state directly
     try {
       const { data, error: fetchError } = await supabase
         .from('daily_observations')
@@ -548,11 +525,7 @@ export function useDailyObservationsStore() {
 
     if (upsertError) {
       logSupabaseError('Error updating daily observation', upsertError);
-      let displayError = upsertError;
-      if (upsertError.code === 'PGRST116') {
-        displayError = new Error("Failed to retrieve the observation after updating (Error PGRST116). Check RLS SELECT policies for 'daily_observations'.");
-      }
-      setError(displayError);
+      setError(upsertError);
       return null;
     }
     if (upsertedObservation) {

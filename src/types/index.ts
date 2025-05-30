@@ -1,11 +1,18 @@
 
+export interface AuthUser {
+  id: string;
+  email?: string;
+  // Agrega otros campos de Supabase User que necesites
+}
+
 export interface Pilot {
   id: string;
   first_name: string;
   last_name: string;
   category_ids: string[]; // IDs of PilotCategory
   medical_expiry: string; // Store as ISO string YYYY-MM-DD
-  // is_admin?: boolean; // Field removed
+  auth_user_id?: string | null; // ID del usuario de Supabase Auth vinculado
+  // is_admin?: boolean; // Comentado según solicitud previa de eliminarlo de la UI
   created_at?: string; // Timestamps from Supabase
 }
 

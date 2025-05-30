@@ -3,8 +3,8 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-// Removed: import Image from 'next/image'; 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation'; // Import useRouter
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 import {
   SidebarProvider,
   Sidebar,
@@ -18,8 +18,8 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, Settings, CalendarDays } from 'lucide-react';
-import { Toaster } from "@/components/ui/toaster";
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut } from 'lucide-react'; // Import LogIn, LogOut
+// import { Toaster } from "@/components/ui/toaster"; // Toaster se movió a layout.tsx
 
 interface NavItemProps {
   href: string;
@@ -33,7 +33,7 @@ function NavItem({ href, icon, label, pathname }: NavItemProps) {
   return (
     <SidebarMenuItem>
       <Link href={href} passHref legacyBehavior>
-        <SidebarMenuButton isActive={isActive} tooltip={label} className="justify-start">
+        <SidebarMenuButton isActive={isActive} tooltip={label} className="justify-start data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground">
           {icon}
           <span className="truncate">{label}</span>
         </SidebarMenuButton>
@@ -44,6 +44,8 @@ function NavItem({ href, icon, label, pathname }: NavItemProps) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter(); // Hook de Next.js para navegación
+  const { user, logout, loading: authLoading } = useAuth(); // Obtener estado de autenticación
 
   const navItems = [
     { href: '/', label: 'Agenda', icon: <CalendarDays /> },
@@ -51,6 +53,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: '/categories', label: 'Categorías', icon: <Tags /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login'); // Redirigir a la página de login después de cerrar sesión
+  };
 
   return (
     <SidebarProvider defaultOpen>
@@ -79,27 +86,45 @@ export function AppShell({ children }: { children: ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">
-          {/* Optional: Settings or User Profile Link */}
-          {/* <NavItem href="/settings" icon={<Settings />} label="Settings" pathname={pathname} /> */}
+          {authLoading ? (
+            <div className="p-2 text-sm text-sidebar-foreground/70">Cargando...</div>
+          ) : user ? (
+            <div className="flex flex-col items-start gap-2 p-2">
+              <span className="text-xs text-sidebar-foreground/80 truncate w-full" title={user.email}>
+                {user.email}
+              </span>
+              <SidebarMenuButton onClick={handleLogout} className="w-full justify-start text-sm">
+                <LogOut />
+                Cerrar Sesión
+              </SidebarMenuButton>
+            </div>
+          ) : (
+             <SidebarMenuItem>
+                <Link href="/login" passHref legacyBehavior>
+                    <SidebarMenuButton isActive={pathname === '/login'} className="justify-start">
+                    <LogIn />
+                    Iniciar Sesión
+                    </SidebarMenuButton>
+                </Link>
+            </SidebarMenuItem>
+          )}
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:h-16 md:px-6">
           <SidebarTrigger className="md:hidden" />
-          {/* Container for text, centered */}
-          <div className="flex flex-1 items-center justify-center"> {/* Removed gap-3 */}
-            {/* Logo Image removed from here */}
+          <div className="flex flex-1 items-center justify-center gap-3">
+            {/* <Image src="/aeroclub_logo.png" alt="Aeroclub Logo" width={50} height={50} className="h-10 md:h-12 w-auto object-contain"/> */}
             <div className="text-4xl font-semibold text-primary drop-shadow-md">
               Aeroclub 9 de Julio
             </div>
           </div>
-          {/* Optional: User Avatar/Menu */}
         </header>
         <main className="flex-1 p-4 md:p-6">
           {children}
         </main>
       </SidebarInset>
-      <Toaster />
+      {/* Toaster se movió a RootLayout para que esté disponible para el AuthProvider */}
     </SidebarProvider>
   );
 }
