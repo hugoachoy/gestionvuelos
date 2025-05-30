@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookOpen, AlertTriangle, PlaneTakeoff, PlaneLanding } from 'lucide-react';
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
-import { useAuth } from '@/contexts/AuthContext'; // Importar useAuth
+import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
   const { getPilotName, pilots } = usePilotsStore();
   const { getCategoryName, categories } = usePilotCategoriesStore(); 
   const { getAircraftName } = useAircraftStore();
-  const { user: currentUser } = useAuth(); // Obtener usuario actual
+  const { user: currentUser } = useAuth();
 
   if (entries.length === 0) {
     return (
@@ -59,8 +59,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id);
         const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
         
-        const isTurnByInstructor = entryCategoryDetails?.name === 'Instructor';
-        const isTurnByRemolcador = entryCategoryDetails?.name === 'Remolcador';
+        const isTurnByCategoryInstructor = entryCategoryDetails?.name === 'Instructor';
+        const isTurnByCategoryRemolcador = entryCategoryDetails?.name === 'Remolcador';
 
         const flightTypeName = getFlightTypeName(entry.flight_type_id);
         let flightTypeDisplayNode: React.ReactNode = flightTypeName;
@@ -68,9 +68,9 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const towageFlightId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
 
         const shouldFlightTypeBeBold = 
-          (entry.flight_type_id === 'instruction' && isTurnByInstructor) ||
-          isTurnByRemolcador ||
-          entry.flight_type_id === towageFlightId;
+          (entry.flight_type_id === 'instruction' && isTurnByCategoryInstructor) ||
+          (isTurnByCategoryRemolcador) || // Si la categoría del turno es Remolcador, el tipo de vuelo va en negrita
+          (entry.flight_type_id === towageFlightId); // Si el tipo de vuelo es Remolque, va en negrita
 
         if (shouldFlightTypeBeBold) {
           flightTypeDisplayNode = <strong className="text-foreground">{flightTypeName}</strong>;
@@ -79,12 +79,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const displayTime = entry.start_time.substring(0, 5); 
 
         const showAvailableSinceText = 
-            (entry.flight_type_id === towageFlightId) || isTurnByInstructor;
+            (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available) || isTurnByCategoryInstructor;
 
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
-          const entryDate = parseISO(entry.date); // Asumimos que entry.date es un string ISO 'yyyy-MM-dd'
+          const entryDate = parseISO(entry.date); 
           const todayNormalized = startOfDay(new Date());
 
           if (isValid(medicalExpiryDate) && isValid(entryDate)) {
@@ -121,15 +121,16 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
           }
         }
 
-        const isTowageRelatedCardStyle = isTurnByRemolcador || entry.flight_type_id === towageFlightId;
+        const isCardStyleRemolcador = isTurnByCategoryRemolcador || entry.flight_type_id === towageFlightId;
         const isOwner = currentUser && entry.auth_user_id && currentUser.id === entry.auth_user_id;
+        const canManageEntry = isOwner || currentUser?.is_admin;
 
         return (
           <Card
             key={entry.id}
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isTowageRelatedCardStyle && 'bg-primary/20'
+              isCardStyleRemolcador && 'bg-primary/20'
             )}
           >
             <CardHeader className="pb-2">
@@ -151,7 +152,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                     {flightTypeDisplayNode}
                   </CardDescription>
                 </div>
-                {isOwner && ( // Mostrar botones solo si el usuario es el propietario
+                {canManageEntry && ( // Mostrar botones si es propietario O es admin
                   <div className="flex gap-1 shrink-0">
                       <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="hover:text-primary">
                         <Edit className="h-4 w-4" />
@@ -171,7 +172,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
                 </div>
               )}
-              {isTurnByRemolcador && ( 
+              {isTurnByCategoryRemolcador && ( 
                 <div className="flex items-center">
                   {entry.is_tow_pilot_available ?
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> :
@@ -186,3 +187,4 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
     </div>
   );
 }
+
