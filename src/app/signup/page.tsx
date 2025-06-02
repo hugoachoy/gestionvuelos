@@ -78,9 +78,6 @@ export default function SignupPage() {
     const pilotProfile = await addPilot(newPilotData);
 
     if (!pilotProfile) {
-      // Idealmente, aquí deberías manejar la eliminación del usuario de Supabase Auth
-      // si la creación del perfil del piloto falla, para evitar usuarios huérfanos.
-      // Esto es más complejo y requiere una función de admin en Supabase o una Edge Function.
       setServerError("Usuario de autenticación creado, pero falló la creación del perfil de piloto. Contacta al administrador.");
       setLoading(false);
       return;
@@ -91,9 +88,9 @@ export default function SignupPage() {
         title: "Registro Exitoso",
         description: "Tu cuenta ha sido creada. Por favor, revisa tu correo electrónico para validar tu cuenta antes de iniciar sesión.",
         variant: "default",
-        duration: 7000, // Duración un poco más larga para este mensaje importante
+        duration: 7000, 
     });
-    router.push('/login?signup=success'); // Redirigir con un query param para mostrar toast en login (opcional, ya mostramos uno aquí)
+    router.push('/login?signup=success'); 
   };
 
   return (

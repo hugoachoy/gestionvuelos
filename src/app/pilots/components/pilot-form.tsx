@@ -30,13 +30,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox"; // Asegúrate de que Checkbox está importado
+import { Checkbox } from "@/components/ui/checkbox"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, parse, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 const pilotSchema = z.object({
   first_name: z.string().min(1, "El nombre es obligatorio."),
@@ -49,7 +51,7 @@ const pilotSchema = z.object({
     .refine(date => date >= startOfDay(new Date()), {
       message: "La fecha de vencimiento no puede ser en el pasado."
     }),
-  is_admin: z.boolean().optional(), // Re-añadido el campo is_admin al esquema
+  is_admin: z.boolean().optional(), 
 });
 
 type PilotFormData = z.infer<typeof pilotSchema>;
@@ -60,9 +62,11 @@ interface PilotFormProps {
   onSubmit: (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => void;
   pilot?: Pilot;
   categories: PilotCategory[];
+  allowIsAdminChange?: boolean; // Prop para controlar si se puede cambiar el campo is_admin
 }
 
-export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: PilotFormProps) {
+export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, allowIsAdminChange = false }: PilotFormProps) {
+  const { user: currentUser } = useAuth(); // Para verificar si el usuario actual es admin
   const form = useForm<PilotFormData>({
     resolver: zodResolver(pilotSchema),
     defaultValues: {
@@ -70,7 +74,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
       last_name: '',
       category_ids: [],
       medical_expiry: new Date(),
-      is_admin: false, // Valor por defecto para is_admin
+      is_admin: false, 
     },
   });
 
@@ -85,7 +89,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
             last_name: pilot.last_name || '',
             category_ids: pilot.category_ids || [],
             medical_expiry: pilot.medical_expiry && isValid(parseISO(pilot.medical_expiry)) ? parseISO(pilot.medical_expiry) : new Date(),
-            is_admin: pilot.is_admin ?? false, // Inicializar is_admin
+            is_admin: pilot.is_admin ?? false, 
           }
         : {
             first_name: '',
@@ -100,9 +104,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
       if (isValid(currentMedicalDateInForm)) {
         setMedicalExpiryDateString(format(currentMedicalDateInForm, "dd/MM/yyyy", { locale: es }));
       } else {
-        // Si la fecha no es válida (o es el caso de nuevo piloto sin fecha específica),
-        // inicializa con la fecha actual formateada, pero el campo de fecha del formulario
-        // ya tiene el objeto Date correcto de initialFormValues.
         setMedicalExpiryDateString(format(initialFormValues.medical_expiry || new Date(), "dd/MM/yyyy", { locale: es }));
       }
     }
@@ -116,7 +117,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     if (isValid(parsedDate)) {
       fieldOnChange(parsedDate);
     } else {
-      fieldOnChange(undefined); // Esto provocará error de validación de Zod si el campo es obligatorio
+      fieldOnChange(undefined); 
     }
   };
 
@@ -135,7 +136,9 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
         ...data,
         medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
-        is_admin: data.is_admin ?? false, // Asegurar que is_admin se envíe
+        is_admin: data.is_admin ?? false, 
+        // Asegurar que auth_user_id se preserve si se está editando y existe
+        auth_user_id: pilot?.auth_user_id // Mantener el auth_user_id original al editar
     };
     onSubmit(dataToSubmit, pilot?.id);
     onOpenChange(false);
@@ -210,7 +213,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                           <FormItem
                             key={category.id}
                             className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md"
-                            // No usar onClick en FormItem para evitar doble trigger con Checkbox
                           >
                             <FormControl>
                               <Checkbox
@@ -230,7 +232,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                               />
                             </FormControl>
                             <FormLabel
-                              htmlFor={`category-${category.id}`} // htmlFor para asociar con Checkbox
+                              htmlFor={`category-${category.id}`} 
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
                               id={`category-label-${category.id}`}
                             >
@@ -283,38 +285,40 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
                       />
                     </PopoverContent>
                   </Popover>
-                  {pilot && (
+                  {pilot && !allowIsAdminChange && currentUser?.id !== pilot.auth_user_id && (
                     <FormDescription className="text-xs text-muted-foreground/80 mt-1">
-                      Nota: La modificación de este campo para pilotos existentes es una operación privilegiada (Administrador).
+                      Nota: Solo un administrador puede modificar este campo para otros pilotos.
                     </FormDescription>
                   )}
                   <FormMessage />
                 </FormItem>
               )}
             />
-            {/* Campo is_admin re-añadido */}
-            <FormField
-              control={form.control}
-              name="is_admin"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel htmlFor="is_admin_checkbox" id="is_admin_label">Administrador</FormLabel>
-                    <FormDescription>
-                      Permitir acceso administrativo al piloto.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Checkbox
-                      id="is_admin_checkbox"
-                      checked={field.value ?? false}
-                      onCheckedChange={field.onChange}
-                      aria-labelledby="is_admin_label"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {(allowIsAdminChange) && (
+              <FormField
+                control={form.control}
+                name="is_admin"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                    <div className="space-y-0.5">
+                      <FormLabel htmlFor="is_admin_checkbox" id="is_admin_label">Administrador</FormLabel>
+                      <FormDescription>
+                        Permitir acceso administrativo al piloto.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        id="is_admin_checkbox"
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                        aria-labelledby="is_admin_label"
+                        disabled={!currentUser?.is_admin} // Solo un admin puede cambiar esto
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => {
                 onOpenChange(false);
@@ -327,3 +331,4 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories }: P
     </Dialog>
   );
 }
+

@@ -56,23 +56,17 @@ export function usePilotsStore() {
   const addPilot = useCallback(async (pilotData: Omit<Pilot, 'id' | 'created_at'>) => {
     setError(null);
     setLoading(true);
-    // SECURITY WARNING: RLS is disabled or not yet configured for granular auth.
-    // The 'auth_user_id' field should ideally be set by a secure backend process or RLS policy,
-    // not directly from client input unless properly validated.
-    // Similar concerns apply to 'is_admin' if RLS for it is not strictly enforced.
-    if(pilotData.auth_user_id) {
-      console.warn("SECURITY/FUNCTIONALITY NOTE: `addPilot` called with `auth_user_id`. Ensure RLS protects this if called client-side with user-provided `auth_user_id`.");
-    } else {
-      // console.warn("NOTE: `addPilot` called without `auth_user_id`. Pilot profile will not be linked to an auth user.");
-    }
-    if (pilotData.hasOwnProperty('is_admin')) {
-        console.warn("SECURITY NOTE (RLS Disabled): `addPilot` includes `is_admin`. Ensure RLS protects this field against unauthorized setting.");
+    
+    const payload = { ...pilotData };
+    // Ensure is_admin is explicitly set if not provided, to avoid DB default overriding logic if any
+    if (!payload.hasOwnProperty('is_admin')) {
+      payload.is_admin = false;
     }
 
 
     const { data: newPilot, error: insertError } = await supabase
       .from('pilots')
-      .insert([pilotData])
+      .insert([payload])
       .select()
       .single();
 
@@ -80,13 +74,13 @@ export function usePilotsStore() {
     if (insertError) {
       logSupabaseError('Error adding pilot', insertError);
       setError(insertError);
-      setLoading(false); // Ensure loading is reset on error
+      setLoading(false); 
       return null;
     }
     if (newPilot) {
-      await fetchPilots(); // Refetch to update list
+      await fetchPilots(); 
     }
-    setLoading(false); // Ensure loading is reset on success
+    setLoading(false); 
     return newPilot;
   }, [fetchPilots]);
 
@@ -95,8 +89,15 @@ export function usePilotsStore() {
     setLoading(true);
     const { id, created_at, ...updatePayload } = updatedPilotData;
     
-    console.warn("SECURITY NOTE (RLS Disabled): `updatePilot` called. Fields like 'medical_expiry' and 'is_admin' are not protected by database-level security (RLS). Any client can attempt to update any pilot's data.");
-    console.log('Attempting to update pilot with ID:', id, 'Payload:', updatePayload);
+    // Ensure is_admin is part of the payload if it was on updatedPilotData
+    if (!updatePayload.hasOwnProperty('is_admin') && updatedPilotData.hasOwnProperty('is_admin')) {
+      updatePayload.is_admin = updatedPilotData.is_admin;
+    } else if (!updatePayload.hasOwnProperty('is_admin')) {
+      // If is_admin was never on the object, explicitly set to false or handle as per business logic
+      // For safety, if not specified, it might be better not to change it or fetch current value.
+      // However, current forms usually mean if a field is not in schema, it's not submitted.
+      // If schema includes it, form sends it.
+    }
 
 
     const { data: updatedPilot, error: updateError } = await supabase
@@ -113,7 +114,7 @@ export function usePilotsStore() {
       return null;
     }
     if (updatedPilot) {
-      await fetchPilots(); // Refetch to update list
+      await fetchPilots(); 
     }
     setLoading(false);
     return updatedPilot;
@@ -129,7 +130,7 @@ export function usePilotsStore() {
         setError(deleteError);
         return false;
       }
-      await fetchPilots(); // Refetch to update list
+      await fetchPilots(); 
       return true;
     } catch (e) {
       logSupabaseError('Unexpected error deleting pilot', e);
@@ -171,14 +172,14 @@ export function usePilotCategoriesStore() {
       if (fetchError) {
         logSupabaseError('Error fetching pilot categories', fetchError);
         setError(fetchError);
-        setCategories(DEFAULT_CATEGORIES); // Fallback to default if fetch fails
+        setCategories(DEFAULT_CATEGORIES); 
       } else {
          setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
       }
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCategories', e);
       setError(e);
-      setCategories(DEFAULT_CATEGORIES); // Fallback on unexpected error
+      setCategories(DEFAULT_CATEGORIES); 
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -653,3 +654,4 @@ export function useDailyObservationsStore() {
 
   return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations, fetchObservationsForRange };
 }
+

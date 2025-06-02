@@ -3,8 +3,8 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation'; // Import useRouter
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { usePathname, useRouter } from 'next/navigation'; 
+import { useAuth } from '@/contexts/AuthContext'; 
 import {
   SidebarProvider,
   Sidebar,
@@ -16,10 +16,10 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
-  useSidebar, // Import useSidebar
+  useSidebar, 
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut } from 'lucide-react'; // Import LogIn, LogOut
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut } from 'lucide-react'; 
 
 interface NavItemProps {
   href: string;
@@ -30,11 +30,11 @@ interface NavItemProps {
 
 function NavItem({ href, icon, label, pathname }: NavItemProps) {
   const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
-  const { isMobile, setOpenMobile } = useSidebar(); // Get context for mobile state
+  const { isMobile, setOpenMobile } = useSidebar(); 
 
   const handleClick = () => {
     if (isMobile) {
-      setOpenMobile(false); // Close mobile sidebar on item click
+      setOpenMobile(false); 
     }
   };
 
@@ -42,7 +42,7 @@ function NavItem({ href, icon, label, pathname }: NavItemProps) {
     <SidebarMenuItem>
       <Link href={href} passHref legacyBehavior>
         <SidebarMenuButton
-          onClick={handleClick} // Add onClick handler
+          onClick={handleClick} 
           isActive={isActive}
           tooltip={label}
           className="justify-start data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
@@ -57,8 +57,9 @@ function NavItem({ href, icon, label, pathname }: NavItemProps) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter(); // Hook de Next.js para navegación
-  const { user, logout, loading: authLoading } = useAuth(); // Obtener estado de autenticación
+  const router = useRouter(); 
+  const { user, logout, loading: authLoading } = useAuth(); 
+  const sidebar = useSidebar(); // Obtener el contexto para el botón de login
 
   const navItems = [
     { href: '/', label: 'Agenda', icon: <CalendarDays /> },
@@ -69,7 +70,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login'); // Redirigir a la página de login después de cerrar sesión
+    if (sidebar.isMobile) { // Cerrar sidebar en móvil después del logout
+        sidebar.setOpenMobile(false);
+    }
+    router.push('/login'); 
   };
 
   return (
@@ -115,9 +119,9 @@ export function AppShell({ children }: { children: ReactNode }) {
              <SidebarMenuItem>
                 <Link href="/login" passHref legacyBehavior>
                     <SidebarMenuButton 
-                        onClick={() => { // Also close mobile menu when login is clicked
-                            if (useSidebar().isMobile) {
-                                useSidebar().setOpenMobile(false);
+                        onClick={() => { 
+                            if (sidebar.isMobile) {
+                                sidebar.setOpenMobile(false);
                             }
                         }}
                         isActive={pathname === '/login'} 
@@ -148,3 +152,4 @@ export function AppShell({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
+

@@ -155,13 +155,11 @@ export function AvailabilityForm({
   useEffect(() => {
     if (open) {
       let initialPilotId = '';
-      // Si es una nueva entrada Y el usuario actual NO es admin Y tiene un perfil vinculado
       if (!entry && currentUserLinkedPilotId && !currentUser?.is_admin) {
         initialPilotId = currentUserLinkedPilotId;
-      } else if (entry) { // Si está editando una entrada existente
+      } else if (entry) { 
         initialPilotId = entry.pilot_id;
       }
-      // Si es admin creando, o no hay usuario, o no hay perfil vinculado, initialPilotId queda '' y puede seleccionar.
 
 
       const initialFormValues = entry
@@ -170,21 +168,21 @@ export function AvailabilityForm({
             date: entry.date ? parseISO(entry.date) : (selectedDate || new Date()),
             aircraft_id: entry.aircraft_id ?? '',
             start_time: entry.start_time ? entry.start_time.substring(0,5) : '',
-            pilot_id: initialPilotId, // Se usa el initialPilotId calculado
+            pilot_id: initialPilotId, 
           }
         : {
             date: selectedDate || new Date(),
             start_time: '',
-            pilot_id: initialPilotId, // Se usa el initialPilotId calculado
+            pilot_id: initialPilotId, 
             pilot_category_id: '',
             is_tow_pilot_available: false,
             flight_type_id: '',
             aircraft_id: '',
           };
       form.reset(initialFormValues as AvailabilityFormData);
-      setPilotSearchTerm(''); // Limpiar término de búsqueda
-      setMedicalWarning(null); // Limpiar advertencias
-      setBookingConflictWarning(null); // Limpiar advertencias
+      setPilotSearchTerm(''); 
+      setMedicalWarning(null); 
+      setBookingConflictWarning(null); 
     }
   }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin]);
 
@@ -205,7 +203,6 @@ export function AvailabilityForm({
   const isTowPilotCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name === 'Remolcador';
 
 
-  // Efecto para la advertencia médica
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
     const currentPilotDetails = pilots.find(p => p.id === watchedPilotId);
@@ -226,7 +223,7 @@ export function AvailabilityForm({
             show: true,
             title: "¡Psicofísico Vencido para esta Fecha!",
             message: `El psicofísico de ${currentPilotDetails.first_name} ${currentPilotDetails.last_name} VENCÍO el ${format(normalizedMedicalExpiryDate, 'dd/MM/yyyy', { locale: es })}. No puede ser asignado.`,
-            variant: 'destructive', // Esto deshabilita el botón
+            variant: 'destructive', 
           };
         } else {
           const daysUntilExpiryFromToday = differenceInDays(normalizedMedicalExpiryDate, today);
@@ -262,7 +259,6 @@ export function AvailabilityForm({
   }, [watchedPilotId, watchedDate, open, pilots]);
 
 
-  // Efecto para conflicto de reserva de planeador
    useEffect(() => {
     setBookingConflictWarning(null);
     if (!watchedAircraftId || !watchedStartTime || !watchedDate || !aircraft.length || !existingEntries?.length) {
@@ -292,7 +288,6 @@ export function AvailabilityForm({
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
 
 
-  // Efecto para sugerir tipo de vuelo basado en categorías inherentes del piloto
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
       const remolcadorCategoryDefinition = categories.find(c => c.name === 'Remolcador');
@@ -301,7 +296,6 @@ export function AvailabilityForm({
       if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
         const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
         
-        // Solo sugerir si el tipo de vuelo está vacío
         if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') {
           form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
         }
@@ -310,7 +304,6 @@ export function AvailabilityForm({
   }, [watchedPilotId, pilotDetails, categories, form]);
 
 
-  // Efecto para auto-establecer/limpiar flight_type_id basado en pilot_category_id (categoría PARA EL TURNO)
   useEffect(() => {
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
@@ -321,13 +314,10 @@ export function AvailabilityForm({
     }
     
     if (categoryForTurn?.name === 'Remolcador') {
-      // Si la categoría del turno es "Remolcador", establece el tipo de vuelo a "Remolque"
       if (form.getValues('flight_type_id') !== towageFlightType.id) {
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
     } else {
-      // Si la categoría del turno NO es "Remolcador" (o no definida),
-      // y el tipo de vuelo actual ES "Remolque", entonces límpialo.
       if (form.getValues('flight_type_id') === towageFlightType.id) {
          form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
       }
@@ -336,7 +326,7 @@ export function AvailabilityForm({
 
 
   const filteredAircraftForSelect = useMemo(() => {
-    const currentFlightTypeId = form.getValues('flight_type_id'); // Obtener el valor actual del formulario
+    const currentFlightTypeId = form.getValues('flight_type_id'); 
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
     
     const isCategoryForTurnRemolcador = selectedCategoryDetailsForTurn?.name === 'Remolcador';
@@ -346,10 +336,9 @@ export function AvailabilityForm({
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
     return aircraft;
-  }, [selectedCategoryDetailsForTurn, aircraft, form.watch('flight_type_id')]); // Observar flight_type_id
+  }, [selectedCategoryDetailsForTurn, aircraft, form.watch('flight_type_id')]); 
 
 
-  // Efecto para limpiar aircraft_id si la selección filtrada cambia
   useEffect(() => {
     const currentAircraftId = form.getValues('aircraft_id');
     if (currentAircraftId) {
@@ -368,10 +357,9 @@ export function AvailabilityForm({
     }
 
     let authUserIdToSet: string | null = null;
-    // Al crear un nuevo turno, asignar el auth_user_id del usuario logueado
     if (!entry && currentUser) { 
         authUserIdToSet = currentUser.id;
-    } else if (entry && entry.auth_user_id) { // Al editar, mantener el auth_user_id original
+    } else if (entry && entry.auth_user_id) { 
         authUserIdToSet = entry.auth_user_id;
     }
 
@@ -385,12 +373,11 @@ export function AvailabilityForm({
     onOpenChange(false);
   };
 
-  // Limpiar categoría del turno si el piloto no la tiene
   useEffect(() => {
     if (watchedPilotId && pilotDetails && form.getValues('pilot_category_id') && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
-      form.setValue('pilot_category_id', ''); // Limpiar si la categoría seleccionada no es del piloto
+      form.setValue('pilot_category_id', ''); 
     }
-    if (!watchedPilotId) { // Si no hay piloto seleccionado, limpiar la categoría del turno
+    if (!watchedPilotId) { 
         form.setValue('pilot_category_id', '');
     }
   }, [watchedPilotId, pilotDetails, form]);

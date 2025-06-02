@@ -1,11 +1,11 @@
 
 "use client";
 
-import React from 'react'; // Added explicit React import
-import { useState, useEffect } from 'react'; // Importar useEffect
+import React from 'react'; 
+import { useState, useEffect } from 'react'; 
 import type { PilotCategory } from '@/types';
 import { usePilotCategoriesStore } from '@/store/data-hooks';
-import { useAuth } from '@/contexts/AuthContext'; // Importar useAuth
+import { useAuth } from '@/contexts/AuthContext'; 
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
 import { CategoryForm } from './category-form';
@@ -23,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 export function CategoryClient() {
-  const { user: currentUser } = useAuth(); // Obtener el usuario actual
+  const { user: currentUser, loading: authLoading } = useAuth(); 
   const { categories, addCategory, updateCategory, deleteCategory: removeCategory, loading, error, fetchCategories } = usePilotCategoriesStore();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -78,7 +78,7 @@ export function CategoryClient() {
     );
   }
   
-  const isLoadingUI = loading || !currentUser;
+  const isLoadingUI = loading || authLoading || !currentUser;
 
 
   return (
@@ -90,7 +90,7 @@ export function CategoryClient() {
             <Button onClick={() => fetchCategories()} variant="outline" size="icon" disabled={isLoadingUI}>
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
-            {currentUser?.is_admin && ( // Solo mostrar si es admin
+            {currentUser?.is_admin && ( 
               <Button onClick={handleAddCategory} disabled={isLoadingUI}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Categoría
               </Button>
@@ -125,7 +125,7 @@ export function CategoryClient() {
                 categories.map((category) => (
                   <TableRow key={category.id}>
                     <TableCell>{category.name}</TableCell>
-                    {currentUser?.is_admin && ( // Solo mostrar si es admin
+                    {currentUser?.is_admin && ( 
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleEditCategory(category)} className="mr-2 hover:text-primary">
                           <Edit className="h-4 w-4" />
@@ -145,7 +145,7 @@ export function CategoryClient() {
         </div>
       )}
 
-      {currentUser?.is_admin && ( // Solo montar el formulario si es admin
+      {currentUser?.is_admin && ( 
         <CategoryForm
             open={isFormOpen}
             onOpenChange={setIsFormOpen}
@@ -162,3 +162,4 @@ export function CategoryClient() {
     </>
   );
 }
+

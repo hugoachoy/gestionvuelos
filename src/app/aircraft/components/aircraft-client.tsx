@@ -2,10 +2,10 @@
 "use client";
 
 import React from 'react'; 
-import { useState, useEffect } from 'react'; // Importar useEffect
+import { useState, useEffect } from 'react'; 
 import type { Aircraft } from '@/types';
 import { useAircraftStore } from '@/store/data-hooks';
-import { useAuth } from '@/contexts/AuthContext'; // Importar useAuth
+import { useAuth } from '@/contexts/AuthContext'; 
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
 import { AircraftForm } from './aircraft-form';
@@ -29,7 +29,7 @@ const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
 };
 
 export function AircraftClient() {
-  const { user: currentUser } = useAuth(); // Obtener el usuario actual
+  const { user: currentUser, loading: authLoading } = useAuth(); 
   const { aircraft, addAircraft, updateAircraft, deleteAircraft: removeAircraft, loading, error, fetchAircraft } = useAircraftStore();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -84,7 +84,7 @@ export function AircraftClient() {
     );
   }
 
-  const isLoadingUI = loading || !currentUser;
+  const isLoadingUI = loading || authLoading || !currentUser;
 
   return (
     <>
@@ -95,7 +95,7 @@ export function AircraftClient() {
             <Button onClick={() => fetchAircraft()} variant="outline" size="icon" disabled={isLoadingUI}>
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
-            {currentUser?.is_admin && ( // Solo mostrar si es admin
+            {currentUser?.is_admin && ( 
               <Button onClick={handleAddAircraft} disabled={isLoadingUI}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Aeronave
               </Button>
@@ -136,7 +136,7 @@ export function AircraftClient() {
                         {aircraftTypeTranslations[ac.type]}
                       </Badge>
                     </TableCell>
-                    {currentUser?.is_admin && ( // Solo mostrar si es admin
+                    {currentUser?.is_admin && ( 
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleEditAircraft(ac)} className="mr-2 hover:text-primary">
                           <Edit className="h-4 w-4" />
@@ -156,7 +156,7 @@ export function AircraftClient() {
         </div>
       )}
 
-      {currentUser?.is_admin && ( // Solo montar el formulario si es admin
+      {currentUser?.is_admin && ( 
         <AircraftForm
             open={isFormOpen}
             onOpenChange={setIsFormOpen}
@@ -173,3 +173,4 @@ export function AircraftClient() {
     </>
   );
 }
+

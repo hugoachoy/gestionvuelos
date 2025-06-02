@@ -69,8 +69,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
 
         const shouldFlightTypeBeBold = 
           (entry.flight_type_id === 'instruction' && isTurnByCategoryInstructor) ||
-          (isTurnByCategoryRemolcador) || // Si la categoría del turno es Remolcador, el tipo de vuelo va en negrita
-          (entry.flight_type_id === towageFlightId); // Si el tipo de vuelo es Remolque, va en negrita
+          (isTurnByCategoryRemolcador) || 
+          (entry.flight_type_id === towageFlightId); 
 
         if (shouldFlightTypeBeBold) {
           flightTypeDisplayNode = <strong className="text-foreground">{flightTypeName}</strong>;
@@ -122,6 +122,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         }
 
         const isCardStyleRemolcador = isTurnByCategoryRemolcador || entry.flight_type_id === towageFlightId;
+        
         const isOwner = currentUser && entry.auth_user_id && currentUser.id === entry.auth_user_id;
         const canManageEntry = isOwner || currentUser?.is_admin;
 
@@ -152,7 +153,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                     {flightTypeDisplayNode}
                   </CardDescription>
                 </div>
-                {canManageEntry && ( // Mostrar botones si es propietario O es admin
+                {canManageEntry && ( 
                   <div className="flex gap-1 shrink-0">
                       <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="hover:text-primary">
                         <Edit className="h-4 w-4" />

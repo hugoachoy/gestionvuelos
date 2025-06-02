@@ -2,10 +2,10 @@
 "use client";
 
 import React from 'react';
-import { useState, useCallback, useEffect } from 'react'; // useEffect importado
+import { useState, useCallback, useEffect } from 'react'; 
 import type { Pilot } from '@/types';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
-import { useAuth } from '@/contexts/AuthContext'; // Importar useAuth
+import { useAuth } from '@/contexts/AuthContext'; 
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { PilotForm } from './pilot-form';
@@ -29,7 +29,7 @@ import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 
 export function PilotClient() {
-  const { user: currentUser } = useAuth(); // Obtener el usuario actual del contexto
+  const auth = useAuth(); 
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
   const { categories: pilotCategories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
 
@@ -76,18 +76,16 @@ export function PilotClient() {
   }, [fetchPilots, fetchCategories]);
 
   useEffect(() => {
-    // Fetch initial data if not already loading or loaded by AuthContext's user fetch
-    // This ensures data is available even if AuthContext is slow or user is not logged in
-    if (!loading && pilots.length === 0) { // Changed pilotsLoading to loading
+    if (!loading && pilots.length === 0) {
         fetchPilots();
     }
     if (!categoriesLoading && pilotCategories.length === 0) {
         fetchCategories();
     }
-  }, [fetchPilots, fetchCategories, loading, categoriesLoading, pilots.length, pilotCategories.length]); // Changed pilotsLoading to loading
+  }, [fetchPilots, fetchCategories, loading, categoriesLoading, pilots.length, pilotCategories.length]);
 
 
-  const combinedLoading = loading || categoriesLoading || !currentUser; // Considerar currentUser loading para UI
+  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user; 
   const combinedError = error || categoriesError;
 
   if (combinedError) {
@@ -114,7 +112,7 @@ export function PilotClient() {
               getCategoryName={getCategoryName}
               disabled={combinedLoading || pilots.length === 0}
             />
-            {currentUser?.is_admin && ( // Solo mostrar si es admin
+            {auth.user?.is_admin && ( 
                 <Button onClick={handleAddPilot} disabled={combinedLoading}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Piloto
                 </Button>
@@ -139,13 +137,13 @@ export function PilotClient() {
                 <TableHead>Categorías</TableHead>
                 <TableHead>Venc. Psicofísico</TableHead>
                 <TableHead>Admin</TableHead>
-                {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
+                {(auth.user?.is_admin || pilots.some(p => p.auth_user_id === auth.user?.id)) && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {pilots.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={currentUser?.is_admin ? 6 : 5} className="text-center h-24"> 
+                  <TableCell colSpan={(auth.user?.is_admin || pilots.some(p => p.auth_user_id === auth.user?.id)) ? 6 : 5} className="text-center h-24"> 
                     No hay pilotos registrados.
                   </TableCell>
                 </TableRow>
@@ -192,6 +190,9 @@ export function PilotClient() {
                       }
                     }
                   }
+                  const canEditThisPilot = auth.user?.is_admin || pilot.auth_user_id === auth.user?.id;
+                  const canDeleteThisPilot = auth.user?.is_admin && pilot.auth_user_id !== auth.user?.id;
+
 
                   return (
                     <TableRow key={pilot.id}>
@@ -212,32 +213,21 @@ export function PilotClient() {
                       <TableCell>
                         {pilot.is_admin ? <ShieldCheck className="h-5 w-5 text-primary" /> : '-'}
                       </TableCell>
-                      {currentUser?.is_admin && (
+                      {(canEditThisPilot || canDeleteThisPilot) && (
                         <TableCell className="text-right">
-                              <>
-                              <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
-                                  <Edit className="h-4 w-4" />
-                                  <span className="sr-only">Editar</span>
-                              </Button>
-                              {/* Un admin no puede eliminar su propio perfil desde esta lista para evitar auto-bloqueo accidental */}
-                              {pilot.auth_user_id !== currentUser?.id && (
+                              {canEditThisPilot && (
+                                <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
+                                    <Edit className="h-4 w-4" />
+                                    <span className="sr-only">Editar</span>
+                                </Button>
+                              )}
+                              {canDeleteThisPilot && (
                                   <Button variant="ghost" size="icon" onClick={() => handleDeletePilot(pilot)} className="hover:text-destructive">
                                   <Trash2 className="h-4 w-4" />
                                   <span className="sr-only">Eliminar</span>
                                   </Button>
                               )}
-                              </>
                         </TableCell>
-                       )}
-                       {/* Un usuario NO admin puede editar su propio perfil si está vinculado Y la columna de acciones no se renderizó para admin */}
-                       {!currentUser?.is_admin && pilot.auth_user_id === currentUser?.id && (
-                           <TableCell className="text-right">
-                               <Button variant="ghost" size="icon" onClick={() => handleEditPilot(pilot)} className="mr-2 hover:text-primary">
-                                  <Edit className="h-4 w-4" />
-                                  <span className="sr-only">Editar</span>
-                              </Button>
-                              {/* No se permite auto-eliminación desde aquí */}
-                           </TableCell>
                        )}
                     </TableRow>
                   );
@@ -248,27 +238,16 @@ export function PilotClient() {
         </div>
       )}
 
-      {/* Render PilotForm if the current user is an admin */}
-      {currentUser?.is_admin && (
+      {(auth.user?.is_admin || (editingPilot && editingPilot.auth_user_id === auth.user?.id)) && (
         <PilotForm
             open={isFormOpen}
             onOpenChange={setIsFormOpen}
             onSubmit={handleSubmitForm}
             pilot={editingPilot}
             categories={pilotCategories}
+            allowIsAdminChange={auth.user?.is_admin ?? false} 
         />
       )}
-       {/* Render PilotForm for a non-admin user if they are editing their own linked profile */}
-      {!currentUser?.is_admin && editingPilot && editingPilot.auth_user_id === currentUser?.id && (
-         <PilotForm
-            open={isFormOpen}
-            onOpenChange={setIsFormOpen}
-            onSubmit={handleSubmitForm}
-            pilot={editingPilot}
-            categories={pilotCategories}
-        />
-      )}
-
 
       <DeleteDialog
         open={isDeleteDialogOpen}
@@ -279,3 +258,4 @@ export function PilotClient() {
     </>
   );
 }
+
