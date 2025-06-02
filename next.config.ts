@@ -1,16 +1,6 @@
 
 import type {NextConfig} from 'next';
 
-// PWA configuration
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const withPWA = require('next-pwa')({
-  dest: 'public', // Destination directory for the PWA files (service worker, workbox)
-  register: true, // Register the service worker
-  skipWaiting: true, // Skip waiting for service worker activation
-  disable: process.env.NODE_ENV === 'development', // Disable PWA in development for easier debugging
-  publicExcludes: ['!noprecache/**/*', '!api/**/*'], // Exclude API routes and specific assets from being precached
-});
-
 const nextConfig: NextConfig = {
   /* config options here */
   typescript: {
@@ -31,4 +21,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+let configToExport: NextConfig = nextConfig;
+
+if (process.env.NODE_ENV === 'production') {
+  // PWA configuration only for production
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const withPWA = require('next-pwa')({
+    dest: 'public', 
+    register: true, 
+    skipWaiting: true, 
+    // 'disable' option is not strictly needed here as this code block only runs in production,
+    // but 'next-pwa' itself might still check NODE_ENV if its internal 'disable' logic is aggressive.
+    // For safety and to ensure it's active in production, we don't set 'disable' here.
+    publicExcludes: ['!noprecache/**/*', '!api/**/*'], 
+  });
+  configToExport = withPWA(nextConfig);
+}
+
+export default configToExport;
