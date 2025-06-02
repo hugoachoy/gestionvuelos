@@ -72,6 +72,7 @@ export default function SignupPage() {
       auth_user_id: authData.user.id,
       category_ids: [], // Los pilotos se registran sin categorías inicialmente
       medical_expiry: '2099-01-01', // Placeholder, el usuario/admin deberá actualizar esto
+      is_admin: false, // Por defecto los nuevos usuarios no son admin
     };
 
     const pilotProfile = await addPilot(newPilotData);
@@ -88,10 +89,11 @@ export default function SignupPage() {
     setLoading(false);
     toast({
         title: "Registro Exitoso",
-        description: "Tu cuenta ha sido creada. Ahora puedes iniciar sesión.",
+        description: "Tu cuenta ha sido creada. Por favor, revisa tu correo electrónico para validar tu cuenta antes de iniciar sesión.",
         variant: "default",
+        duration: 7000, // Duración un poco más larga para este mensaje importante
     });
-    router.push('/login?signup=success'); // Redirigir con un query param para mostrar toast
+    router.push('/login?signup=success'); // Redirigir con un query param para mostrar toast en login (opcional, ya mostramos uno aquí)
   };
 
   return (
@@ -190,3 +192,4 @@ export default function SignupPage() {
     </div>
   );
 }
+
