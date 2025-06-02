@@ -20,99 +20,92 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Inicia en true
 
   useEffect(() => {
-    const getInitialSession = async () => {
-      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error("Error al obtener la sesión inicial:", sessionError);
-        // No set user/session here, let onAuthStateChange handle it or lack thereof.
-        // setLoading(false); // onAuthStateChange should handle this for INITIAL_SESSION
-        return;
-      }
+    // onAuthStateChange maneja el evento INITIAL_SESSION, por lo que no necesitamos una llamada separada a getInitialSession.
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      let isAdminStatus = false; // Valor por defecto
 
       if (currentSession) {
-        // Fetch pilot profile if session exists
-        const { data: pilotProfile, error: pilotError } = await supabase
-          .from('pilots')
-          .select('is_admin')
-          .eq('auth_user_id', currentSession.user.id)
-          .single();
+        try {
+          const { data: pilotProfile, error: pilotError } = await supabase
+            .from('pilots')
+            .select('is_admin')
+            .eq('auth_user_id', currentSession.user.id)
+            .single();
 
-        if (pilotError && pilotError.code !== 'PGRST116') { // PGRST116 means no rows, which is fine
-          console.error("Error fetching pilot profile on initial session:", pilotError);
+          if (pilotError && pilotError.code !== 'PGRST116') { // PGRST116 significa que no se encontraron filas, lo cual es un caso válido.
+            console.error("AuthContext: Error fetching pilot profile on auth change:", pilotError);
+          }
+          isAdminStatus = pilotProfile?.is_admin ?? false;
+          
+          setUser({
+            id: currentSession.user.id,
+            email: currentSession.user.email,
+            is_admin: isAdminStatus,
+          });
+          setSession(currentSession);
+
+        } catch (e) {
+          console.error("AuthContext: Exception fetching pilot profile:", e);
+          // En caso de error al obtener el perfil, establecer is_admin a false pero mantener la sesión.
+          setUser({
+            id: currentSession.user.id,
+            email: currentSession.user.email,
+            is_admin: false, // Importante para que no se rompa si el perfil no existe o falla.
+          });
+          setSession(currentSession);
         }
-        
-        setUser({ 
-          id: currentSession.user.id, 
-          email: currentSession.user.email,
-          is_admin: pilotProfile?.is_admin ?? false
-        });
-        setSession(currentSession);
       } else {
         setUser(null);
         setSession(null);
       }
-      // setLoading(false); // Moved to onAuthStateChange for INITIAL_SESSION
-    };
-
-    getInitialSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      if (currentSession) {
-        // Fetch pilot profile when auth state changes to a valid session
-        const { data: pilotProfile, error: pilotError } = await supabase
-          .from('pilots')
-          .select('is_admin')
-          .eq('auth_user_id', currentSession.user.id)
-          .single();
-
-        if (pilotError && pilotError.code !== 'PGRST116') { // Ignore "no rows" error, means no pilot profile yet
-          console.error("Error fetching pilot profile on auth change:", pilotError);
-        }
-
-        setUser({ 
-          id: currentSession.user.id, 
-          email: currentSession.user.email,
-          is_admin: pilotProfile?.is_admin ?? false
-        });
-        setSession(currentSession);
-      } else {
-        setUser(null);
-        setSession(null);
-      }
-
-      if (_event === 'INITIAL_SESSION') {
-        setLoading(false);
-      } else if (_event === 'SIGNED_IN' && loading) {
-        setLoading(false);
-      } else if (_event === 'SIGNED_OUT') {
-        setLoading(false); // Ensure loading is false on sign out
-      }
+      // Establecer loading a false DESPUÉS de intentar obtener el perfil del piloto y el estado de la sesión.
+      setLoading(false);
     });
 
     return () => {
-      subscription?.unsubscribe();
+      authListener?.subscription.unsubscribe();
     };
-  }, []); // Empty dependency array means this effect runs once on mount
+  }, []); // El array de dependencias vacío es correcto para que se ejecute una vez al montar.
 
   const login = async (credentials: SignInWithPasswordCredentials) => {
+    setLoading(true); // Opcional: indicar carga durante el intento de login
     const { error } = await supabase.auth.signInWithPassword(credentials);
-    // onAuthStateChange will handle user and session state.
+    // onAuthStateChange se encargará de actualizar user, session y loading después de este evento.
+    if (error) {
+        // Si hay un error, onAuthStateChange podría no establecer loading a false si no hay cambio de sesión.
+        // Forzamos loading a false si sigue en true y no hay sesión.
+        const { data: { session: currentAuthSession } } = await supabase.auth.getSession();
+        if (!currentAuthSession) {
+            setLoading(false);
+        }
+    }
     return { error };
   };
 
   const logout = async () => {
+    setLoading(true);
     const { error } = await supabase.auth.signOut();
-    // onAuthStateChange will handle user and session state being set to null.
+    // onAuthStateChange se encargará de poner user/session a null y loading a false.
+     if (error) {
+        setLoading(false); // Asegurar que loading se maneje en caso de error de logout
+    }
     return { error };
   };
 
   const signUp = async (credentials: SignUpWithPasswordCredentials) => {
+    setLoading(true);
     const { data, error } = await supabase.auth.signUp(credentials);
-    // onAuthStateChange will handle new user session if successful and email is confirmed (if required).
+    // onAuthStateChange se encargará de la nueva sesión si el registro es exitoso (y el email se confirma si es necesario).
+    // Si hay error, onAuthStateChange podría no actualizar el estado de carga.
+     if (error) {
+        const { data: { session: currentAuthSession } } = await supabase.auth.getSession();
+        if (!currentAuthSession) {
+            setLoading(false);
+        }
+    }
     return { data: { user: data.user, session: data.session }, error };
   };
 
