@@ -16,10 +16,10 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
+  useSidebar, // Import useSidebar
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut } from 'lucide-react'; // Import LogIn, LogOut
-// import { Toaster } from "@/components/ui/toaster"; // Toaster se movió a layout.tsx
 
 interface NavItemProps {
   href: string;
@@ -30,10 +30,23 @@ interface NavItemProps {
 
 function NavItem({ href, icon, label, pathname }: NavItemProps) {
   const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+  const { isMobile, setOpenMobile } = useSidebar(); // Get context for mobile state
+
+  const handleClick = () => {
+    if (isMobile) {
+      setOpenMobile(false); // Close mobile sidebar on item click
+    }
+  };
+
   return (
     <SidebarMenuItem>
       <Link href={href} passHref legacyBehavior>
-        <SidebarMenuButton isActive={isActive} tooltip={label} className="justify-start data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground">
+        <SidebarMenuButton
+          onClick={handleClick} // Add onClick handler
+          isActive={isActive}
+          tooltip={label}
+          className="justify-start data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
+        >
           {icon}
           <span className="truncate">{label}</span>
         </SidebarMenuButton>
@@ -90,7 +103,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="p-2 text-sm text-sidebar-foreground/70">Cargando...</div>
           ) : user ? (
             <div className="flex flex-col items-start gap-2 p-2">
-              <span className="text-xs text-sidebar-foreground/80 truncate w-full" title={user.email}>
+              <span className="text-xs text-sidebar-foreground/80 truncate w-full" title={user.email ?? undefined}>
                 {user.email}
               </span>
               <SidebarMenuButton onClick={handleLogout} className="w-full justify-start text-sm">
@@ -101,7 +114,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           ) : (
              <SidebarMenuItem>
                 <Link href="/login" passHref legacyBehavior>
-                    <SidebarMenuButton isActive={pathname === '/login'} className="justify-start">
+                    <SidebarMenuButton 
+                        onClick={() => { // Also close mobile menu when login is clicked
+                            if (useSidebar().isMobile) {
+                                useSidebar().setOpenMobile(false);
+                            }
+                        }}
+                        isActive={pathname === '/login'} 
+                        className="justify-start"
+                    >
                     <LogIn />
                     Iniciar Sesión
                     </SidebarMenuButton>
@@ -124,7 +145,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </SidebarInset>
-      {/* Toaster se movió a RootLayout para que esté disponible para el AuthProvider */}
     </SidebarProvider>
   );
 }
