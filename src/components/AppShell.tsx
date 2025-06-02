@@ -3,8 +3,8 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation'; 
-import { useAuth } from '@/contexts/AuthContext'; 
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   SidebarProvider,
   Sidebar,
@@ -16,10 +16,10 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
-  useSidebar, 
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut } from 'lucide-react'; 
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut } from 'lucide-react';
 
 interface NavItemProps {
   href: string;
@@ -30,11 +30,11 @@ interface NavItemProps {
 
 function NavItem({ href, icon, label, pathname }: NavItemProps) {
   const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
-  const { isMobile, setOpenMobile } = useSidebar(); 
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const handleClick = () => {
     if (isMobile) {
-      setOpenMobile(false); 
+      setOpenMobile(false);
     }
   };
 
@@ -42,7 +42,7 @@ function NavItem({ href, icon, label, pathname }: NavItemProps) {
     <SidebarMenuItem>
       <Link href={href} passHref legacyBehavior>
         <SidebarMenuButton
-          onClick={handleClick} 
+          onClick={handleClick}
           isActive={isActive}
           tooltip={label}
           className="justify-start data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
@@ -55,11 +55,12 @@ function NavItem({ href, icon, label, pathname }: NavItemProps) {
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+// Internal component to use sidebar context
+function AppShellLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter(); 
-  const { user, logout, loading: authLoading } = useAuth(); 
-  const sidebar = useSidebar(); // Obtener el contexto para el botón de login
+  const router = useRouter();
+  const { user, logout, loading: authLoading } = useAuth();
+  const sidebar = useSidebar(); // Correctly called within a child of SidebarProvider
 
   const navItems = [
     { href: '/', label: 'Agenda', icon: <CalendarDays /> },
@@ -70,14 +71,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const handleLogout = async () => {
     await logout();
-    if (sidebar.isMobile) { // Cerrar sidebar en móvil después del logout
-        sidebar.setOpenMobile(false);
+    if (sidebar.isMobile) {
+      sidebar.setOpenMobile(false);
     }
-    router.push('/login'); 
+    router.push('/login');
   };
 
   return (
-    <SidebarProvider defaultOpen>
+    <>
       <Sidebar>
         <SidebarHeader className="p-4">
           <Link href="/" className="flex items-center gap-2">
@@ -118,13 +119,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           ) : (
              <SidebarMenuItem>
                 <Link href="/login" passHref legacyBehavior>
-                    <SidebarMenuButton 
-                        onClick={() => { 
+                    <SidebarMenuButton
+                        onClick={() => {
                             if (sidebar.isMobile) {
                                 sidebar.setOpenMobile(false);
                             }
                         }}
-                        isActive={pathname === '/login'} 
+                        isActive={pathname === '/login'}
                         className="justify-start"
                     >
                     <LogIn />
@@ -149,7 +150,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </SidebarInset>
-    </SidebarProvider>
+    </>
   );
 }
 
+export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <SidebarProvider defaultOpen>
+      <AppShellLayout>{children}</AppShellLayout>
+    </SidebarProvider>
+  );
+}
