@@ -57,6 +57,9 @@ export default function SignupPage() {
     const { data: authData, error: authError } = await signUp({
       email: formData.email,
       password: formData.password,
+      options: {
+        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : '', // Use current origin for email confirmation link
+      }
     });
 
     if (authError || !authData.user) {
