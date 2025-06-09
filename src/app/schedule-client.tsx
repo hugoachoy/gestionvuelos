@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
@@ -56,6 +57,7 @@ function getSortPriority(
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
+  const auth = useAuth(); // Get auth context
 
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
@@ -293,15 +295,15 @@ export function ScheduleClient() {
         title="Agenda de Vuelos"
         action={
           <div className="flex gap-2">
-            <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={anyLoading}>
-              <RefreshCw className={cn("h-4 w-4", anyLoading && "animate-spin")} />
+            <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={anyLoading || auth.loading}>
+              <RefreshCw className={cn("h-4 w-4", (anyLoading || auth.loading) && "animate-spin")} />
             </Button>
             {selectedDate && (
               <ShareButton
                 scheduleDate={selectedDate}
               />
             )}
-            <Button onClick={handleAddEntry} disabled={!selectedDate || anyLoading}>
+            <Button onClick={handleAddEntry} disabled={!selectedDate || anyLoading || auth.loading || !auth.user}>
               <PlusCircle className="mr-2 h-4 w-4" /> Agregar Turno
             </Button>
           </div>
@@ -320,7 +322,7 @@ export function ScheduleClient() {
                     "w-full sm:w-[280px] justify-start text-left font-normal",
                     !selectedDate && "text-primary-foreground/70" 
                   )}
-                  disabled={anyLoading}
+                  disabled={anyLoading || auth.loading}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {selectedDate ? format(selectedDate, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
@@ -336,7 +338,7 @@ export function ScheduleClient() {
                   }}
                   initialFocus
                   locale={es}
-                  disabled={anyLoading}
+                  disabled={anyLoading || auth.loading}
                 />
               </PopoverContent>
             </Popover>
@@ -358,10 +360,10 @@ export function ScheduleClient() {
                 onChange={(e) => setObservationInput(e.target.value)}
                 rows={1}
                 className="mb-3 resize-none overflow-hidden"
-                disabled={obsLoading}
+                disabled={obsLoading || auth.loading || !auth.user}
               />
             )}
-            <Button onClick={handleSaveObservation} size="sm" disabled={obsLoading}>
+            <Button onClick={handleSaveObservation} size="sm" disabled={obsLoading || auth.loading || !auth.user}>
               <Save className="mr-2 h-4 w-4" />
               Guardar Observaciones
             </Button>
@@ -372,6 +374,7 @@ export function ScheduleClient() {
       {selectedDate &&
        !isTowPilotCategoryConfirmed && 
        !anyLoading && 
+       !auth.loading &&
        categories.some(cat => cat.name === 'Remolcador') && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
@@ -384,6 +387,7 @@ export function ScheduleClient() {
       {selectedDate &&
        !isInstructorConfirmed && 
        !anyLoading && 
+       !auth.loading &&
        categories.some(cat => cat.name === 'Instructor') && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -399,6 +403,7 @@ export function ScheduleClient() {
        noTowageFlightsPresent && 
        towageFlightTypeId && 
        !anyLoading && 
+       !auth.loading &&
        categories.some(cat => cat.name === 'Remolcador') && // Check if Remolcador category exists before showing this warning
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -410,7 +415,7 @@ export function ScheduleClient() {
         </Alert>
       }
 
-      {scheduleLoading && !filteredAndSortedEntries.length ? (
+      {(scheduleLoading || auth.loading) && !filteredAndSortedEntries.length ? (
         <div className="space-y-4 mt-6">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
