@@ -8,15 +8,32 @@ import { format } from 'date-fns';
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
-  console.error(`${context}. Full error object:`, error);
+  console.error(`${context}. Raw error object (stringified):`, JSON.stringify(error));
+  console.error(`${context}. Raw error object (actual):`, error);
+
   if (error && typeof error === 'object') {
+    const props = Object.keys(error);
+    if (props.length === 0) {
+      console.error('Supabase error object appears empty.');
+    } else {
+      console.error('Supabase error object properties:', props.join(', '));
+    }
+
     if (error.code === 'PGRST116') {
-      console.warn("Hint: Error PGRST116 (JSON object requested, multiple (or no) rows returned) occurred. With RLS disabled, this might mean the record ID for an update/delete didn't exist, or an insert failed silently before the select. With RLS enabled, it means the SELECT policy after an INSERT/UPDATE prevented reading the row.");
+      console.warn("Hint: Error PGRST116 (JSON object requested, multiple (or no) rows returned) occurred. Check RLS policies or if the record ID for an update/delete existed or was accessible post-operation.");
     }
     if ('message' in error) console.error('Supabase error message:', error.message);
     if ('details' in error) console.error('Supabase error details:', error.details);
     if ('hint' in error) console.error('Supabase error hint:', error.hint);
     if ('code' in error) console.error('Supabase error code:', error.code);
+    // Attempt to catch Fetch API-like errors if they are not standard Supabase errors
+    if ('status' in error && 'statusText' in error && !('message' in error)) {
+        console.error(`HTTP-like error: Status ${error.status} - ${error.statusText}`);
+    }
+  } else if (error) {
+    console.error('Supabase error is not a typical object. Value:', error);
+  } else {
+    console.error('Supabase error is null or undefined.');
   }
 }
 
@@ -58,18 +75,15 @@ export function usePilotsStore() {
     setLoading(true);
     
     const payload = { ...pilotData };
-    // Ensure is_admin is explicitly set if not provided, to avoid DB default overriding logic if any
     if (!payload.hasOwnProperty('is_admin')) {
       payload.is_admin = false;
     }
-
 
     const { data: newPilot, error: insertError } = await supabase
       .from('pilots')
       .insert([payload])
       .select()
       .single();
-
     
     if (insertError) {
       logSupabaseError('Error adding pilot', insertError);
@@ -87,37 +101,40 @@ export function usePilotsStore() {
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
     setError(null);
     setLoading(true);
-    const { id, created_at, ...updatePayload } = updatedPilotData;
     
-    // Ensure is_admin is part of the payload if it was on updatedPilotData
-    if (!updatePayload.hasOwnProperty('is_admin') && updatedPilotData.hasOwnProperty('is_admin')) {
-      updatePayload.is_admin = updatedPilotData.is_admin;
-    } else if (!updatePayload.hasOwnProperty('is_admin')) {
-      // If is_admin was never on the object, explicitly set to false or handle as per business logic
-      // For safety, if not specified, it might be better not to change it or fetch current value.
-      // However, current forms usually mean if a field is not in schema, it's not submitted.
-      // If schema includes it, form sends it.
-    }
+    // Destructure to separate id and created_at (which are not part of the update payload)
+    // from the fields that need to be updated.
+    const { id, created_at, ...fieldsToUpdate } = updatedPilotData;
 
+    // `fieldsToUpdate` will now contain:
+    // first_name, last_name, category_ids, medical_expiry (string), auth_user_id, is_admin.
+    // The PilotForm ensures `is_admin` is a boolean and `medical_expiry` is a 'yyyy-MM-dd' string.
+    // `auth_user_id` is preserved from the original pilot data during form submission.
 
-    const { data: updatedPilot, error: updateError } = await supabase
+    const { data: updatedPilotRow, error: updateError } = await supabase
       .from('pilots')
-      .update(updatePayload)
+      .update(fieldsToUpdate) // Pass the filtered fields directly
       .eq('id', id)
       .select()
       .single();
     
     if (updateError) {
-      logSupabaseError('Error updating pilot', updateError);
+      logSupabaseError('Error updating pilot', updateError); // This is where the error message comes from
       setError(updateError);
       setLoading(false);
       return null;
     }
-    if (updatedPilot) {
-      await fetchPilots(); 
+
+    // If the update was successful (no error) but no row was returned by .select().single(),
+    // it could be due to RLS policies or the row not existing.
+    if (!updatedPilotRow) {
+        console.warn(`Pilot with id ${id} was not returned after update. This could be due to RLS or the record no longer existing. Refetching pilots.`);
     }
+    
+    // Refetch all pilots to ensure the local state is consistent.
+    await fetchPilots(); 
     setLoading(false);
-    return updatedPilot;
+    return updatedPilotRow; // This might be null if RLS prevented select or row disappeared
   }, [fetchPilots]);
 
   const deletePilot = useCallback(async (pilotId: string) => {
