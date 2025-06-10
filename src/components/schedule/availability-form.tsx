@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+// Switch import removed as it's no longer used
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -59,7 +59,7 @@ const availabilitySchema = z.object({
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM).").min(1, "La hora de inicio es obligatoria."),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   pilot_category_id: z.string().min(1, "Seleccione una categoría para este turno."),
-  is_tow_pilot_available: z.boolean().optional(),
+  is_tow_pilot_available: z.boolean().optional(), // Kept in schema for data structure, but not as a direct form field
   flight_type_id: z.string().min(1, "Seleccione un tipo de vuelo."),
   aircraft_id: z.string().min(1, "La selección de aeronave es obligatoria."),
 });
@@ -124,7 +124,7 @@ export function AvailabilityForm({
         start_time: '',
         pilot_id: '',
         pilot_category_id: '',
-        is_tow_pilot_available: false,
+        is_tow_pilot_available: false, // Default, will be overridden
         flight_type_id: '',
         aircraft_id: '',
       },
@@ -161,14 +161,14 @@ export function AvailabilityForm({
         initialPilotId = entry.pilot_id;
       }
 
-
       const initialFormValues = entry
         ? {
             ...entry,
             date: entry.date ? parseISO(entry.date) : (selectedDate || new Date()),
             aircraft_id: entry.aircraft_id ?? '',
             start_time: entry.start_time ? entry.start_time.substring(0,5) : '',
-            pilot_id: initialPilotId, 
+            pilot_id: initialPilotId,
+            is_tow_pilot_available: entry.pilot_category_id && categories.find(c => c.id === entry.pilot_category_id)?.name?.trim().toLowerCase() === 'remolcador' ? entry.is_tow_pilot_available : false,
           }
         : {
             date: selectedDate || new Date(),
@@ -184,7 +184,7 @@ export function AvailabilityForm({
       setMedicalWarning(null); 
       setBookingConflictWarning(null); 
     }
-  }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin]);
+  }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
 
 
   const watchedPilotId = form.watch('pilot_id');
@@ -297,9 +297,6 @@ export function AvailabilityForm({
         const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
         
         if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') {
-          // Only set if category for turn is also remolcador implicitly or explicitly.
-          // This logic might need refinement if a remolcador pilot can select non-remolcador flight type as default.
-          // For now, if pilot is generally remolcador, and flight type is blank, suggest towage.
            if (form.getValues('pilot_category_id') === remolcadorCategoryDefinition.id || form.getValues('pilot_category_id') === '') {
              form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
            }
@@ -341,7 +338,8 @@ export function AvailabilityForm({
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
     return aircraft;
-  }, [selectedCategoryDetailsForTurn, aircraft, form.watch('flight_type_id')]); // Watch flight_type_id as it changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategoryDetailsForTurn, aircraft, form.watch('flight_type_id')]);
 
 
   useEffect(() => {
@@ -368,11 +366,15 @@ export function AvailabilityForm({
         authUserIdToSet = entry.auth_user_id;
     }
 
+    // Determine if the selected category for the turn is "Remolcador"
+    const categoryForTurn = categories.find(c => c.id === data.pilot_category_id);
+    const isCategoryForTurnActuallyRemolcador = categoryForTurn?.name?.trim().toLowerCase() === 'remolcador';
+
     const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
         ...data,
         date: format(data.date, 'yyyy-MM-dd'),
         aircraft_id: data.aircraft_id || null,
-        is_tow_pilot_available: isTowPilotCategorySelectedForTurn ? data.is_tow_pilot_available : false, // Ensure is_tow_pilot_available is false if not remolcador category
+        is_tow_pilot_available: isCategoryForTurnActuallyRemolcador, // Set to true if "Remolcador" category selected for turn, false otherwise
         auth_user_id: authUserIdToSet,
     };
     onSubmit(dataToSubmit, entry?.id);
@@ -614,28 +616,7 @@ export function AvailabilityForm({
                 )}
               />
             )}
-            {isTowPilotCategorySelectedForTurn && (
-              <FormField
-                control={form.control}
-                name="is_tow_pilot_available"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Disponible para Remolque</FormLabel>
-                      <FormDescription>
-                        ¿El piloto remolcador está disponible?
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value ?? false}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            )}
+            {/* The Switch for is_tow_pilot_available has been removed */}
             <FormField
               control={form.control}
               name="flight_type_id"
