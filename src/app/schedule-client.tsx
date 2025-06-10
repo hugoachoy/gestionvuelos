@@ -8,7 +8,7 @@ import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/common/page-header';
 import { AvailabilityForm } from '@/components/schedule/availability-form';
 import { ScheduleDisplay } from '@/components/schedule/schedule-display';
@@ -19,11 +19,12 @@ import {
   usePilotCategoriesStore,
   useAircraftStore,
   useScheduleStore,
-  useDailyObservationsStore
+  useDailyObservationsStore,
+  useDailyNewsStore,
 } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory } from '@/types';
+import type { ScheduleEntry, PilotCategory, DailyNews } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
-import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +67,8 @@ export function ScheduleClient() {
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries, cleanupOldScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
+  const { getNewsForDate, addDailyNewsItem, loading: newsLoading, error: newsError, fetchDailyNews } = useDailyNewsStore();
+
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ScheduleEntry | undefined>(undefined);
@@ -74,6 +77,8 @@ export function ScheduleClient() {
 
   const [observationInput, setObservationInput] = useState('');
   const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [newsInput, setNewsInput] = useState('');
+  const newsTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   useEffect(() => {
@@ -89,12 +94,18 @@ export function ScheduleClient() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
+      fetchDailyNews(dateStr);
     }
-  }, [selectedDate, fetchScheduleEntries, fetchObservations]);
+  }, [selectedDate, fetchScheduleEntries, fetchObservations, fetchDailyNews]);
 
   const savedObservationText = useMemo(() => {
     return formattedSelectedDate ? getObservation(formattedSelectedDate) : undefined;
   }, [formattedSelectedDate, getObservation]);
+
+  const newsItemsForSelectedDate = useMemo(() => {
+    return formattedSelectedDate ? getNewsForDate(formattedSelectedDate) : [];
+  }, [formattedSelectedDate, getNewsForDate]);
+
 
   useEffect(() => {
     setObservationInput(savedObservationText || '');
@@ -106,6 +117,14 @@ export function ScheduleClient() {
       observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
   }, [observationInput]);
+
+  useEffect(() => {
+    if (newsTextareaRef.current) {
+      newsTextareaRef.current.style.height = 'auto';
+      newsTextareaRef.current.style.height = `${newsTextareaRef.current.scrollHeight}px`;
+    }
+  }, [newsInput]);
+
 
   useEffect(() => {
     const runCleanup = async () => {
@@ -135,12 +154,38 @@ export function ScheduleClient() {
 
 
   const handleSaveObservation = async () => {
-    if (selectedDate) {
+    if (selectedDate && auth.user?.is_admin) {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       await updateObservation(dateStr, observationInput);
       toast({ title: "Observaciones guardadas", description: "Las observaciones para el día han sido guardadas." });
+    } else {
+      toast({ title: "Acción no permitida", description: "Solo los administradores pueden guardar observaciones.", variant: "destructive" });
     }
   };
+
+  const handleSaveNews = async () => {
+    if (selectedDate && auth.user && newsInput.trim() !== '') {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const pilotFullName = `${auth.user.first_name || ''} ${auth.user.last_name || ''}`.trim() || 'Piloto Anónimo';
+      
+      const newsData: Omit<DailyNews, 'id' | 'created_at'> = {
+        date: dateStr,
+        news_text: newsInput.trim(),
+        pilot_id: auth.user.id,
+        pilot_full_name: pilotFullName,
+      };
+      const result = await addDailyNewsItem(newsData);
+      if (result) {
+        setNewsInput(''); // Clear input on success
+        toast({ title: "Novedad agregada", description: "Tu novedad ha sido guardada." });
+      } else {
+        toast({ title: "Error", description: "No se pudo guardar la novedad.", variant: "destructive" });
+      }
+    } else if (!newsInput.trim()) {
+         toast({ title: "Novedad vacía", description: "Por favor, escribe tu novedad.", variant: "default" });
+    }
+  };
+
 
   const handleAddEntry = () => {
     setEditingEntry(undefined);
@@ -189,10 +234,17 @@ export function ScheduleClient() {
           return priorityA - priorityB;
         }
 
-        if (priorityA <= 3) {
+        // For Instructors and Remolcadores, sort by start_time
+        if (priorityA <= 3) { // Covers available Remolcadores (1), unavailable Remolcadores (2), Instructors (3)
+             // Sub-sort for Remolcadores: available first, then by time
+            if (a.pilot_category_id === b.pilot_category_id && categories.find(c => c.id === a.pilot_category_id)?.name.trim().toLowerCase() === remolcadorCategoryName) {
+                if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
+                if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
+            }
           return a.start_time.localeCompare(b.start_time);
         }
 
+        // For other pilots (priority 4)
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
 
@@ -223,15 +275,17 @@ export function ScheduleClient() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
+      fetchDailyNews(dateStr);
     } else {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         fetchScheduleEntries(todayStr);
         fetchObservations(todayStr);
+        fetchDailyNews(todayStr);
     }
-  }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
+  }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations, fetchDailyNews]);
 
-  const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading;
-  const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError;
+  const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading || newsLoading;
+  const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError || newsError;
 
   const isTowPilotCategoryConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
@@ -239,11 +293,11 @@ export function ScheduleClient() {
     }
     const towPilotCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
     if (!towPilotCategory) {
-      return true;
+      return true; // No "Remolcador" category defined, so no need for confirmation.
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
-      entry.is_tow_pilot_available === true
+      entry.is_tow_pilot_available === true // Make sure they are marked as available
     );
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
@@ -253,7 +307,7 @@ export function ScheduleClient() {
     }
     const instructorCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
     if (!instructorCategory) {
-      return true;
+      return true; // No "Instructor" category defined.
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
@@ -330,7 +384,7 @@ export function ScheduleClient() {
       {selectedDate && (
         <Card className="mb-6 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-xl">Observaciones del Día</CardTitle>
+            <CardTitle className="text-xl">Observaciones del Día (sólo Administrador)</CardTitle>
           </CardHeader>
           <CardContent>
             {obsLoading && !observationInput && !savedObservationText ? <Skeleton className="h-10 w-full" /> : (
@@ -341,10 +395,10 @@ export function ScheduleClient() {
                 onChange={(e) => setObservationInput(e.target.value)}
                 rows={1}
                 className="mb-3 resize-none overflow-hidden"
-                disabled={uiDisabled || !auth.user}
+                disabled={uiDisabled || !auth.user?.is_admin}
               />
             )}
-            <Button onClick={handleSaveObservation} size="sm" disabled={uiDisabled || !auth.user}>
+            <Button onClick={handleSaveObservation} size="sm" disabled={uiDisabled || !auth.user?.is_admin}>
               <Save className="mr-2 h-4 w-4" />
               Guardar Observaciones
             </Button>
@@ -371,12 +425,12 @@ export function ScheduleClient() {
        !isTowPilotCategoryConfirmed &&
        !anyLoading &&
        !auth.loading &&
-       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') &&
+       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && // Only show if Remolcador category exists
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay "REMOLCADOR" confirmado para esta fecha.' />
+                Aún no hay "REMOLCADOR" confirmado para esta fecha.
             </strong>
           </AlertDescription>
         </Alert>
@@ -394,6 +448,44 @@ export function ScheduleClient() {
           onDelete={handleDeleteEntry}
         />
       )}
+
+      {selectedDate && (
+        <Card className="mt-6 mb-6 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl">Novedades del Día</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {newsLoading && !newsItemsForSelectedDate.length ? (
+              <Skeleton className="h-10 w-full mb-3" />
+            ) : newsItemsForSelectedDate.length > 0 ? (
+              <div className="space-y-2 mb-4 max-h-60 overflow-y-auto pr-2">
+                {newsItemsForSelectedDate.map(news => (
+                  <div key={news.id} className="text-sm p-2 border-b">
+                    <p className="whitespace-pre-wrap">{news.news_text}</p>
+                    <p className="text-xs text-muted-foreground text-right">- {news.pilot_full_name} ({format(parseISO(news.created_at!), 'HH:mm', { locale: es })})</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-3">No hay novedades para este día.</p>
+            )}
+            <Textarea
+              ref={newsTextareaRef}
+              placeholder="Escribe una novedad para el día..."
+              value={newsInput}
+              onChange={(e) => setNewsInput(e.target.value)}
+              rows={1}
+              className="mb-3 resize-none overflow-hidden"
+              disabled={uiDisabled || !auth.user}
+            />
+            <Button onClick={handleSaveNews} size="sm" disabled={uiDisabled || !auth.user || newsInput.trim() === ''}>
+              <Send className="mr-2 h-4 w-4" />
+              Agregar Novedad
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
 
       <AvailabilityForm
         open={isFormOpen}
@@ -415,5 +507,3 @@ export function ScheduleClient() {
     </>
   );
 }
-
-    

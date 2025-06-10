@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation } from '@/types';
+import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation, DailyNews } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 import { format } from 'date-fns';
 
@@ -101,40 +101,23 @@ export function usePilotsStore() {
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
     setError(null);
     setLoading(true);
-    
-    // Destructure to separate id and created_at (which are not part of the update payload)
-    // from the fields that need to be updated.
-    const { id, created_at, ...fieldsToUpdate } = updatedPilotData;
+    const { id, created_at, ...updatePayload } = updatedPilotData;
 
-    // `fieldsToUpdate` will now contain:
-    // first_name, last_name, category_ids, medical_expiry (string), auth_user_id, is_admin.
-    // The PilotForm ensures `is_admin` is a boolean and `medical_expiry` is a 'yyyy-MM-dd' string.
-    // `auth_user_id` is preserved from the original pilot data during form submission.
-
-    const { data: updatedPilotRow, error: updateError } = await supabase
+    const { error: supabaseUpdateError } = await supabase
       .from('pilots')
-      .update(fieldsToUpdate) // Pass the filtered fields directly
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (updateError) {
-      logSupabaseError('Error updating pilot', updateError); // This is where the error message comes from
-      setError(updateError);
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (supabaseUpdateError) {
+      logSupabaseError('Error updating pilot (during Supabase update operation)', supabaseUpdateError);
+      setError(supabaseUpdateError);
       setLoading(false);
       return null;
     }
-
-    // If the update was successful (no error) but no row was returned by .select().single(),
-    // it could be due to RLS policies or the row not existing.
-    if (!updatedPilotRow) {
-        console.warn(`Pilot with id ${id} was not returned after update. This could be due to RLS or the record no longer existing. Refetching pilots.`);
-    }
     
-    // Refetch all pilots to ensure the local state is consistent.
     await fetchPilots(); 
     setLoading(false);
-    return updatedPilotRow; // This might be null if RLS prevented select or row disappeared
+    return updatedPilotData; 
   }, [fetchPilots]);
 
   const deletePilot = useCallback(async (pilotId: string) => {
@@ -672,3 +655,94 @@ export function useDailyObservationsStore() {
   return { dailyObservations, loading, error, getObservation, updateObservation, fetchObservations, fetchObservationsForRange };
 }
 
+// Daily News Store
+export type DailyNewsMap = Record<string, DailyNews[]>;
+
+export function useDailyNewsStore() {
+  const [dailyNews, setDailyNews] = useState<DailyNewsMap>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
+
+  const fetchDailyNews = useCallback(async (date?: string) => {
+    if (fetchingRef.current && !date) return;
+    fetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      let query = supabase.from('daily_news').select('*').order('created_at', { ascending: true });
+      if (date) {
+        query = query.eq('date', date);
+      }
+      
+      const { data, error: fetchError } = await query;
+
+      if (fetchError) {
+        logSupabaseError('Error fetching daily news', fetchError);
+        setError(fetchError);
+      } else {
+        const newNewsMapForDate: DailyNews[] = data || [];
+        if (date) {
+          setDailyNews(prev => ({
+            ...prev,
+            [date]: newNewsMapForDate,
+          }));
+        } else {
+          // If no date, it implies fetching all news; this case might need refinement
+          // For now, let's assume fetchDailyNews is always called with a date in this app context
+          const allNewsGroupedByDate: DailyNewsMap = {};
+          newNewsMapForDate.forEach(newsItem => {
+            if (!allNewsGroupedByDate[newsItem.date]) {
+              allNewsGroupedByDate[newsItem.date] = [];
+            }
+            allNewsGroupedByDate[newsItem.date].push(newsItem);
+          });
+          setDailyNews(allNewsGroupedByDate);
+        }
+      }
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchDailyNews', e);
+      setError(e);
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, []);
+
+  const addDailyNewsItem = useCallback(async (newsData: Omit<DailyNews, 'id' | 'created_at'>) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data: newNewsItem, error: insertError } = await supabase
+        .from('daily_news')
+        .insert([newsData])
+        .select()
+        .single();
+      
+      if (insertError) {
+        logSupabaseError('Error adding daily news item', insertError);
+        setError(insertError);
+        setLoading(false);
+        return null;
+      }
+      
+      if (newNewsItem) {
+        // Refetch news for the specific date to update the list
+        await fetchDailyNews(newNewsItem.date);
+      }
+      setLoading(false);
+      return newNewsItem;
+    } catch (e) {
+      logSupabaseError('Unexpected error adding daily news item', e);
+      setError(e);
+      setLoading(false);
+      return null;
+    }
+  }, [fetchDailyNews]);
+
+  const getNewsForDate = useCallback((date: string): DailyNews[] => {
+    return dailyNews[date] || [];
+  }, [dailyNews]);
+
+  return { dailyNews, loading, error, getNewsForDate, addDailyNewsItem, fetchDailyNews };
+}

@@ -3,6 +3,8 @@ export interface AuthUser {
   id: string;
   email?: string;
   is_admin?: boolean; // Añadido para almacenar el estado de admin
+  first_name?: string; // Añadido para el nombre del piloto
+  last_name?: string;  // Añadido para el apellido del piloto
 }
 
 export interface Pilot {
@@ -61,3 +63,11 @@ export interface DailyObservation {
   updated_at?: string;
 }
 
+export interface DailyNews {
+  id: string;
+  date: string; // YYYY-MM-DD
+  news_text: string;
+  pilot_id: string; // ID of the auth user who added it
+  pilot_full_name: string; // Full name of the pilot for display
+  created_at?: string;
+}
