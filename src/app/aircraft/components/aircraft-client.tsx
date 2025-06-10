@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react'; 
-import { useState, useEffect } from 'react'; 
+import { useState, useEffect, useMemo } from 'react'; 
 import type { Aircraft } from '@/types';
 import { useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext'; 
@@ -27,6 +27,13 @@ const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Tow Plane': 'Avión Remolcador',
   'Glider': 'Planeador',
   'Avión': 'Avión',
+};
+
+// Define el orden de los tipos de aeronave
+const aircraftTypeOrder: Record<Aircraft['type'], number> = {
+  'Tow Plane': 1,
+  'Glider': 2,
+  'Avión': 3,
 };
 
 export function AircraftClient() {
@@ -76,6 +83,18 @@ export function AircraftClient() {
     }
   }, [fetchAircraft, loading, aircraft.length]);
 
+  const sortedAircraft = useMemo(() => {
+    return [...aircraft].sort((a, b) => {
+      const typeOrderA = aircraftTypeOrder[a.type];
+      const typeOrderB = aircraftTypeOrder[b.type];
+
+      if (typeOrderA !== typeOrderB) {
+        return typeOrderA - typeOrderB;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [aircraft]);
+
   if (error) {
     return (
       <div className="text-destructive">
@@ -118,7 +137,7 @@ export function AircraftClient() {
         }
       />
       
-      {isLoadingUI && !aircraft.length ? (
+      {isLoadingUI && !sortedAircraft.length ? (
         <div className="space-y-2">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
@@ -135,14 +154,14 @@ export function AircraftClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {aircraft.length === 0 ? (
+              {sortedAircraft.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={currentUser?.is_admin ? 3 : 2} className="text-center h-24">
                     No hay aeronaves registradas.
                   </TableCell>
                 </TableRow>
               ) : (
-                aircraft.map((ac) => (
+                sortedAircraft.map((ac) => (
                   <TableRow key={ac.id}>
                     <TableCell>{ac.name}</TableCell>
                     <TableCell>
