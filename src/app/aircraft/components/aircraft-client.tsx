@@ -26,7 +26,7 @@ import { cn } from '@/lib/utils';
 const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Tow Plane': 'Avión Remolcador',
   'Glider': 'Planeador',
-  'Avión': 'Avión', // Added translation for 'Avión'
+  'Avión': 'Avión',
 };
 
 export function AircraftClient() {
@@ -87,6 +87,19 @@ export function AircraftClient() {
 
   const isLoadingUI = loading || authLoading || !currentUser;
 
+  const getBadgeVariant = (type: Aircraft['type']): "default" | "secondary" | "outline" => {
+    switch (type) {
+      case 'Tow Plane':
+        return 'default';
+      case 'Glider':
+        return 'secondary';
+      case 'Avión':
+        return 'outline';
+      default:
+        return 'outline';
+    }
+  };
+
   return (
     <>
       <PageHeader 
@@ -133,7 +146,7 @@ export function AircraftClient() {
                   <TableRow key={ac.id}>
                     <TableCell>{ac.name}</TableCell>
                     <TableCell>
-                      <Badge variant={ac.type === 'Tow Plane' ? 'default' : 'outline'}>
+                      <Badge variant={getBadgeVariant(ac.type)}>
                         {aircraftTypeTranslations[ac.type] || ac.type}
                       </Badge>
                     </TableCell>
@@ -174,4 +187,3 @@ export function AircraftClient() {
     </>
   );
 }
-
