@@ -21,8 +21,8 @@ import {
   useScheduleStore,
   useDailyObservationsStore
 } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory } from '@/types'; 
-import { FLIGHT_TYPES } from '@/types'; 
+import type { ScheduleEntry, PilotCategory } from '@/types';
+import { FLIGHT_TYPES } from '@/types';
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
-import { useAuth } from '@/contexts/AuthContext'; 
+import { useAuth } from '@/contexts/AuthContext';
 
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
@@ -47,19 +47,19 @@ function getSortPriority(
   const isCategoryInstructor = entryCategoryNameLower === instructorCategoryName.toLowerCase();
 
   if (isCategoryRemolcador) {
-    return entry.is_tow_pilot_available === true ? 1 : 2; 
+    return entry.is_tow_pilot_available === true ? 1 : 2;
   }
   if (isCategoryInstructor) {
-    return 3; 
+    return 3;
   }
-  return 4; 
+  return 4;
 }
 
 
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
-  const auth = useAuth(); 
+  const auth = useAuth();
 
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
@@ -74,7 +74,7 @@ export function ScheduleClient() {
 
   const [observationInput, setObservationInput] = useState('');
   const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false); 
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   useEffect(() => {
     setSelectedDate(new Date());
@@ -102,7 +102,7 @@ export function ScheduleClient() {
 
   useEffect(() => {
     if (observationTextareaRef.current) {
-      observationTextareaRef.current.style.height = 'auto'; 
+      observationTextareaRef.current.style.height = 'auto';
       observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
   }, [observationInput]);
@@ -131,7 +131,7 @@ export function ScheduleClient() {
     };
     runCleanup();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, []);
 
 
   const handleSaveObservation = async () => {
@@ -158,7 +158,7 @@ export function ScheduleClient() {
   };
 
   const confirmDelete = async () => {
-    if (entryToDelete && selectedDate) { 
+    if (entryToDelete && selectedDate) {
       await removeEntry(entryToDelete.id, format(selectedDate, 'yyyy-MM-dd'));
     }
     setIsDeleteDialogOpen(false);
@@ -176,10 +176,9 @@ export function ScheduleClient() {
 
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate || !scheduleEntries || categoriesLoading || !categories || !categories.length) return [];
-    
-    // Using names directly for clarity, assuming these are the canonical names
-    const instructorCategoryName = 'Instructor'; 
-    const remolcadorCategoryName = 'Remolcador';
+
+    const instructorCategoryName = 'instructor';
+    const remolcadorCategoryName = 'remolcador';
 
     return [...scheduleEntries]
       .sort((a, b) => {
@@ -190,7 +189,7 @@ export function ScheduleClient() {
           return priorityA - priorityB;
         }
 
-        if (priorityA <= 3) { 
+        if (priorityA <= 3) {
           return a.start_time.localeCompare(b.start_time);
         }
 
@@ -199,17 +198,17 @@ export function ScheduleClient() {
 
         if (aHasAircraft && !bHasAircraft) return -1;
         if (!aHasAircraft && bHasAircraft) return 1;
-        
+
         if (aHasAircraft && bHasAircraft && a.aircraft_id && b.aircraft_id) {
             const aircraftComparison = (a.aircraft_id).localeCompare(b.aircraft_id);
             if (aircraftComparison !== 0) return aircraftComparison;
         }
-        
+
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
 
-        if (aIsSport && !bIsSport) return -1; 
-        if (!aIsSport && bIsSport) return 1;  
+        if (aIsSport && !bIsSport) return -1;
+        if (!aIsSport && bIsSport) return 1;
 
         return a.start_time.localeCompare(b.start_time);
       });
@@ -224,9 +223,9 @@ export function ScheduleClient() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       fetchScheduleEntries(dateStr);
       fetchObservations(dateStr);
-    } else { 
+    } else {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        fetchScheduleEntries(todayStr); 
+        fetchScheduleEntries(todayStr);
         fetchObservations(todayStr);
     }
   }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations]);
@@ -236,15 +235,15 @@ export function ScheduleClient() {
 
   const isTowPilotCategoryConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
-        return false; 
+        return false;
     }
     const towPilotCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
-    if (!towPilotCategory) { 
-      return true; 
+    if (!towPilotCategory) {
+      return true;
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
-      entry.is_tow_pilot_available === true 
+      entry.is_tow_pilot_available === true
     );
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
@@ -253,23 +252,11 @@ export function ScheduleClient() {
       return false;
     }
     const instructorCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
-    if (!instructorCategory) { 
-      return true; 
+    if (!instructorCategory) {
+      return true;
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
-
-
-  const towageFlightTypeId = useMemo(() => {
-    return FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
-  }, []);
-
-  const noTowageFlightsPresent = useMemo(() => {
-    if (!selectedDate || scheduleLoading || !towageFlightTypeId || !scheduleEntries) {
-      return false;
-    }
-    return !scheduleEntries.some(entry => entry.flight_type_id === towageFlightTypeId);
-  }, [selectedDate, scheduleEntries, scheduleLoading, towageFlightTypeId]);
 
 
   if (anyError) {
@@ -314,7 +301,7 @@ export function ScheduleClient() {
                   variant={"default"}
                   className={cn(
                     "w-full sm:w-[280px] justify-start text-left font-normal",
-                    !selectedDate && "text-primary-foreground/70" 
+                    !selectedDate && "text-primary-foreground/70"
                   )}
                   disabled={uiDisabled}
                 >
@@ -328,7 +315,7 @@ export function ScheduleClient() {
                   selected={selectedDate}
                   onSelect={(date) => {
                     setSelectedDate(date);
-                    setIsDatePickerOpen(false); 
+                    setIsDatePickerOpen(false);
                   }}
                   initialFocus
                   locale={es}
@@ -366,23 +353,10 @@ export function ScheduleClient() {
       )}
       
       {selectedDate &&
-       !isTowPilotCategoryConfirmed && 
-       !anyLoading && 
+       !isInstructorConfirmed &&
+       !anyLoading &&
        !auth.loading &&
-       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && 
-        <Alert variant="destructive" className="mb-6 shadow-sm">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <UnderlineKeywords text='Aún no hay piloto de categoría "Remolcador" confirmado para esta fecha.' />
-          </AlertDescription>
-        </Alert>
-      }
-
-      {selectedDate &&
-       !isInstructorConfirmed && 
-       !anyLoading && 
-       !auth.loading &&
-       categories.some(cat => cat.name?.trim().toLowerCase() === 'instructor') && 
+       categories.some(cat => cat.name?.trim().toLowerCase() === 'instructor') &&
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -394,16 +368,15 @@ export function ScheduleClient() {
       }
 
       {selectedDate &&
-       noTowageFlightsPresent && 
-       towageFlightTypeId && 
-       !anyLoading && 
+       !isTowPilotCategoryConfirmed &&
+       !anyLoading &&
        !auth.loading &&
-       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && 
+       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') &&
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay "Remolcador" confirmado para esta fecha.' />
+                <UnderlineKeywords text='Aún no hay "REMOLCADOR" confirmado para esta fecha.' />
             </strong>
           </AlertDescription>
         </Alert>
@@ -442,4 +415,5 @@ export function ScheduleClient() {
     </>
   );
 }
+
     
