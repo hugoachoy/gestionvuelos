@@ -2,12 +2,12 @@
 "use client";
 
 import React from 'react';
-import { useState, useCallback, useEffect } from 'react'; 
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Pilot } from '@/types';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
-import { useAuth } from '@/contexts/AuthContext'; 
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, ShieldCheck, UserCheck } from 'lucide-react';
 import { PilotForm } from './pilot-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
@@ -29,7 +29,7 @@ import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
 
 export function PilotClient() {
-  const auth = useAuth(); 
+  const auth = useAuth();
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
   const { categories: pilotCategories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
 
@@ -85,8 +85,24 @@ export function PilotClient() {
   }, [fetchPilots, fetchCategories, loading, categoriesLoading, pilots.length, pilotCategories.length]);
 
 
-  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user; 
+  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user;
   const combinedError = error || categoriesError;
+
+  const sortedPilots = useMemo(() => {
+    if (!pilots) return [];
+    return [...pilots].sort((a, b) => {
+      const currentUserAuthId = auth.user?.id;
+      const aIsCurrentUser = a.auth_user_id === currentUserAuthId;
+      const bIsCurrentUser = b.auth_user_id === currentUserAuthId;
+
+      if (aIsCurrentUser && !bIsCurrentUser) return -1;
+      if (!aIsCurrentUser && bIsCurrentUser) return 1;
+
+      const lastNameComp = a.last_name.localeCompare(b.last_name);
+      if (lastNameComp !== 0) return lastNameComp;
+      return a.first_name.localeCompare(b.first_name);
+    });
+  }, [pilots, auth.user]);
 
   if (combinedError) {
     return (
@@ -108,11 +124,11 @@ export function PilotClient() {
                <span className="sr-only">Refrescar datos</span>
             </Button>
             <PilotReportButton
-              pilots={pilots}
+              pilots={pilots} // Pass original pilots for report consistency if sorting is an issue for it
               getCategoryName={getCategoryName}
               disabled={combinedLoading || pilots.length === 0}
             />
-            {auth.user?.is_admin && ( 
+            {auth.user?.is_admin && (
                 <Button onClick={handleAddPilot} disabled={combinedLoading}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Piloto
                 </Button>
@@ -121,7 +137,7 @@ export function PilotClient() {
         }
       />
 
-      {combinedLoading && !pilots.length ? (
+      {combinedLoading && !sortedPilots.length ? (
         <div className="space-y-2">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
@@ -137,18 +153,18 @@ export function PilotClient() {
                 <TableHead>Categorías</TableHead>
                 <TableHead>Venc. Psicofísico</TableHead>
                 <TableHead>Admin</TableHead>
-                {(auth.user?.is_admin || pilots.some(p => p.auth_user_id === auth.user?.id)) && <TableHead className="text-right">Acciones</TableHead>}
+                {(auth.user?.is_admin || sortedPilots.some(p => p.auth_user_id === auth.user?.id)) && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pilots.length === 0 ? (
+              {sortedPilots.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={(auth.user?.is_admin || pilots.some(p => p.auth_user_id === auth.user?.id)) ? 6 : 5} className="text-center h-24"> 
+                  <TableCell colSpan={(auth.user?.is_admin || sortedPilots.some(p => p.auth_user_id === auth.user?.id)) ? 6 : 5} className="text-center h-24">
                     No hay pilotos registrados.
                   </TableCell>
                 </TableRow>
               ) : (
-                pilots.map((pilot) => {
+                sortedPilots.map((pilot) => {
                   let medicalExpiryDisplay: React.ReactNode = 'N/A';
                   if (pilot.medical_expiry) {
                     const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -192,11 +208,20 @@ export function PilotClient() {
                   }
                   const canEditThisPilot = auth.user?.is_admin || pilot.auth_user_id === auth.user?.id;
                   const canDeleteThisPilot = auth.user?.is_admin && pilot.auth_user_id !== auth.user?.id;
-
+                  const isCurrentUserPilot = pilot.auth_user_id === auth.user?.id;
 
                   return (
-                    <TableRow key={pilot.id}>
-                      <TableCell>{pilot.first_name}</TableCell>
+                    <TableRow
+                      key={pilot.id}
+                      data-is-current-user={isCurrentUserPilot}
+                      className={cn(isCurrentUserPilot && "bg-primary/10 hover:bg-primary/20 data-[is-current-user=true]:font-semibold")}
+                    >
+                      <TableCell>
+                        <div className="flex items-center">
+                          {pilot.first_name}
+                          {isCurrentUserPilot && <UserCheck className="ml-2 h-4 w-4 text-primary" />}
+                        </div>
+                        </TableCell>
                       <TableCell>{pilot.last_name}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
@@ -245,7 +270,7 @@ export function PilotClient() {
             onSubmit={handleSubmitForm}
             pilot={editingPilot}
             categories={pilotCategories}
-            allowIsAdminChange={auth.user?.is_admin ?? false} 
+            allowIsAdminChange={auth.user?.is_admin ?? false}
         />
       )}
 
