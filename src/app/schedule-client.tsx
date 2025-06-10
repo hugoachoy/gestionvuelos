@@ -3,7 +3,7 @@
 
 import React from 'react'; // Explicit React import
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns'; // Asegurar que parseISO está importado
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -166,7 +166,10 @@ export function ScheduleClient() {
   const handleSaveNews = async () => {
     if (selectedDate && auth.user && newsInput.trim() !== '') {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const pilotFullName = `${auth.user.first_name || ''} ${auth.user.last_name || ''}`.trim() || 'Piloto Anónimo';
+      
+      const pilotFullName = (auth.user.first_name && auth.user.last_name) 
+        ? `${auth.user.first_name} ${auth.user.last_name}`
+        : auth.user.email || 'Piloto Anónimo';
       
       const newsData: Omit<DailyNews, 'id' | 'created_at'> = {
         date: dateStr,
@@ -234,17 +237,14 @@ export function ScheduleClient() {
           return priorityA - priorityB;
         }
 
-        // For Instructors and Remolcadores, sort by start_time
-        if (priorityA <= 3) { // Covers available Remolcadores (1), unavailable Remolcadores (2), Instructors (3)
-             // Sub-sort for Remolcadores: available first, then by time
-            if (a.pilot_category_id === b.pilot_category_id && categories.find(c => c.id === a.pilot_category_id)?.name.trim().toLowerCase() === remolcadorCategoryName) {
+        if (priorityA <= 3) { 
+            if (a.pilot_category_id === b.pilot_category_id && categories.find(c => c.id === a.pilot_category_id)?.name.trim().toLowerCase() === remolcadorCategoryName.toLowerCase()) {
                 if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
                 if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
             }
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // For other pilots (priority 4)
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
 
@@ -293,11 +293,11 @@ export function ScheduleClient() {
     }
     const towPilotCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
     if (!towPilotCategory) {
-      return true; // No "Remolcador" category defined, so no need for confirmation.
+      return true; 
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
-      entry.is_tow_pilot_available === true // Make sure they are marked as available
+      entry.is_tow_pilot_available === true 
     );
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
@@ -307,7 +307,7 @@ export function ScheduleClient() {
     }
     const instructorCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
     if (!instructorCategory) {
-      return true; // No "Instructor" category defined.
+      return true; 
     }
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
@@ -422,10 +422,10 @@ export function ScheduleClient() {
       }
 
       {selectedDate &&
-       !isTowPilotCategoryConfirmed &&
+       !isTowPilotCategoryConfirmed && // This condition now accurately reflects if a tow pilot is available and confirmed
        !anyLoading &&
        !auth.loading &&
-       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && // Only show if Remolcador category exists
+       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -462,7 +462,7 @@ export function ScheduleClient() {
                 {newsItemsForSelectedDate.map(news => (
                   <div key={news.id} className="text-sm p-2 border-b">
                     <p className="whitespace-pre-wrap">{news.news_text}</p>
-                    <p className="text-xs text-muted-foreground text-right">- {news.pilot_full_name} ({format(parseISO(news.created_at!), 'HH:mm', { locale: es })})</p>
+                    <p className="text-xs text-muted-foreground text-right">- {news.pilot_full_name} ({news.created_at ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desconocida'})</p>
                   </div>
                 ))}
               </div>
