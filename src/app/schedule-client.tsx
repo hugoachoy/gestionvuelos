@@ -167,15 +167,37 @@ export function ScheduleClient() {
     if (selectedDate && auth.user && newsInput.trim() !== '') {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      const pilotFullName = (auth.user.first_name && auth.user.last_name) 
-        ? `${auth.user.first_name} ${auth.user.last_name}`
-        : auth.user.email || 'Piloto Anónimo';
+      let pilotDisplayName = '';
+      const pilotProfileFromStore = pilots.find(p => p.auth_user_id === auth.user!.id);
+
+      if (pilotProfileFromStore) {
+          if (pilotProfileFromStore.last_name && pilotProfileFromStore.first_name) {
+              pilotDisplayName = `${pilotProfileFromStore.last_name}, ${pilotProfileFromStore.first_name}`;
+          } else if (pilotProfileFromStore.last_name) {
+              pilotDisplayName = pilotProfileFromStore.last_name;
+          } else if (pilotProfileFromStore.first_name) {
+              pilotDisplayName = pilotProfileFromStore.first_name;
+          } else {
+              pilotDisplayName = auth.user.email || 'Piloto Anónimo';
+          }
+      } else {
+          // Fallback to auth.user data if profile not in store (e.g., if store isn't updated yet)
+          if (auth.user.last_name && auth.user.first_name) {
+              pilotDisplayName = `${auth.user.last_name}, ${auth.user.first_name}`;
+          } else if (auth.user.last_name) {
+              pilotDisplayName = auth.user.last_name;
+          } else if (auth.user.first_name) {
+              pilotDisplayName = auth.user.first_name;
+          } else {
+              pilotDisplayName = auth.user.email || 'Piloto Anónimo';
+          }
+      }
       
       const newsData: Omit<DailyNews, 'id' | 'created_at'> = {
         date: dateStr,
         news_text: newsInput.trim(),
         pilot_id: auth.user.id,
-        pilot_full_name: pilotFullName,
+        pilot_full_name: pilotDisplayName,
       };
       const result = await addDailyNewsItem(newsData);
       if (result) {
@@ -237,14 +259,17 @@ export function ScheduleClient() {
           return priorityA - priorityB;
         }
 
-        if (priorityA <= 3) { 
-            if (a.pilot_category_id === b.pilot_category_id && categories.find(c => c.id === a.pilot_category_id)?.name.trim().toLowerCase() === remolcadorCategoryName.toLowerCase()) {
-                if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
-                if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
-            }
+        // Si la categoría es Remolcador y la prioridad es la misma, ordenar por disponibilidad
+        if (categories.find(c => c.id === a.pilot_category_id)?.name.trim().toLowerCase() === remolcadorCategoryName.toLowerCase()) {
+            if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
+            if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
+        }
+        // Para otras categorías o misma disponibilidad de remolcador, ordenar por hora
+        if (priorityA <= 3) { // Instructores y Remolcadores (ya sea disponibles o no)
           return a.start_time.localeCompare(b.start_time);
         }
 
+        // Lógica para "Pilotos" (prioridad 4)
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
 
@@ -422,7 +447,7 @@ export function ScheduleClient() {
       }
 
       {selectedDate &&
-       !isTowPilotCategoryConfirmed && // This condition now accurately reflects if a tow pilot is available and confirmed
+       !isTowPilotCategoryConfirmed && 
        !anyLoading &&
        !auth.loading &&
        categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && 
@@ -462,7 +487,10 @@ export function ScheduleClient() {
                 {newsItemsForSelectedDate.map(news => (
                   <div key={news.id} className="text-sm p-2 border-b">
                     <p className="whitespace-pre-wrap">{news.news_text}</p>
-                    <p className="text-xs text-muted-foreground text-right">- {news.pilot_full_name} ({news.created_at ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desconocida'})</p>
+                    <p className="text-xs text-muted-foreground text-right">
+                      - {news.pilot_full_name} 
+                      ({news.created_at && parseISO(news.created_at) ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desconocida'})
+                    </p>
                   </div>
                 ))}
               </div>

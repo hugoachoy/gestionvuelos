@@ -24,35 +24,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      setLoading(true); // Set loading to true at the start of auth state change
-      let isAdminStatus = false; 
-
+      setLoading(true); 
+      
       if (currentSession) {
         try {
           const { data: pilotProfile, error: pilotError } = await supabase
             .from('pilots')
-            .select('is_admin')
+            .select('is_admin, first_name, last_name') // Obtener first_name y last_name
             .eq('auth_user_id', currentSession.user.id)
             .single();
 
           if (pilotError && pilotError.code !== 'PGRST116') { 
             console.error("AuthContext: Error fetching pilot profile on auth change:", pilotError);
           }
-          isAdminStatus = pilotProfile?.is_admin ?? false;
           
           setUser({
             id: currentSession.user.id,
             email: currentSession.user.email,
-            is_admin: isAdminStatus,
+            is_admin: pilotProfile?.is_admin ?? false,
+            first_name: pilotProfile?.first_name ?? undefined,
+            last_name: pilotProfile?.last_name ?? undefined,
           });
           setSession(currentSession);
 
         } catch (e) {
           console.error("AuthContext: Exception fetching pilot profile:", e);
+          // En caso de error, establecer un usuario base sin nombre/apellido/admin
           setUser({
             id: currentSession.user.id,
             email: currentSession.user.email,
-            is_admin: false, 
+            is_admin: false,
+            first_name: undefined,
+            last_name: undefined,
           });
           setSession(currentSession);
         }
@@ -60,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setSession(null);
       }
-      setLoading(false); // Set loading to false AFTER all async operations are done
+      setLoading(false); 
     });
 
     return () => {
@@ -77,6 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setLoading(false);
         }
     }
+    // El listener onAuthStateChange se encargará de actualizar el estado y setLoading a false
     return { error };
   };
 
@@ -86,6 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
      if (error) {
         setLoading(false); 
     }
+    // El listener onAuthStateChange se encargará de actualizar el estado y setLoading a false
     return { error };
   };
 
@@ -98,6 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setLoading(false);
         }
     }
+    // El listener onAuthStateChange se encargará de actualizar el estado y setLoading a false si no hay sesión
     return { data: { user: data.user, session: data.session }, error };
   };
 
@@ -116,4 +122,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

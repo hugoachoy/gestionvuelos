@@ -77,6 +77,20 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     router.push('/login');
   };
 
+  const getUserDisplayName = () => {
+    if (!user) return '';
+    if (user.last_name && user.first_name) {
+      return `${user.last_name}, ${user.first_name}`;
+    }
+    if (user.last_name) {
+      return user.last_name;
+    }
+    if (user.first_name) {
+      return user.first_name;
+    }
+    return user.email ?? '';
+  };
+
   return (
     <>
       <Sidebar>
@@ -109,7 +123,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
           ) : user ? (
             <div className="flex flex-col items-start gap-2 p-2">
               <span className="text-xs text-sidebar-foreground/80 truncate w-full" title={user.email ?? undefined}>
-                {user.email}
+                {getUserDisplayName()}
               </span>
               <SidebarMenuButton onClick={handleLogout} className="w-full justify-start text-sm">
                 <LogOut />
