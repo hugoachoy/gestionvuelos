@@ -3,7 +3,7 @@
 
 import React from 'react'; // Explicit React import
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { format, parseISO } from 'date-fns'; // Asegurar que parseISO está importado
+import { format, parseISO } from 'date-fns'; 
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -24,7 +24,7 @@ import {
 } from '@/store/data-hooks';
 import type { ScheduleEntry, PilotCategory, DailyNews } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
-import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
@@ -67,19 +67,24 @@ export function ScheduleClient() {
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries, cleanupOldScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
-  const { getNewsForDate, addDailyNewsItem, loading: newsLoading, error: newsError, fetchDailyNews } = useDailyNewsStore();
+  const { getNewsForDate, addDailyNewsItem, updateDailyNewsItem, deleteDailyNewsItem, loading: newsLoading, error: newsError, fetchDailyNews } = useDailyNewsStore();
 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ScheduleEntry | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<ScheduleEntry | null>(null);
+  const [newsToDelete, setNewsToDelete] = useState<DailyNews | null>(null);
+  const [isNewsDeleteDialogOpen, setIsNewsDeleteDialogOpen] = useState(false);
+
 
   const [observationInput, setObservationInput] = useState('');
   const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newsInput, setNewsInput] = useState('');
   const newsTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [editingNewsItem, setEditingNewsItem] = useState<DailyNews | null>(null);
+
 
   useEffect(() => {
     setSelectedDate(new Date());
@@ -164,36 +169,52 @@ export function ScheduleClient() {
   };
 
   const handleSaveNews = async () => {
-    if (selectedDate && auth.user && newsInput.trim() !== '') {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      
+    if (!selectedDate || !auth.user || newsInput.trim() === '') {
+      if (newsInput.trim() === '') {
+        toast({ title: "Novedad vacía", description: "Por favor, escribe tu novedad.", variant: "default" });
+      }
+      return;
+    }
+  
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  
+    if (editingNewsItem) {
+      // Estamos editando una novedad existente
+      const result = await updateDailyNewsItem(editingNewsItem.id, newsInput.trim(), dateStr);
+      if (result) {
+        toast({ title: "Novedad actualizada", description: "La novedad ha sido actualizada." });
+      } else {
+        toast({ title: "Error", description: "No se pudo actualizar la novedad.", variant: "destructive" });
+      }
+      setEditingNewsItem(null);
+    } else {
+      // Estamos agregando una nueva novedad
       let pilotDisplayName = '';
       const pilotProfileFromStore = pilots.find(p => p.auth_user_id === auth.user!.id);
-
+  
       if (pilotProfileFromStore) {
-          if (pilotProfileFromStore.last_name && pilotProfileFromStore.first_name) {
-              pilotDisplayName = `${pilotProfileFromStore.last_name}, ${pilotProfileFromStore.first_name}`;
-          } else if (pilotProfileFromStore.last_name) {
-              pilotDisplayName = pilotProfileFromStore.last_name;
-          } else if (pilotProfileFromStore.first_name) {
-              pilotDisplayName = pilotProfileFromStore.first_name;
-          } else {
-              pilotDisplayName = auth.user.email || 'Piloto Anónimo';
-          }
+        if (pilotProfileFromStore.last_name && pilotProfileFromStore.first_name) {
+          pilotDisplayName = `${pilotProfileFromStore.last_name}, ${pilotProfileFromStore.first_name}`;
+        } else if (pilotProfileFromStore.last_name) {
+          pilotDisplayName = pilotProfileFromStore.last_name;
+        } else if (pilotProfileFromStore.first_name) {
+          pilotDisplayName = pilotProfileFromStore.first_name;
+        } else {
+          pilotDisplayName = auth.user.email || 'Piloto Anónimo';
+        }
       } else {
-          // Fallback to auth.user data if profile not in store (e.g., if store isn't updated yet)
-          if (auth.user.last_name && auth.user.first_name) {
-              pilotDisplayName = `${auth.user.last_name}, ${auth.user.first_name}`;
-          } else if (auth.user.last_name) {
-              pilotDisplayName = auth.user.last_name;
-          } else if (auth.user.first_name) {
-              pilotDisplayName = auth.user.first_name;
-          } else {
-              pilotDisplayName = auth.user.email || 'Piloto Anónimo';
-          }
+        if (auth.user.last_name && auth.user.first_name) {
+          pilotDisplayName = `${auth.user.last_name}, ${auth.user.first_name}`;
+        } else if (auth.user.last_name) {
+          pilotDisplayName = auth.user.last_name;
+        } else if (auth.user.first_name) {
+          pilotDisplayName = auth.user.first_name;
+        } else {
+          pilotDisplayName = auth.user.email || 'Piloto Anónimo';
+        }
       }
-      
-      const newsData: Omit<DailyNews, 'id' | 'created_at'> = {
+  
+      const newsData: Omit<DailyNews, 'id' | 'created_at' | 'updated_at'> = {
         date: dateStr,
         news_text: newsInput.trim(),
         pilot_id: auth.user.id,
@@ -201,14 +222,41 @@ export function ScheduleClient() {
       };
       const result = await addDailyNewsItem(newsData);
       if (result) {
-        setNewsInput(''); // Clear input on success
         toast({ title: "Novedad agregada", description: "Tu novedad ha sido guardada." });
       } else {
         toast({ title: "Error", description: "No se pudo guardar la novedad.", variant: "destructive" });
       }
-    } else if (!newsInput.trim()) {
-         toast({ title: "Novedad vacía", description: "Por favor, escribe tu novedad.", variant: "default" });
     }
+    setNewsInput(''); // Limpiar input en ambos casos (agregar/editar)
+  };
+  
+  const handleEditNewsItem = (newsItem: DailyNews) => {
+    setEditingNewsItem(newsItem);
+    setNewsInput(newsItem.news_text);
+    newsTextareaRef.current?.focus();
+  };
+
+  const handleCancelEditNews = () => {
+    setEditingNewsItem(null);
+    setNewsInput('');
+  };
+
+  const handleDeleteNewsConfirmation = (newsItem: DailyNews) => {
+    setNewsToDelete(newsItem);
+    setIsNewsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteNews = async () => {
+    if (newsToDelete && selectedDate) {
+      const success = await deleteDailyNewsItem(newsToDelete.id, format(selectedDate, 'yyyy-MM-dd'));
+      if (success) {
+        toast({ title: "Novedad eliminada", description: "La novedad ha sido eliminada." });
+      } else {
+        toast({ title: "Error", description: "No se pudo eliminar la novedad.", variant: "destructive" });
+      }
+    }
+    setIsNewsDeleteDialogOpen(false);
+    setNewsToDelete(null);
   };
 
 
@@ -485,8 +533,22 @@ export function ScheduleClient() {
             ) : newsItemsForSelectedDate.length > 0 ? (
               <div className="space-y-2 mb-4 max-h-60 overflow-y-auto pr-2">
                 {newsItemsForSelectedDate.map(news => (
-                  <div key={news.id} className="text-sm p-2 border-b">
-                    <p className="whitespace-pre-wrap">{news.news_text}</p>
+                  <div key={news.id} className="text-sm p-2 border-b group">
+                    <div className="flex justify-between items-start">
+                        <p className="whitespace-pre-wrap flex-grow">{news.news_text}</p>
+                        {auth.user?.is_admin && (
+                            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button variant="ghost" size="icon" onClick={() => handleEditNewsItem(news)} className="h-7 w-7 hover:text-primary">
+                                    <Edit className="h-3 w-3" />
+                                    <span className="sr-only">Editar Novedad</span>
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteNewsConfirmation(news)} className="h-7 w-7 hover:text-destructive">
+                                    <Trash2 className="h-3 w-3" />
+                                    <span className="sr-only">Eliminar Novedad</span>
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                     <p className="text-xs text-muted-foreground text-right">
                       - {news.pilot_full_name} 
                       ({news.created_at && parseISO(news.created_at) ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desconocida'})
@@ -499,17 +561,24 @@ export function ScheduleClient() {
             )}
             <Textarea
               ref={newsTextareaRef}
-              placeholder="Escribe una novedad para el día..."
+              placeholder={editingNewsItem ? "Editando novedad..." : "Escribe una novedad para el día..."}
               value={newsInput}
               onChange={(e) => setNewsInput(e.target.value)}
               rows={1}
               className="mb-3 resize-none overflow-hidden"
               disabled={uiDisabled || !auth.user}
             />
-            <Button onClick={handleSaveNews} size="sm" disabled={uiDisabled || !auth.user || newsInput.trim() === ''}>
-              <Send className="mr-2 h-4 w-4" />
-              Agregar Novedad
-            </Button>
+            <div className="flex gap-2">
+                <Button onClick={handleSaveNews} size="sm" disabled={uiDisabled || !auth.user || newsInput.trim() === ''}>
+                <Send className="mr-2 h-4 w-4" />
+                {editingNewsItem ? "Guardar Cambios" : "Agregar Novedad"}
+                </Button>
+                {editingNewsItem && (
+                    <Button onClick={handleCancelEditNews} size="sm" variant="outline">
+                        Cancelar Edición
+                    </Button>
+                )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -532,6 +601,13 @@ export function ScheduleClient() {
         onConfirm={confirmDelete}
         itemName={entryToDelete ? `el turno de las ${entryToDelete.start_time.substring(0,5)}` : 'este turno'}
       />
+      <DeleteDialog
+        open={isNewsDeleteDialogOpen}
+        onOpenChange={setIsNewsDeleteDialogOpen}
+        onConfirm={confirmDeleteNews}
+        itemName={newsToDelete ? `la novedad de "${newsToDelete.pilot_full_name}"` : 'esta novedad'}
+      />
     </>
   );
 }
+

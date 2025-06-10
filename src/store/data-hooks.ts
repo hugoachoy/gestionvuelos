@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation, DailyNews } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
-import { format, parseISO } from 'date-fns'; // Added parseISO
+import { format } from 'date-fns'; // No se necesita parseISO aquí directamente
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -767,9 +767,65 @@ export function useDailyNewsStore() {
     }
   }, [fetchDailyNews]);
 
+  const updateDailyNewsItem = useCallback(async (newsId: string, newText: string, date: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data: updatedNews, error: updateError } = await supabase
+        .from('daily_news')
+        .update({ news_text: newText, updated_at: new Date().toISOString() })
+        .eq('id', newsId)
+        .select()
+        .single();
+
+      if (updateError) {
+        logSupabaseError('Error updating daily news item', updateError);
+        setError(updateError);
+        return null;
+      }
+      if (updatedNews) {
+        await fetchDailyNews(date);
+      }
+      return updatedNews;
+    } catch (e) {
+      logSupabaseError('Unexpected error updating daily news item', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchDailyNews]);
+
+  const deleteDailyNewsItem = useCallback(async (newsId: string, date: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: deleteError } = await supabase
+        .from('daily_news')
+        .delete()
+        .eq('id', newsId);
+
+      if (deleteError) {
+        logSupabaseError('Error deleting daily news item', deleteError);
+        setError(deleteError);
+        return false;
+      }
+      await fetchDailyNews(date);
+      return true;
+    } catch (e) {
+      logSupabaseError('Unexpected error deleting daily news item', e);
+      setError(e);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchDailyNews]);
+
+
   const getNewsForDate = useCallback((date: string): DailyNews[] => {
     return dailyNews[date] || [];
   }, [dailyNews]);
 
-  return { dailyNews, loading, error, getNewsForDate, addDailyNewsItem, fetchDailyNews, fetchDailyNewsForRange };
+  return { dailyNews, loading, error, getNewsForDate, addDailyNewsItem, fetchDailyNews, fetchDailyNewsForRange, updateDailyNewsItem, deleteDailyNewsItem };
 }
+
