@@ -15,13 +15,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Share2, FileSpreadsheet, FileText, Download, CalendarIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { ScheduleEntry, PilotCategory, DailyObservation, Pilot } from "@/types";
+import type { ScheduleEntry, PilotCategory, DailyObservation, Pilot, DailyNews } from "@/types";
 import { 
     usePilotsStore, 
     usePilotCategoriesStore, 
     useAircraftStore, 
     useScheduleStore, 
-    useDailyObservationsStore 
+    useDailyObservationsStore,
+    useDailyNewsStore
 } from '@/store/data-hooks';
 import { FLIGHT_TYPES } from '@/types';
 import { format, eachDayOfInterval, parseISO, isValid as isValidDate, isBefore, differenceInDays, startOfDay } from 'date-fns';
@@ -43,8 +44,6 @@ declare module 'jspdf' {
 const getEntryGroupDetails = (
   entry: ScheduleEntry,
   categories: PilotCategory[],
-  // getCategoryName: (id: string) => string, // Not directly used for group logic, but for display text
-  // getAircraftName: (id?: string | null) => string 
 ): { id: string; name: string; order: number } => {
   const pilotCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
   const categoryNameLower = pilotCategoryDetails?.name?.trim().toLowerCase();
@@ -66,6 +65,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
   const { getAircraftName } = useAircraftStore();
   const { fetchScheduleEntriesForRange } = useScheduleStore();
   const { fetchObservationsForRange } = useDailyObservationsStore();
+  const { fetchDailyNewsForRange } = useDailyNewsStore(); // Added
 
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(scheduleDate);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(scheduleDate);
@@ -157,12 +157,13 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       const startDateStr = format(exportStartDate, "yyyy-MM-dd");
       const endDateStr = format(exportEndDate, "yyyy-MM-dd");
 
-      const [entriesData, observationsData] = await Promise.all([
+      const [entriesData, observationsData, newsData] = await Promise.all([ // Added newsData
         fetchScheduleEntriesForRange(startDateStr, endDateStr),
-        fetchObservationsForRange(startDateStr, endDateStr)
+        fetchObservationsForRange(startDateStr, endDateStr),
+        fetchDailyNewsForRange(startDateStr, endDateStr) // Fetch news
       ]);
 
-      if (entriesData === null || observationsData === null) {
+      if (entriesData === null || observationsData === null || newsData === null) { // Check newsData
         toast({ title: "Error al obtener datos", description: "No se pudieron cargar los datos para el rango seleccionado.", variant: "destructive" });
         return null;
       }
@@ -182,7 +183,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         const aIsRemolcador = aCategoryNameLower === 'remolcador';
         const bIsRemolcador = bCategoryNameLower === 'remolcador';
 
-        // Order: Instructor, Remolcador, Others
         if (aIsInstructor && !bIsInstructor) return -1;
         if (!aIsInstructor && bIsInstructor) return 1;
         if (aIsInstructor && bIsInstructor) return a.start_time.localeCompare(b.start_time);
@@ -195,7 +195,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           return a.start_time.localeCompare(b.start_time);
         }
 
-        // For "Pilotos" group (others): Group by aircraft, then time, then sport preference.
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
 
@@ -215,7 +214,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
         return a.start_time.localeCompare(b.start_time); 
       });
-      return { entries: sortedEntries, observations: observationsData, allPilots: pilots };
+      return { entries: sortedEntries, observations: observationsData, newsItems: newsData, allPilots: pilots }; // Added newsItems
 
     } catch (error) {
       console.error("Error fetching data for export:", error);
@@ -224,20 +223,18 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     } finally {
       setIsExporting(false);
     }
-  }, [exportStartDate, exportEndDate, fetchScheduleEntriesForRange, fetchObservationsForRange, toast, categories, pilots]);
+  }, [exportStartDate, exportEndDate, fetchScheduleEntriesForRange, fetchObservationsForRange, fetchDailyNewsForRange, toast, categories, pilots]);
 
 
   const formatTextForExport = (text: string) => {
-    // Only make "Instructor", "Remolcador", or "Pilotos" bold if they are group headers
     const groupHeaders = ["Instructores", "Remolcador/es", "Pilotos"];
     if (groupHeaders.includes(text)) {
         return `*${text}*`;
     }
-    // For other category names, just return them (they might be part of the entry line)
     return text;
   };
 
-  const generateShareTextForRange = (allEntries: ScheduleEntry[], allObservations: DailyObservation[], allPilots: Pilot[]) => {
+  const generateShareTextForRange = (allEntries: ScheduleEntry[], allObservations: DailyObservation[], allNewsItems: DailyNews[], allPilots: Pilot[]) => {
     if (!exportStartDate || !exportEndDate) return "Rango de fechas no seleccionado.";
 
     let fullText = `Agenda de Vuelo: ${format(exportStartDate, "PPP", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' - ' + format(exportEndDate, "PPP", { locale: es }) : ''}\n`;
@@ -249,9 +246,11 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       const dayStr = format(day, "yyyy-MM-dd");
       const entriesForDay = allEntries.filter(entry => entry.date === dayStr);
       const observationForDay = allObservations.find(obs => obs.date === dayStr);
+      const newsForDay = allNewsItems.filter(news => news.date === dayStr); // Get news for the day
       const hasObservationText = observationForDay?.observation_text && observationForDay.observation_text.trim() !== '';
+      const hasNews = newsForDay.length > 0;
 
-      const dayHasData = entriesForDay.length > 0 || hasObservationText;
+      const dayHasData = entriesForDay.length > 0 || hasObservationText || hasNews;
       if (!dayHasData) {
         return; 
       }
@@ -268,6 +267,14 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
       if (hasObservationText) {
         fullText += `\nObservaciones:\n${observationForDay!.observation_text!.trim()}\n`;
+      }
+
+      if (hasNews) {
+        fullText += `\nNovedades:\n`;
+        newsForDay.forEach(news => {
+          const newsTime = news.created_at ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desc.';
+          fullText += `[${newsTime}] - ${news.pilot_full_name}: ${news.news_text.trim()}\n`;
+        });
       }
 
       const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
@@ -299,7 +306,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       }
 
 
-      if (entriesForDay.length === 0 && hasObservationText) { 
+      if (entriesForDay.length === 0 && (hasObservationText || hasNews)) { 
           fullText += "No hay turnos programados para esta fecha.\n";
       } else if (entriesForDay.length > 0) {
         let previousGroupIdentifier: string | null = null;
@@ -315,8 +322,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           if (formatted.shouldFlightTypeBeBold) {
             flightTypeString = `*${formatted.flightType}*`; 
           }
-          // For individual category names in entries, do not apply generic bolding
-          // Bolding is primarily for group headers via formatTextForExport
           let pilotCategoryString = formatted.category; 
           const medicalWarningString = formatted.medicalWarningText ? ` (${formatted.medicalWarningText})` : "";
 
@@ -331,7 +336,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     const data = await fetchDataForRange();
     if (!data) return;
 
-    const shareText = generateShareTextForRange(data.entries, data.observations, data.allPilots);
+    const shareText = generateShareTextForRange(data.entries, data.observations, data.newsItems, data.allPilots);
     const shareData = {
       title: `Agenda de Vuelo: ${exportStartDate ? format(exportStartDate, "PPP", { locale: es }) : ''}${exportStartDate && exportEndDate && exportStartDate.getTime() !== exportEndDate.getTime() ? ' - ' + format(exportEndDate, "PPP", { locale: es }) : ''}`,
       text: shareText,
@@ -375,10 +380,12 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         
         const entriesForDay = data.entries.filter(entry => entry.date === dayStr);
         const observationForDay = data.observations.find(obs => obs.date === dayStr);
+        const newsForDay = data.newsItems.filter(news => news.date === dayStr);
         const hasObservationText = observationForDay?.observation_text && observationForDay.observation_text.trim() !== '';
         const obsText = hasObservationText ? `"${observationForDay!.observation_text!.trim().replace(/"/g, '""')}"` : "";
+        const hasNews = newsForDay.length > 0;
         
-        const dayHasData = entriesForDay.length > 0 || hasObservationText;
+        const dayHasData = entriesForDay.length > 0 || hasObservationText || hasNews;
         if (!dayHasData) {
           return; 
         }
@@ -393,6 +400,14 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
         if (hasObservationText) {
             csvContent += `"Observaciones:",${obsText}\n`; 
+        }
+
+        if (hasNews) {
+            csvContent += `"Novedades:"\n`;
+            newsForDay.forEach(news => {
+                const newsTime = news.created_at ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desc.';
+                csvContent += `"${newsTime} - ${news.pilot_full_name.replace(/"/g, '""')}: ${news.news_text.trim().replace(/"/g, '""')}"\n`;
+            });
         }
         
         const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
@@ -446,7 +461,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
               ];
               csvContent += row.join(",") + "\n";
             });
-        } else if (hasObservationText) { 
+        } else if (hasObservationText || hasNews) { 
             csvContent += `"No hay turnos programados para esta fecha."\n`;
         }
     });
@@ -500,17 +515,19 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         const dayStr = format(day, "yyyy-MM-dd"); 
         const entriesForDay = data.entries.filter(entry => entry.date === dayStr);
         const observationForDay = data.observations.find(obs => obs.date === dayStr);
+        const newsForDay = data.newsItems.filter(news => news.date === dayStr);
         const hasObservationText = observationForDay && observationForDay.observation_text && observationForDay.observation_text.trim() !== '';
+        const hasNews = newsForDay.length > 0;
         
-        const dayHasData = entriesForDay.length > 0 || hasObservationText;
+        const dayHasData = entriesForDay.length > 0 || hasObservationText || hasNews;
         if (!dayHasData) {
           return; 
         }
 
-        if (dayIndex > 0 && currentY > 20) { // Only add page if there was content on previous page
+        if (dayIndex > 0 && currentY > 20) { 
             doc.addPage();
             currentY = 15;
-        } else if (dayIndex > 0) { // If previous page was blank, just reset Y
+        } else if (dayIndex > 0) { 
             currentY = 15;
         }
 
@@ -526,11 +543,11 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(0,0,0);
-            const observationLines = doc.splitTextToSize(observationForDay!.observation_text!.trim(), doc.internal.pageSize.getWidth() - 28); // landscape width
+            const observationLines = doc.splitTextToSize(observationForDay!.observation_text!.trim(), doc.internal.pageSize.getWidth() - 28); 
             doc.text("Observaciones:", 14, currentY);
             currentY += 5;
             observationLines.forEach((line: string) => {
-                if (currentY > doc.internal.pageSize.getHeight() - 20) { // landscape height
+                if (currentY > doc.internal.pageSize.getHeight() - 20) { 
                     doc.addPage(); currentY = 15;
                      if (exportStartDate.getTime() !== exportEndDate.getTime()) {
                         doc.setFontSize(14); doc.text(`Fecha: ${format(day, "PPP", { locale: es })} (cont.)`, 14, currentY); currentY +=7;
@@ -541,6 +558,39 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 currentY += 5;
             });
             currentY += 3; 
+        }
+
+        if (hasNews) {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0,0,0);
+            if (currentY > doc.internal.pageSize.getHeight() - 25) { // Check space for title and at least one line
+                doc.addPage(); currentY = 15;
+                 if (exportStartDate.getTime() !== exportEndDate.getTime()) {
+                    doc.setFontSize(14); doc.text(`Fecha: ${format(day, "PPP", { locale: es })} (cont.)`, 14, currentY); currentY +=7;
+                }
+            }
+            doc.text("Novedades del Día:", 14, currentY);
+            currentY += 6;
+            doc.setFont('helvetica', 'normal');
+            newsForDay.forEach(news => {
+                const newsTime = news.created_at ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desc.';
+                const newsLine = `[${newsTime}] - ${news.pilot_full_name}: ${news.news_text.trim()}`;
+                const splitNewsLines = doc.splitTextToSize(newsLine, doc.internal.pageSize.getWidth() - 28);
+                splitNewsLines.forEach((line: string) => {
+                    if (currentY > doc.internal.pageSize.getHeight() - 15) {
+                         doc.addPage(); currentY = 15;
+                         if (exportStartDate.getTime() !== exportEndDate.getTime()) {
+                            doc.setFontSize(14); doc.text(`Fecha: ${format(day, "PPP", { locale: es })} (cont.)`, 14, currentY); currentY +=7;
+                         }
+                         doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.text("Novedades del Día (cont.):", 14, currentY); currentY += 6;
+                         doc.setFont('helvetica', 'normal');
+                    }
+                    doc.text(line, 14, currentY);
+                    currentY += 5;
+                });
+            });
+            currentY += 3;
         }
         
         const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
@@ -574,7 +624,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             currentY +=2; 
         }
 
-        if (entriesForDay.length === 0 && hasObservationText) {
+        if (entriesForDay.length === 0 && (hasObservationText || hasNews)) {
             doc.setFontSize(10);
             if (currentY > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); currentY = 15; }
             doc.text("No hay turnos programados para esta fecha.", 14, currentY);
@@ -587,7 +637,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             
             entriesForDay.forEach(entry => {
               const groupDetails = getEntryGroupDetails(entry, categories);
-              let groupHeaderStyle: any = { fontStyle: 'bold', fillColor: [220, 230, 240], textColor: [10, 40, 70] }; // Adjusted color
+              let groupHeaderStyle: any = { fontStyle: 'bold', fillColor: [220, 230, 240], textColor: [10, 40, 70] }; 
                 
               if (groupDetails.id !== previousGroupIdentifier) {
                   tableRows.push([
@@ -606,9 +656,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 
               const medicalCellStyles: any = {};
               if (formatted.medicalWarningSeverity === 'critical') {
-                  medicalCellStyles.textColor = [200, 0, 0]; // Darker red
+                  medicalCellStyles.textColor = [200, 0, 0]; 
               } else if (formatted.medicalWarningSeverity === 'warning') {
-                  medicalCellStyles.textColor = [200, 100, 0]; // Darker orange
+                  medicalCellStyles.textColor = [200, 100, 0]; 
               }
               const medicalCell = { content: formatted.medicalWarningText, styles: medicalCellStyles };
 
@@ -628,7 +678,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 body: tableRows,
                 startY: currentY,
                 theme: 'grid',
-                headStyles: { fillColor: [30, 100, 160], textColor: 255 }, // Adjusted header color
+                headStyles: { fillColor: [30, 100, 160], textColor: 255 }, 
                 styles: { fontSize: 8, cellPadding: 1.5 },
                 columnStyles: {
                     0: { cellWidth: 15 }, 
@@ -641,12 +691,12 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 },
                 didDrawPage: (hookData) => { 
                     currentY = hookData.cursor?.y ?? currentY;
-                    if (hookData.pageNumber > 1 && hookData.settings.startY !== 15) { // Reset startY for new pages if not first page
-                        currentY = 15; // Or some other top margin
+                    if (hookData.pageNumber > 1 && hookData.settings.startY !== 15) { 
+                        currentY = 15; 
                     }
                 },
                 willDrawPage: (hookData) => {
-                     if (hookData.pageNumber > 1) currentY = 15; // Reset Y for new pages
+                     if (hookData.pageNumber > 1) currentY = 15; 
                 },
                 didParseCell: function (hookData) {
                     if (hookData.row.raw && typeof hookData.row.raw[0] === 'object' && (hookData.row.raw[0] as any)?.colSpan) {
@@ -745,4 +795,3 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     </DropdownMenu>
   );
 }
-

@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation, DailyNews } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns'; // Added parseISO
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -709,6 +709,33 @@ export function useDailyNewsStore() {
     }
   }, []);
 
+  const fetchDailyNewsForRange = useCallback(async (startDateStr: string, endDateStr: string): Promise<DailyNews[] | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('daily_news')
+        .select('*')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
+        .order('date')
+        .order('created_at', { ascending: true });
+      if (fetchError) {
+        logSupabaseError('Error fetching daily news for range', fetchError);
+        setError(fetchError);
+        return null;
+      }
+      return data || [];
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchDailyNewsForRange', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+
   const addDailyNewsItem = useCallback(async (newsData: Omit<DailyNews, 'id' | 'created_at'>) => {
     setError(null);
     setLoading(true);
@@ -744,5 +771,5 @@ export function useDailyNewsStore() {
     return dailyNews[date] || [];
   }, [dailyNews]);
 
-  return { dailyNews, loading, error, getNewsForDate, addDailyNewsItem, fetchDailyNews };
+  return { dailyNews, loading, error, getNewsForDate, addDailyNewsItem, fetchDailyNews, fetchDailyNewsForRange };
 }
