@@ -27,7 +27,7 @@ export interface PilotCategory {
 export interface Aircraft {
   id: string;
   name: string; // Registration or common name
-  type: 'Tow Plane' | 'Glider';
+  type: 'Tow Plane' | 'Glider' | 'Avión'; // Added 'Avión'
   created_at?: string;
 }
 

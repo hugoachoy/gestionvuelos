@@ -35,7 +35,7 @@ import React from 'react'; // Added import
 // Schema uses snake_case matching the Type and DB
 const aircraftSchema = z.object({
   name: z.string().min(1, "El nombre/matrícula es obligatorio."),
-  type: z.enum(['Tow Plane', 'Glider'], { required_error: "El tipo de aeronave es obligatorio." }),
+  type: z.enum(['Tow Plane', 'Glider', 'Avión'], { required_error: "El tipo de aeronave es obligatorio." }), // Added 'Avión'
 });
 
 // This FormData type will have snake_case fields
@@ -108,6 +108,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
                     <SelectContent>
                       <SelectItem value="Tow Plane">Avión Remolcador</SelectItem>
                       <SelectItem value="Glider">Planeador</SelectItem>
+                      <SelectItem value="Avión">Avión</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

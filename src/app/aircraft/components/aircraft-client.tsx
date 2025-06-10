@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Tow Plane': 'Avión Remolcador',
   'Glider': 'Planeador',
+  'Avión': 'Avión', // Added translation for 'Avión'
 };
 
 export function AircraftClient() {
@@ -62,7 +63,7 @@ export function AircraftClient() {
 
   const handleSubmitForm = async (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => {
     if (aircraftId) {
-      await updateAircraft({ ...data, id: aircraftId });
+      await updateAircraft({ ...data, id: aircraftId } as Aircraft); // Cast to Aircraft
     } else {
       await addAircraft(data);
     }
@@ -133,7 +134,7 @@ export function AircraftClient() {
                     <TableCell>{ac.name}</TableCell>
                     <TableCell>
                       <Badge variant={ac.type === 'Tow Plane' ? 'default' : 'outline'}>
-                        {aircraftTypeTranslations[ac.type]}
+                        {aircraftTypeTranslations[ac.type] || ac.type}
                       </Badge>
                     </TableCell>
                     {currentUser?.is_admin && ( 
