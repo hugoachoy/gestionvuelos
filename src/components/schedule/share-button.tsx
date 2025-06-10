@@ -43,18 +43,18 @@ declare module 'jspdf' {
 const getEntryGroupDetails = (
   entry: ScheduleEntry,
   categories: PilotCategory[],
-  getCategoryName: (id: string) => string,
-  getAircraftName: (id?: string | null) => string // Updated to accept null for id
+  // getCategoryName: (id: string) => string, // Not directly used for group logic, but for display text
+  // getAircraftName: (id?: string | null) => string 
 ): { id: string; name: string; order: number } => {
   const pilotCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
+  const categoryNameLower = pilotCategoryDetails?.name?.trim().toLowerCase();
 
-  if (pilotCategoryDetails?.name === 'Instructor') {
+  if (categoryNameLower === 'instructor') {
     return { id: 'instructor', name: 'Instructores', order: 1 };
   }
-  if (pilotCategoryDetails?.name === 'Remolcador') {
+  if (categoryNameLower === 'remolcador') {
     return { id: 'remolcadores', name: 'Remolcador/es', order: 2 };
   }
-  // All other types of pilots (not instructor or tow pilot for the turn)
   return { id: 'pilotos', name: 'Pilotos', order: 3 };
 };
 
@@ -86,16 +86,17 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     
     let availableStatus = '-';
     const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
+    const entryCategoryNameLower = entryCategoryDetails?.name?.trim().toLowerCase();
     
-    if (entryCategoryDetails?.name === 'Instructor') {
+    if (entryCategoryNameLower === 'instructor') {
       availableStatus = 'Sí';
-    } else if (entryCategoryDetails?.name === 'Remolcador') {
+    } else if (entryCategoryNameLower === 'remolcador') {
       availableStatus = entry.is_tow_pilot_available ? 'Sí' : 'No';
     }
     
     const shouldFlightTypeBeBold = 
-      (entry.flight_type_id === 'instruction' && entryCategoryDetails?.name === 'Instructor') ||
-      (entryCategoryDetails?.name === 'Remolcador');
+      (entry.flight_type_id === 'instruction' && entryCategoryNameLower === 'instructor') ||
+      (entryCategoryNameLower === 'remolcador');
 
 
     let medicalWarningText = "";
@@ -170,13 +171,16 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         const dateComparison = a.date.localeCompare(b.date);
         if (dateComparison !== 0) return dateComparison;
 
-        const aPilotCategory = categories.find(c => c.id === a.pilot_category_id);
-        const bPilotCategory = categories.find(c => c.id === b.pilot_category_id);
+        const aPilotCategoryDetails = categories.find(c => c.id === a.pilot_category_id);
+        const bPilotCategoryDetails = categories.find(c => c.id === b.pilot_category_id);
 
-        const aIsInstructor = aPilotCategory?.name === 'Instructor';
-        const bIsInstructor = bPilotCategory?.name === 'Instructor';
-        const aIsRemolcador = aPilotCategory?.name === 'Remolcador';
-        const bIsRemolcador = bPilotCategory?.name === 'Remolcador';
+        const aCategoryNameLower = aPilotCategoryDetails?.name?.trim().toLowerCase();
+        const bCategoryNameLower = bPilotCategoryDetails?.name?.trim().toLowerCase();
+
+        const aIsInstructor = aCategoryNameLower === 'instructor';
+        const bIsInstructor = bCategoryNameLower === 'instructor';
+        const aIsRemolcador = aCategoryNameLower === 'remolcador';
+        const bIsRemolcador = bCategoryNameLower === 'remolcador';
 
         // Order: Instructor, Remolcador, Others
         if (aIsInstructor && !bIsInstructor) return -1;
@@ -186,7 +190,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         if (aIsRemolcador && !bIsRemolcador) return -1;
         if (!aIsRemolcador && bIsRemolcador) return 1;
         if (aIsRemolcador && bIsRemolcador) {
-          // Dentro de Remolcadores, primero los disponibles, luego por hora
           if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
           if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
           return a.start_time.localeCompare(b.start_time);
@@ -225,7 +228,13 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
 
   const formatTextForExport = (text: string) => {
-    return text.replace(/\b(Instructor|Remolcador|Pilotos)\b/gi, (match) => `_${match}_`);
+    // Only make "Instructor", "Remolcador", or "Pilotos" bold if they are group headers
+    const groupHeaders = ["Instructores", "Remolcador/es", "Pilotos"];
+    if (groupHeaders.includes(text)) {
+        return `*${text}*`;
+    }
+    // For other category names, just return them (they might be part of the entry line)
+    return text;
   };
 
   const generateShareTextForRange = (allEntries: ScheduleEntry[], allObservations: DailyObservation[], allPilots: Pilot[]) => {
@@ -261,8 +270,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         fullText += `\nObservaciones:\n${observationForDay!.observation_text!.trim()}\n`;
       }
 
-      const remolcadorCategoryDefinition = categories.find(cat => cat.name === 'Remolcador');
-      const instructorCategoryDefinition = categories.find(cat => cat.name === 'Instructor');
+      const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
+      const instructorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
       const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
 
       const isRemolcadorConfirmedForDay = remolcadorCategoryDefinition 
@@ -277,13 +286,13 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       
       let warningsText = "";
       if (remolcadorCategoryDefinition && !isRemolcadorConfirmedForDay) {
-        warningsText += formatTextForExport('Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.\n');
+        warningsText += `*Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.*\n`;
       }
       if (instructorCategoryDefinition && !isInstructorConfirmedForDay) {
-        warningsText += formatTextForExport('Aviso: Aún no hay Instructor confirmado para esta fecha.\n');
+        warningsText += `*Aviso: Aún no hay Instructor confirmado para esta fecha.*\n`;
       }
        if (towageFlightTypeId && noTowageFlightsPresentForDay && remolcadorCategoryDefinition) {
-          warningsText += formatTextForExport('Aviso: Aún no hay Remolcador confirmado.\n');
+          warningsText += `*Aviso: Aún no hay Remolcador confirmado.*\n`;
       }
       if (warningsText) {
         fullText += `\n${warningsText}`;
@@ -296,7 +305,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         let previousGroupIdentifier: string | null = null;
         
         entriesForDay.forEach(entry => {
-          const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
+          const groupDetails = getEntryGroupDetails(entry, categories);
           if (groupDetails.id !== previousGroupIdentifier) {
             fullText += `\n--- ${formatTextForExport(groupDetails.name)} ---\n`;
             previousGroupIdentifier = groupDetails.id;
@@ -306,7 +315,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           if (formatted.shouldFlightTypeBeBold) {
             flightTypeString = `*${formatted.flightType}*`; 
           }
-          let pilotCategoryString = formatTextForExport(formatted.category);
+          // For individual category names in entries, do not apply generic bolding
+          // Bolding is primarily for group headers via formatTextForExport
+          let pilotCategoryString = formatted.category; 
           const medicalWarningString = formatted.medicalWarningText ? ` (${formatted.medicalWarningText})` : "";
 
           fullText += `${formatted.time} - ${formatted.pilot}${medicalWarningString} (${pilotCategoryString}${formatted.availableStatus !== '-' ? ' - Disp: ' + formatted.availableStatus : ''}) - ${flightTypeString}${formatted.aircraft !== 'N/A' ? ' - Aeronave: ' + formatted.aircraft : ''}\n`;
@@ -353,7 +364,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     if (!data || !exportStartDate || !exportEndDate) return;
 
     let csvContent = `Agenda de Vuelo del ${format(exportStartDate, "yyyy-MM-dd", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' al ' + format(exportEndDate, "yyyy-MM-dd", { locale: es }) : ''}\n`;
-    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría", "Disponible", "Tipo de Vuelo", "Aeronave"];
+    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría (Turno)", "Disponible", "Tipo de Vuelo", "Aeronave"];
     
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
     let contentAddedForPreviousDay = false;
@@ -384,8 +395,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             csvContent += `"Observaciones:",${obsText}\n`; 
         }
         
-        const remolcadorCategoryDefinition = categories.find(cat => cat.name === 'Remolcador');
-        const instructorCategoryDefinition = categories.find(cat => cat.name === 'Instructor');
+        const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
+        const instructorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
         const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
 
         const isRemolcadorConfirmedForDay = remolcadorCategoryDefinition 
@@ -400,13 +411,13 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
         let warningsText = "";
         if (remolcadorCategoryDefinition && !isRemolcadorConfirmedForDay) {
-          warningsText += `"${formatTextForExport('Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha.')}"\n`;
+          warningsText += `"Aviso: Aún no hay piloto de categoría Remolcador confirmado para esta fecha."\n`;
         }
         if (instructorCategoryDefinition && !isInstructorConfirmedForDay) {
-          warningsText += `"${formatTextForExport('Aviso: Aún no hay Instructor confirmado para esta fecha.')}"\n`;
+          warningsText += `"Aviso: Aún no hay Instructor confirmado para esta fecha."\n`;
         }
         if (towageFlightTypeId && noTowageFlightsPresentForDay && remolcadorCategoryDefinition) {
-          warningsText += `"${formatTextForExport('Aviso: Aún no hay Remolcador confirmado.')}"\n`; 
+          warningsText += `"Aviso: Aún no hay Remolcador confirmado."\n`; 
         }
         if (warningsText) {
           csvContent += warningsText;
@@ -418,9 +429,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             let previousGroupIdentifier: string | null = null;
             
             entriesForDay.forEach((entry) => {
-              const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
+              const groupDetails = getEntryGroupDetails(entry, categories);
               if (groupDetails.id !== previousGroupIdentifier) {
-                csvContent += `"${formatTextForExport(groupDetails.name).replace(/"/g, '""')}",,,,,,\n`; 
+                csvContent += `"${groupDetails.name.replace(/"/g, '""')}",,,,,,\n`; 
                 previousGroupIdentifier = groupDetails.id;
               }
               const formatted = getFormattedEntry(entry, data.allPilots);
@@ -428,7 +439,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 formatted.time,
                 `"${formatted.pilot.replace(/"/g, '""')}"`,
                 `"${formatted.medicalWarningText.replace(/"/g, '""')}"`,
-                `"${formatTextForExport(formatted.category).replace(/"/g, '""')}"`,
+                `"${formatted.category.replace(/"/g, '""')}"`,
                 formatted.availableStatus,
                 `"${(formatted.shouldFlightTypeBeBold ? `${formatted.flightType}` : formatted.flightType).replace(/"/g, '""')}"`,
                 `"${formatted.aircraft.replace(/"/g, '""')}"`,
@@ -496,10 +507,13 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           return; 
         }
 
-        if (dayIndex > 0) { 
+        if (dayIndex > 0 && currentY > 20) { // Only add page if there was content on previous page
             doc.addPage();
             currentY = 15;
+        } else if (dayIndex > 0) { // If previous page was blank, just reset Y
+            currentY = 15;
         }
+
 
         if (exportStartDate.getTime() !== exportEndDate.getTime()) {
             doc.setFontSize(14);
@@ -512,11 +526,11 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(0,0,0);
-            const observationLines = doc.splitTextToSize(observationForDay!.observation_text!.trim(), doc.internal.pageSize.getWidth() - 28);
+            const observationLines = doc.splitTextToSize(observationForDay!.observation_text!.trim(), doc.internal.pageSize.getWidth() - 28); // landscape width
             doc.text("Observaciones:", 14, currentY);
             currentY += 5;
             observationLines.forEach((line: string) => {
-                if (currentY > doc.internal.pageSize.getHeight() - 20) { 
+                if (currentY > doc.internal.pageSize.getHeight() - 20) { // landscape height
                     doc.addPage(); currentY = 15;
                      if (exportStartDate.getTime() !== exportEndDate.getTime()) {
                         doc.setFontSize(14); doc.text(`Fecha: ${format(day, "PPP", { locale: es })} (cont.)`, 14, currentY); currentY +=7;
@@ -529,8 +543,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             currentY += 3; 
         }
         
-        const remolcadorCategoryDefinition = categories.find(cat => cat.name === 'Remolcador');
-        const instructorCategoryDefinition = categories.find(cat => cat.name === 'Instructor');
+        const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
+        const instructorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
         const towageFlightTypeId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
 
         const isRemolcadorConfirmedForDay = remolcadorCategoryDefinition 
@@ -566,14 +580,14 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             doc.text("No hay turnos programados para esta fecha.", 14, currentY);
             currentY += 10;
         } else if (entriesForDay.length > 0) {
-            const tableColumn = ["Hora", "Piloto", "Adv. Psicof.", "Categoría", "Disponible", "Tipo Vuelo", "Aeronave"];
+            const tableColumn = ["Hora", "Piloto", "Adv. Psicof.", "Categoría (Turno)", "Disponible", "Tipo Vuelo", "Aeronave"];
             const tableRows: (string | { content: string; colSpan?: number; styles?: any } | null)[][] = [];
             
             let previousGroupIdentifier: string | null = null;
             
             entriesForDay.forEach(entry => {
-              const groupDetails = getEntryGroupDetails(entry, categories, getCategoryName, getAircraftName);
-              let groupHeaderStyle: any = { fontStyle: 'bold', fillColor: [214, 234, 248], textColor: [21, 67, 96] };
+              const groupDetails = getEntryGroupDetails(entry, categories);
+              let groupHeaderStyle: any = { fontStyle: 'bold', fillColor: [220, 230, 240], textColor: [10, 40, 70] }; // Adjusted color
                 
               if (groupDetails.id !== previousGroupIdentifier) {
                   tableRows.push([
@@ -592,9 +606,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 
               const medicalCellStyles: any = {};
               if (formatted.medicalWarningSeverity === 'critical') {
-                  medicalCellStyles.textColor = [255, 0, 0]; 
+                  medicalCellStyles.textColor = [200, 0, 0]; // Darker red
               } else if (formatted.medicalWarningSeverity === 'warning') {
-                  medicalCellStyles.textColor = [230, 126, 34]; 
+                  medicalCellStyles.textColor = [200, 100, 0]; // Darker orange
               }
               const medicalCell = { content: formatted.medicalWarningText, styles: medicalCellStyles };
 
@@ -614,7 +628,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 body: tableRows,
                 startY: currentY,
                 theme: 'grid',
-                headStyles: { fillColor: [41, 128, 185], textColor: 255 }, 
+                headStyles: { fillColor: [30, 100, 160], textColor: 255 }, // Adjusted header color
                 styles: { fontSize: 8, cellPadding: 1.5 },
                 columnStyles: {
                     0: { cellWidth: 15 }, 
@@ -627,15 +641,19 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 },
                 didDrawPage: (hookData) => { 
                     currentY = hookData.cursor?.y ?? currentY;
+                    if (hookData.pageNumber > 1 && hookData.settings.startY !== 15) { // Reset startY for new pages if not first page
+                        currentY = 15; // Or some other top margin
+                    }
+                },
+                willDrawPage: (hookData) => {
+                     if (hookData.pageNumber > 1) currentY = 15; // Reset Y for new pages
                 },
                 didParseCell: function (hookData) {
-                    
                     if (hookData.row.raw && typeof hookData.row.raw[0] === 'object' && (hookData.row.raw[0] as any)?.colSpan) {
                         const cellObject = hookData.row.raw[0] as { content: string; styles: any; colSpan?: number };
                         if (cellObject.styles) Object.assign(hookData.cell.styles, cellObject.styles);
                         if (cellObject.colSpan) hookData.cell.colSpan = cellObject.colSpan;
                     } 
-                    
                     else if (hookData.cell.raw && typeof hookData.cell.raw === 'object' && hookData.cell.raw !== null && 'styles' in hookData.cell.raw) {
                         const cellObject = hookData.cell.raw as { content: string; styles: any };
                          if (cellObject.styles) Object.assign(hookData.cell.styles, cellObject.styles);

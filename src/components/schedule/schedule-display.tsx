@@ -58,9 +58,10 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
 
         const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id);
         const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
+        const entryCategoryNameLower = entryCategoryDetails?.name?.trim().toLowerCase();
         
-        const isTurnByCategoryInstructor = entryCategoryDetails?.name === 'Instructor';
-        const isTurnByCategoryRemolcador = entryCategoryDetails?.name === 'Remolcador';
+        const isTurnByCategoryInstructor = entryCategoryNameLower === 'instructor';
+        const isTurnByCategoryRemolcador = entryCategoryNameLower === 'remolcador';
 
         const flightTypeName = getFlightTypeName(entry.flight_type_id);
         let flightTypeDisplayNode: React.ReactNode = flightTypeName;
@@ -79,7 +80,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
         const displayTime = entry.start_time.substring(0, 5); 
 
         const showAvailableSinceText = 
-            (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available) || isTurnByCategoryInstructor;
+            (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available && isTurnByCategoryRemolcador) || // Added check for remolcador category
+            isTurnByCategoryInstructor;
 
 
         if (pilot && pilot.medical_expiry) {

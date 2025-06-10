@@ -200,7 +200,7 @@ export function AvailabilityForm({
   }, [pilotDetails, categories]);
 
   const selectedCategoryDetailsForTurn = useMemo(() => categories.find(c => c.id === watchedPilotCategoryId), [categories, watchedPilotCategoryId]);
-  const isTowPilotCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name === 'Remolcador';
+  const isTowPilotCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name?.trim().toLowerCase() === 'remolcador';
 
 
   useEffect(() => {
@@ -290,14 +290,19 @@ export function AvailabilityForm({
 
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
-      const remolcadorCategoryDefinition = categories.find(c => c.name === 'Remolcador');
+      const remolcadorCategoryDefinition = categories.find(c => c.name?.trim().toLowerCase() === 'remolcador');
       const towageFlightTypeDefinition = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
       
       if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
         const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
         
         if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') {
-          form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
+          // Only set if category for turn is also remolcador implicitly or explicitly.
+          // This logic might need refinement if a remolcador pilot can select non-remolcador flight type as default.
+          // For now, if pilot is generally remolcador, and flight type is blank, suggest towage.
+           if (form.getValues('pilot_category_id') === remolcadorCategoryDefinition.id || form.getValues('pilot_category_id') === '') {
+             form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
+           }
         }
       }
     }
@@ -313,7 +318,7 @@ export function AvailabilityForm({
         return;
     }
     
-    if (categoryForTurn?.name === 'Remolcador') {
+    if (categoryForTurn?.name?.trim().toLowerCase() === 'remolcador') {
       if (form.getValues('flight_type_id') !== towageFlightType.id) {
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
@@ -329,14 +334,14 @@ export function AvailabilityForm({
     const currentFlightTypeId = form.getValues('flight_type_id'); 
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.name === 'Remolque');
     
-    const isCategoryForTurnRemolcador = selectedCategoryDetailsForTurn?.name === 'Remolcador';
+    const isCategoryForTurnRemolcador = selectedCategoryDetailsForTurn?.name?.trim().toLowerCase() === 'remolcador';
     const isFlightTypeRemolque = currentFlightTypeId === towageFlightType?.id;
 
     if (isCategoryForTurnRemolcador || isFlightTypeRemolque) {
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
     return aircraft;
-  }, [selectedCategoryDetailsForTurn, aircraft, form.watch('flight_type_id')]); 
+  }, [selectedCategoryDetailsForTurn, aircraft, form.watch('flight_type_id')]); // Watch flight_type_id as it changes
 
 
   useEffect(() => {
@@ -367,6 +372,7 @@ export function AvailabilityForm({
         ...data,
         date: format(data.date, 'yyyy-MM-dd'),
         aircraft_id: data.aircraft_id || null,
+        is_tow_pilot_available: isTowPilotCategorySelectedForTurn ? data.is_tow_pilot_available : false, // Ensure is_tow_pilot_available is false if not remolcador category
         auth_user_id: authUserIdToSet,
     };
     onSubmit(dataToSubmit, entry?.id);
@@ -644,7 +650,9 @@ export function AvailabilityForm({
                     </FormControl>
                     <SelectContent>
                       {FLIGHT_TYPES.map(ft => (
-                        <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
+                        <SelectItem key={ft.id} value={ft.id} disabled={isTowPilotCategorySelectedForTurn && ft.name !== 'Remolque'}>
+                          {ft.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

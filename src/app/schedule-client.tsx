@@ -21,8 +21,8 @@ import {
   useScheduleStore,
   useDailyObservationsStore
 } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory } from '@/types'; // PilotCategory import added
-import { FLIGHT_TYPES } from '@/types'; // FLIGHT_TYPES import added
+import type { ScheduleEntry, PilotCategory } from '@/types'; 
+import { FLIGHT_TYPES } from '@/types'; 
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,34 +30,36 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth } from '@/contexts/AuthContext'; 
 
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
-// Helper function to determine sort priority for schedule entries
-// Lower number means higher priority
 function getSortPriority(
   entry: ScheduleEntry,
-  instructorCategoryId: string | undefined,
-  remolcadorCategoryId: string | undefined
+  categories: PilotCategory[], // Pass all categories
+  instructorCategoryName: string,
+  remolcadorCategoryName: string
 ): number {
-  const isCategoryRemolcador = entry.pilot_category_id === remolcadorCategoryId;
-  const isCategoryInstructor = entry.pilot_category_id === instructorCategoryId;
+  const entryCategory = categories.find(c => c.id === entry.pilot_category_id);
+  const entryCategoryNameLower = entryCategory?.name?.trim().toLowerCase();
+
+  const isCategoryRemolcador = entryCategoryNameLower === remolcadorCategoryName.toLowerCase();
+  const isCategoryInstructor = entryCategoryNameLower === instructorCategoryName.toLowerCase();
 
   if (isCategoryRemolcador) {
-    return entry.is_tow_pilot_available === true ? 1 : 2; // 1 for confirmed, 2 for unconfirmed/unavailable
+    return entry.is_tow_pilot_available === true ? 1 : 2; 
   }
   if (isCategoryInstructor) {
-    return 3; // Instructor
+    return 3; 
   }
-  return 4; // Others
+  return 4; 
 }
 
 
 export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
-  const auth = useAuth(); // Get auth context
+  const auth = useAuth(); 
 
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
@@ -72,9 +74,8 @@ export function ScheduleClient() {
 
   const [observationInput, setObservationInput] = useState('');
   const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false); // State for date picker popover
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false); 
 
-  // Set initial date on client-side to prevent hydration mismatch for selectedDate
   useEffect(() => {
     setSelectedDate(new Date());
   }, []);
@@ -101,7 +102,7 @@ export function ScheduleClient() {
 
   useEffect(() => {
     if (observationTextareaRef.current) {
-      observationTextareaRef.current.style.height = 'auto'; // Reset height to recalculate
+      observationTextareaRef.current.style.height = 'auto'; 
       observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
     }
   }, [observationInput]);
@@ -130,7 +131,7 @@ export function ScheduleClient() {
     };
     runCleanup();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // cleanupOldScheduleEntries and toast are stable due to useCallback
+  }, []); 
 
 
   const handleSaveObservation = async () => {
@@ -157,7 +158,7 @@ export function ScheduleClient() {
   };
 
   const confirmDelete = async () => {
-    if (entryToDelete && selectedDate) { // ensure selectedDate is available for refetch
+    if (entryToDelete && selectedDate) { 
       await removeEntry(entryToDelete.id, format(selectedDate, 'yyyy-MM-dd'));
     }
     setIsDeleteDialogOpen(false);
@@ -176,28 +177,22 @@ export function ScheduleClient() {
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate || !scheduleEntries || categoriesLoading || !categories || !categories.length) return [];
     
-    const instructorCategory = categories.find(c => c.name === 'Instructor');
-    const remolcadorCategory = categories.find(c => c.name === 'Remolcador');
+    // Using names directly for clarity, assuming these are the canonical names
+    const instructorCategoryName = 'Instructor'; 
+    const remolcadorCategoryName = 'Remolcador';
 
     return [...scheduleEntries]
       .sort((a, b) => {
-        const priorityA = getSortPriority(a, instructorCategory?.id, remolcadorCategory?.id);
-        const priorityB = getSortPriority(b, instructorCategory?.id, remolcadorCategory?.id);
+        const priorityA = getSortPriority(a, categories, instructorCategoryName, remolcadorCategoryName);
+        const priorityB = getSortPriority(b, categories, instructorCategoryName, remolcadorCategoryName);
 
         if (priorityA !== priorityB) {
           return priorityA - priorityB;
         }
 
-        // If priorities are the same (within Remolcador groups or Instructor group), sort by start_time
-        if (priorityA <= 3) { // Covers Remolcador (1 or 2) and Instructor (3)
+        if (priorityA <= 3) { 
           return a.start_time.localeCompare(b.start_time);
         }
-
-        // If both are "Others" (priorityA === 4), apply the complex sort:
-        // 1. Group by aircraft_id (assigned aircrafts first, then no aircraft)
-        // 2. Sort by aircraft_id (alphabetically if both have aircraft)
-        // 3. Prioritize 'sport' flight_type_id within the same aircraft group, regardless of time
-        // 4. Sort by start_time
 
         const aHasAircraft = !!a.aircraft_id;
         const bHasAircraft = !!b.aircraft_id;
@@ -210,15 +205,12 @@ export function ScheduleClient() {
             if (aircraftComparison !== 0) return aircraftComparison;
         }
         
-        // At this point, they are in the same aircraft group (or both have no aircraft)
-        // Now, prioritize by flight_type_id ('sport' first), then by start_time
         const aIsSport = a.flight_type_id === 'sport';
         const bIsSport = b.flight_type_id === 'sport';
 
-        if (aIsSport && !bIsSport) return -1; // Sport flights first
-        if (!aIsSport && bIsSport) return 1;  // Sport flights first
+        if (aIsSport && !bIsSport) return -1; 
+        if (!aIsSport && bIsSport) return 1;  
 
-        // If both are sport or both are not sport (or different non-sport types), then sort by time
         return a.start_time.localeCompare(b.start_time);
       });
   }, [selectedDate, scheduleEntries, categories, categoriesLoading]);
@@ -246,7 +238,7 @@ export function ScheduleClient() {
     if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
         return false; 
     }
-    const towPilotCategory = categories.find(cat => cat.name === 'Remolcador');
+    const towPilotCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
     if (!towPilotCategory) { 
       return true; 
     }
@@ -260,7 +252,7 @@ export function ScheduleClient() {
     if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
       return false;
     }
-    const instructorCategory = categories.find(cat => cat.name === 'Instructor');
+    const instructorCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
     if (!instructorCategory) { 
       return true; 
     }
@@ -289,21 +281,23 @@ export function ScheduleClient() {
     );
   }
 
+  const uiDisabled = auth.loading || anyLoading;
+
   return (
     <>
       <PageHeader
         title="Agenda de Vuelos"
         action={
           <div className="flex gap-2">
-            <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={anyLoading || auth.loading}>
-              <RefreshCw className={cn("h-4 w-4", (anyLoading || auth.loading) && "animate-spin")} />
+            <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={uiDisabled}>
+              <RefreshCw className={cn("h-4 w-4", uiDisabled && "animate-spin")} />
             </Button>
             {selectedDate && (
               <ShareButton
                 scheduleDate={selectedDate}
               />
             )}
-            <Button onClick={handleAddEntry} disabled={!selectedDate || anyLoading || auth.loading || !auth.user}>
+            <Button onClick={handleAddEntry} disabled={uiDisabled || !auth.user}>
               <PlusCircle className="mr-2 h-4 w-4" /> Agregar Turno
             </Button>
           </div>
@@ -322,7 +316,7 @@ export function ScheduleClient() {
                     "w-full sm:w-[280px] justify-start text-left font-normal",
                     !selectedDate && "text-primary-foreground/70" 
                   )}
-                  disabled={anyLoading || auth.loading}
+                  disabled={uiDisabled}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {selectedDate ? format(selectedDate, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
@@ -334,11 +328,11 @@ export function ScheduleClient() {
                   selected={selectedDate}
                   onSelect={(date) => {
                     setSelectedDate(date);
-                    setIsDatePickerOpen(false); // Close popover on date select
+                    setIsDatePickerOpen(false); 
                   }}
                   initialFocus
                   locale={es}
-                  disabled={anyLoading || auth.loading}
+                  disabled={uiDisabled}
                 />
               </PopoverContent>
             </Popover>
@@ -360,10 +354,10 @@ export function ScheduleClient() {
                 onChange={(e) => setObservationInput(e.target.value)}
                 rows={1}
                 className="mb-3 resize-none overflow-hidden"
-                disabled={obsLoading || auth.loading || !auth.user}
+                disabled={uiDisabled || !auth.user}
               />
             )}
-            <Button onClick={handleSaveObservation} size="sm" disabled={obsLoading || auth.loading || !auth.user}>
+            <Button onClick={handleSaveObservation} size="sm" disabled={uiDisabled || !auth.user}>
               <Save className="mr-2 h-4 w-4" />
               Guardar Observaciones
             </Button>
@@ -375,7 +369,7 @@ export function ScheduleClient() {
        !isTowPilotCategoryConfirmed && 
        !anyLoading && 
        !auth.loading &&
-       categories.some(cat => cat.name === 'Remolcador') && 
+       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && 
         <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -388,7 +382,7 @@ export function ScheduleClient() {
        !isInstructorConfirmed && 
        !anyLoading && 
        !auth.loading &&
-       categories.some(cat => cat.name === 'Instructor') && 
+       categories.some(cat => cat.name?.trim().toLowerCase() === 'instructor') && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -404,7 +398,7 @@ export function ScheduleClient() {
        towageFlightTypeId && 
        !anyLoading && 
        !auth.loading &&
-       categories.some(cat => cat.name === 'Remolcador') && // Check if Remolcador category exists before showing this warning
+       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
