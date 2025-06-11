@@ -397,7 +397,7 @@ export function useAircraftStore() {
 // Schedule Store
 export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // INITIALIZED TO FALSE
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
@@ -736,7 +736,7 @@ export function useDailyNewsStore() {
   }, []);
 
 
-  const addDailyNewsItem = useCallback(async (newsData: Omit<DailyNews, 'id' | 'created_at'>) => {
+  const addDailyNewsItem = useCallback(async (newsData: Omit<DailyNews, 'id' | 'created_at' | 'updated_at'>) => {
     setError(null);
     setLoading(true);
     try {
@@ -833,16 +833,14 @@ export function useDailyNewsStore() {
 // --- Completed Glider Flights Store ---
 export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
-  const [loading, setLoading] = useState(false); // INITIALIZED TO FALSE
+  const [loading, setLoading] = useState(false); // Correctly initialized to false
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
   const fetchCompletedGliderFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    // This function is for fetching a LIST, its loading is separate from form submission
     if (fetchingRef.current) return;
     fetchingRef.current = true;
-    // Temporarily set loading to true for this fetch operation, if it were used.
-    // setLoading(true); 
+    // setLoading(true); // This setLoading is for the fetch list operation
     setError(null);
     try {
       let query = supabase.from('completed_glider_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
@@ -860,7 +858,7 @@ export function useCompletedGliderFlightsStore() {
       logSupabaseError('Unexpected error fetching completed glider flights', e);
       setError(e);
     } finally {
-      // setLoading(false); // Corresponding to the temporary setLoading above
+      // setLoading(false); // For the fetch list operation
       fetchingRef.current = false;
     }
   }, []);
@@ -879,8 +877,6 @@ export function useCompletedGliderFlightsStore() {
         setError(insertError);
         return null;
       }
-      // Optionally, refetch if needed, but for a "new" form, typically not.
-      // await fetchCompletedGliderFlights(); 
       return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed glider flight', e);
@@ -889,7 +885,7 @@ export function useCompletedGliderFlightsStore() {
     } finally {
       setLoading(false); // Clear setLoading for the ADD operation
     }
-  }, []); // Removed fetchCompletedGliderFlights from dependency array if not called within
+  }, []); 
 
   return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight };
 }
@@ -897,15 +893,14 @@ export function useCompletedGliderFlightsStore() {
 // --- Completed Engine Flights Store ---
 export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
-  const [loading, setLoading] = useState(false); // INITIALIZED TO FALSE
+  const [loading, setLoading] = useState(false); // Correctly initialized to false
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
   const fetchCompletedEngineFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    // This function is for fetching a LIST.
     if (fetchingRef.current) return;
     fetchingRef.current = true;
-    // setLoading(true); 
+    // setLoading(true);  // This setLoading is for the fetch list operation
     setError(null);
     try {
       let query = supabase.from('completed_engine_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
@@ -923,7 +918,7 @@ export function useCompletedEngineFlightsStore() {
       logSupabaseError('Unexpected error fetching completed engine flights', e);
       setError(e);
     } finally {
-      // setLoading(false);
+      // setLoading(false); // For the fetch list operation
       fetchingRef.current = false;
     }
   }, []);
@@ -942,7 +937,6 @@ export function useCompletedEngineFlightsStore() {
         setError(insertError);
         return null;
       }
-      // await fetchCompletedEngineFlights();
       return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed engine flight', e);
@@ -951,7 +945,8 @@ export function useCompletedEngineFlightsStore() {
     } finally {
       setLoading(false); // Clear setLoading for the ADD operation
     }
-  }, []); // Removed fetchCompletedEngineFlights from dependency array
+  }, []);
 
   return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight };
 }
+
