@@ -9,9 +9,9 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry } from '@/types';
+import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory } from '@/types';
 import { ENGINE_FLIGHT_PURPOSES } from '@/types';
-import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore } from '@/store/data-hooks';
+import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,9 @@ const engineFlightSchema = z.object({
 }, {
   message: "La hora de llegada debe ser posterior a la hora de salida.",
   path: ["arrival_time"],
+}).refine(data => data.pilot_id !== data.instructor_id, {
+  message: "El piloto no puede ser su propio instructor.",
+  path: ["instructor_id"],
 });
 
 type EngineFlightFormData = z.infer<typeof engineFlightSchema>;
@@ -65,6 +68,7 @@ export function EngineFlightFormClient() {
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
   const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName } = useAircraftStore();
+  const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
   const { addCompletedEngineFlight, loading: submitting } = useCompletedEngineFlightsStore();
 
@@ -101,11 +105,12 @@ export function EngineFlightFormClient() {
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
+    fetchPilotCategories();
     if (scheduleEntryIdParam) {
         const dateParam = searchParams.get('date');
         if (dateParam) fetchScheduleEntries(dateParam);
     }
-  }, [fetchPilots, fetchAircraft, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
 
   useEffect(() => {
     if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
@@ -176,6 +181,18 @@ export function EngineFlightFormClient() {
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots]);
 
+  const instructorCategoryId = useMemo(() => {
+    return categories.find(cat => cat.name.trim().toLowerCase() === 'instructor')?.id;
+  }, [categories]);
+
+  const sortedInstructors = useMemo(() => {
+    if (!instructorCategoryId) return [];
+    return sortedPilots.filter(pilot => 
+      pilot.category_ids.includes(instructorCategoryId) &&
+      pilot.id !== watchedPilotId
+    );
+  }, [sortedPilots, instructorCategoryId, watchedPilotId]);
+
   const filteredEngineAircraft = useMemo(() => {
     return aircraft.filter(ac => ac.type === 'Tow Plane' || ac.type === 'Avión')
                    .sort((a,b) => a.name.localeCompare(b.name));
@@ -221,17 +238,7 @@ export function EngineFlightFormClient() {
     }
   };
 
-  // DEBUG: Log loading states
-  console.log('EngineForm Loading States:', {
-    authLoading,
-    pilotsLoading,
-    aircraftLoading,
-    scheduleLoading, // Added scheduleLoading from useScheduleStore
-    submitting,
-    isSubmittingForm,
-  });
-
-  const isLoading = authLoading || pilotsLoading || aircraftLoading || scheduleLoading || submitting || isSubmittingForm;
+  const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submitting || isSubmittingForm;
 
   return (
     <Card className="max-w-3xl mx-auto">
@@ -346,7 +353,7 @@ export function EngineFlightFormClient() {
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                           disabled={isLoading}
+                           disabled={isLoading || !instructorCategoryId}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -357,9 +364,9 @@ export function EngineFlightFormClient() {
                       <Command>
                         <CommandInput placeholder="Buscar instructor..." value={instructorSearchTerm} onValueChange={setInstructorSearchTerm}/>
                         <CommandList>
-                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandEmpty>No se encontraron instructores.</CommandEmpty>
                           <CommandGroup>
-                            {sortedPilots.filter(p => p.id !== watchedPilotId).map((pilot) => (
+                            {sortedInstructors.map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -377,6 +384,7 @@ export function EngineFlightFormClient() {
                       </Command>
                     </PopoverContent>
                   </Popover>
+                   {!instructorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Instructor". Por favor, créela.</FormDescription>}
                   <FormMessage />
                 </FormItem>
               )}

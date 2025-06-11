@@ -9,9 +9,9 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry } from '@/types';
+import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory } from '@/types';
 import { GLIDER_FLIGHT_PURPOSES } from '@/types';
-import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore } from '@/store/data-hooks';
+import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 
 import { Button } from '@/components/ui/button';
@@ -50,7 +50,17 @@ const gliderFlightSchema = z.object({
 }, {
   message: "La hora de llegada debe ser posterior a la hora de salida.",
   path: ["arrival_time"],
+}).refine(data => data.pilot_id !== data.instructor_id, {
+  message: "El piloto no puede ser su propio instructor.",
+  path: ["instructor_id"],
+}).refine(data => data.pilot_id !== data.tow_pilot_id, {
+  message: "El piloto no puede ser su propio piloto remolcador.",
+  path: ["tow_pilot_id"],
+}).refine(data => !data.instructor_id || data.instructor_id !== data.tow_pilot_id, {
+  message: "El instructor no puede ser el piloto remolcador.",
+  path: ["tow_pilot_id"],
 });
+
 
 type GliderFlightFormData = z.infer<typeof gliderFlightSchema>;
 
@@ -62,6 +72,7 @@ export function GliderFlightFormClient() {
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
   const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName } = useAircraftStore();
+  const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
   const { addCompletedGliderFlight, loading: submitting } = useCompletedGliderFlightsStore();
 
@@ -96,20 +107,16 @@ export function GliderFlightFormClient() {
   const scheduleEntryIdParam = searchParams.get('schedule_id');
 
   useEffect(() => {
-    // Fetch basic data needed for the form to operate
     fetchPilots();
     fetchAircraft();
-    // If coming from schedule, fetch that specific entry's details
+    fetchPilotCategories();
     if (scheduleEntryIdParam) {
       const dateParam = searchParams.get('date');
       if (dateParam) {
-        // fetchScheduleEntries should only fetch for the specific date,
-        // and the store should handle its own loading state.
-        // The component will react to changes in scheduleEntries.
         fetchScheduleEntries(dateParam);
       }
     }
-  }, [fetchPilots, fetchAircraft, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
 
 
   useEffect(() => {
@@ -148,6 +155,7 @@ export function GliderFlightFormClient() {
   }, [scheduleEntryIdParam, scheduleEntries, form, pilots, user, aircraft]);
 
   const watchedPicPilotId = form.watch("pilot_id");
+  const watchedInstructorId = form.watch("instructor_id");
   const watchedDate = form.watch("date");
 
   useEffect(() => {
@@ -175,6 +183,32 @@ export function GliderFlightFormClient() {
   const sortedPilots = useMemo(() => {
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots]);
+
+  const instructorCategoryId = useMemo(() => {
+    return categories.find(cat => cat.name.trim().toLowerCase() === 'instructor')?.id;
+  }, [categories]);
+
+  const towPilotCategoryId = useMemo(() => {
+    return categories.find(cat => cat.name.trim().toLowerCase() === 'remolcador')?.id;
+  }, [categories]);
+
+  const sortedInstructors = useMemo(() => {
+    if (!instructorCategoryId) return [];
+    return sortedPilots.filter(pilot => 
+      pilot.category_ids.includes(instructorCategoryId) &&
+      pilot.id !== watchedPicPilotId
+    );
+  }, [sortedPilots, instructorCategoryId, watchedPicPilotId]);
+
+  const sortedTowPilots = useMemo(() => {
+    if (!towPilotCategoryId) return [];
+    return sortedPilots.filter(pilot => 
+      pilot.category_ids.includes(towPilotCategoryId) &&
+      pilot.id !== watchedPicPilotId &&
+      pilot.id !== watchedInstructorId
+    );
+  }, [sortedPilots, towPilotCategoryId, watchedPicPilotId, watchedInstructorId]);
+
 
   const filteredGliders = useMemo(() => {
     return aircraft.filter(ac => ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
@@ -220,17 +254,7 @@ export function GliderFlightFormClient() {
     }
   };
 
-  // DEBUG: Log loading states
-  console.log('GliderForm Loading States:', {
-    authLoading,
-    pilotsLoading,
-    aircraftLoading,
-    scheduleLoading, // Added scheduleLoading from useScheduleStore
-    submitting,
-    isSubmittingForm,
-  });
-
-  const isLoading = authLoading || pilotsLoading || aircraftLoading || scheduleLoading || submitting || isSubmittingForm;
+  const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submitting || isSubmittingForm;
 
 
   return (
@@ -346,7 +370,7 @@ export function GliderFlightFormClient() {
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading}
+                          disabled={isLoading || !instructorCategoryId}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -357,9 +381,9 @@ export function GliderFlightFormClient() {
                       <Command>
                         <CommandInput placeholder="Buscar instructor..." value={instructorSearchTerm} onValueChange={setInstructorSearchTerm}/>
                         <CommandList>
-                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandEmpty>No se encontraron instructores.</CommandEmpty>
                           <CommandGroup>
-                             {sortedPilots.filter(p => p.id !== watchedPicPilotId).map((pilot) => (
+                             {sortedInstructors.map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -377,6 +401,7 @@ export function GliderFlightFormClient() {
                       </Command>
                     </PopoverContent>
                   </Popover>
+                   {!instructorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Instructor". Por favor, créela.</FormDescription>}
                   <FormMessage />
                 </FormItem>
               )}
@@ -395,7 +420,7 @@ export function GliderFlightFormClient() {
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading}
+                          disabled={isLoading || !towPilotCategoryId}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto remolcador"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -406,9 +431,9 @@ export function GliderFlightFormClient() {
                       <Command>
                         <CommandInput placeholder="Buscar piloto..." value={towPilotSearchTerm} onValueChange={setTowPilotSearchTerm}/>
                         <CommandList>
-                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandEmpty>No se encontraron pilotos remolcadores.</CommandEmpty>
                           <CommandGroup>
-                            {sortedPilots.filter(p => p.id !== watchedPicPilotId && p.id !== form.getValues('instructor_id')).map((pilot) => (
+                            {sortedTowPilots.map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -426,6 +451,7 @@ export function GliderFlightFormClient() {
                       </Command>
                     </PopoverContent>
                   </Popover>
+                  {!towPilotCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Remolcador". Por favor, créela.</FormDescription>}
                   <FormMessage />
                 </FormItem>
               )}
