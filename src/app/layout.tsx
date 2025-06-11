@@ -1,20 +1,12 @@
 
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+// Removed Geist font imports
 import './globals.css';
 import { AppShell } from '@/components/AppShell';
-import { AuthProvider } from '@/contexts/AuthContext'; // Import AuthProvider
-import { Toaster } from "@/components/ui/toaster"; // Moved Toaster here from AppShell
+import { AuthProvider } from '@/contexts/AuthContext'; 
+import { Toaster } from "@/components/ui/toaster"; 
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+// Removed Geist font definitions
 
 export const metadata: Metadata = {
   title: 'Turnos de Vuelo',
@@ -25,7 +17,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'default', 
     title: 'Turnos de Vuelo',
-    // startupImage: [ // Opcional: imágenes de inicio para iOS
+    // startupImage: [ 
     //   { url: '/splash/iphone5_splash.png', media: '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)' },
     // ],
   },
@@ -55,7 +47,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className="antialiased"> {/* Removed Geist font variables */}
         <AuthProvider>
           <AppShell>
             {children}

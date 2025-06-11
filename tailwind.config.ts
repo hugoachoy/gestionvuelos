@@ -1,6 +1,6 @@
 
 import type { Config } from "tailwindcss";
-import defaultTheme from 'tailwindcss/defaultTheme';
+// Removed defaultTheme import as it's not used if fontFamily is removed
 
 export default {
     darkMode: ["class"],
@@ -11,10 +11,7 @@ export default {
   ],
   theme: {
   	extend: {
-      fontFamily: {
-        sans: [`var(--font-geist-sans)`, ...defaultTheme.fontFamily.sans],
-        mono: [`var(--font-geist-mono)`, ...defaultTheme.fontFamily.mono],
-      },
+      // Removed fontFamily extension for Geist
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
