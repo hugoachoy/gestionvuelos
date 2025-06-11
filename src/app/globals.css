@@ -2,9 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* Removed explicit body font-family: Arial, Helvetica, sans-serif; */
+/* Tailwind will now handle the default font based on tailwind.config.ts */
 
 @layer base {
   :root {
