@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse } from 'date-fns';
+import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry } from '@/types';
@@ -445,14 +445,13 @@ export function GliderFlightFormClient() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Avión Remolcador (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoading}>
+                  <Select onValueChange={field.onChange} value={field.value ?? undefined} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar avión remolcador" />
+                        <SelectValue placeholder="Seleccionar avión remolcador (o ninguno)" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Ninguno</SelectItem> {/* Allow unselecting */}
                       {filteredTowPlanes.map((ac) => (
                         <SelectItem key={ac.id} value={ac.id}>
                           {ac.name}
@@ -547,3 +546,4 @@ export function GliderFlightFormClient() {
     </Card>
   );
 }
+
