@@ -34,27 +34,53 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, parse, isValid, startOfDay } from 'date-fns';
+import { format, parseISO, parse, isValid, startOfDay, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
 import { useAuth } from '@/contexts/AuthContext';
 
+type PilotFormData = z.infer<ReturnType<typeof createPilotSchema>>;
 
-const pilotSchema = z.object({
-  first_name: z.string().min(1, "El nombre es obligatorio."),
-  last_name: z.string().min(1, "El apellido es obligatorio."),
-  category_ids: z.array(z.string()).min(1, "Seleccione al menos una categoría."),
-  medical_expiry: z.date({
-      required_error: "La fecha de vencimiento del psicofísico es obligatoria.",
-      invalid_type_error: "Fecha inválida."
-    })
-    .refine(date => date >= startOfDay(new Date()), {
-      message: "La fecha de vencimiento no puede ser en el pasado."
-    }),
-  is_admin: z.boolean().optional(), 
-});
+// Function to create the schema dynamically based on the existing pilot's medical expiry
+const createPilotSchema = (originalMedicalExpiryDateString?: string | null) => {
+  const originalExpiryDate = originalMedicalExpiryDateString && isValid(parseISO(originalMedicalExpiryDateString)) 
+    ? startOfDay(parseISO(originalMedicalExpiryDateString)) 
+    : null;
 
-type PilotFormData = z.infer<typeof pilotSchema>;
+  return z.object({
+    first_name: z.string().min(1, "El nombre es obligatorio."),
+    last_name: z.string().min(1, "El apellido es obligatorio."),
+    category_ids: z.array(z.string()).min(1, "Seleccione al menos una categoría."),
+    medical_expiry: z.date({
+        required_error: "La fecha de vencimiento del psicofísico es obligatoria.",
+        invalid_type_error: "Fecha inválida."
+      })
+      .refine(submittedDateObj => {
+        const today = startOfDay(new Date());
+        const submittedDate = startOfDay(submittedDateObj);
+
+        if (originalExpiryDate) { // Editing existing pilot
+          if (isBefore(originalExpiryDate, today)) { // Original was already expired
+            // Valid if:
+            // 1. Submitted date is the same as the (already past) original expiry date.
+            // OR
+            // 2. Submitted date is a new date that is in the future (or today).
+            return submittedDate.getTime() === originalExpiryDate.getTime() || submittedDate >= today;
+          } else { // Original was not expired (it was in the future)
+            // Submitted date must be in the future (or today).
+            return submittedDate >= today;
+          }
+        } else { // Creating new pilot
+          // Submitted date must be in the future (or today).
+          return submittedDate >= today;
+        }
+      }, {
+        message: "La fecha de vencimiento no puede ser anterior a hoy. Si edita un piloto con psicofísico ya vencido, puede mantener la fecha vencida original o actualizarla a una fecha futura."
+      }),
+    is_admin: z.boolean().optional(),
+  });
+};
+
 
 interface PilotFormProps {
   open: boolean;
@@ -62,11 +88,14 @@ interface PilotFormProps {
   onSubmit: (data: Omit<Pilot, 'id' | 'created_at'>, pilotId?: string) => void;
   pilot?: Pilot;
   categories: PilotCategory[];
-  allowIsAdminChange?: boolean; // Prop para controlar si se puede cambiar el campo is_admin
+  allowIsAdminChange?: boolean;
 }
 
 export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, allowIsAdminChange = false }: PilotFormProps) {
-  const { user: currentUser } = useAuth(); // Para verificar si el usuario actual es admin
+  const { user: currentUser } = useAuth();
+  
+  const pilotSchema = useMemo(() => createPilotSchema(pilot?.medical_expiry), [pilot?.medical_expiry]);
+
   const form = useForm<PilotFormData>({
     resolver: zodResolver(pilotSchema),
     defaultValues: {
@@ -95,19 +124,24 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             first_name: '',
             last_name: '',
             category_ids: [],
-            medical_expiry: new Date(),
+            medical_expiry: new Date(), // For new pilot, default to today
             is_admin: false,
           };
       form.reset(initialFormValues);
+      
+      // Update the schema in the resolver if pilot changes (specifically medical_expiry)
+      // This is implicitly handled because zodResolver takes the schema which is memoized by pilot.medical_expiry
+      // So when `pilot` changes, `pilotSchema` re-memoizes, and `form` instance uses the new schema for subsequent validations.
 
       const currentMedicalDateInForm = initialFormValues.medical_expiry;
       if (isValid(currentMedicalDateInForm)) {
         setMedicalExpiryDateString(format(currentMedicalDateInForm, "dd/MM/yyyy", { locale: es }));
       } else {
+         // Fallback for new pilot or invalid date
         setMedicalExpiryDateString(format(initialFormValues.medical_expiry || new Date(), "dd/MM/yyyy", { locale: es }));
       }
     }
-  }, [open, pilot, form]);
+  }, [open, pilot, form, pilotSchema]); // Added pilotSchema to dependencies
 
 
   const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>, fieldOnChange: (date: Date | undefined) => void) => {
@@ -137,8 +171,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
         ...data,
         medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
         is_admin: data.is_admin ?? false, 
-        // Asegurar que auth_user_id se preserve si se está editando y existe
-        auth_user_id: pilot?.auth_user_id // Mantener el auth_user_id original al editar
+        auth_user_id: pilot?.auth_user_id 
     };
     onSubmit(dataToSubmit, pilot?.id);
     onOpenChange(false);
@@ -277,8 +310,12 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
                         mode="single"
                         selected={field.value instanceof Date && isValid(field.value) ? field.value : undefined}
                         onSelect={(date) => handleDateSelect(date, field.onChange)}
+                        // The disabled prop on Calendar itself only prevents user from picking via UI.
+                        // Zod validation will handle the logic of what can be saved.
+                        // Keeping this for UI convenience:
                         disabled={(date) =>
-                          date < startOfDay(new Date())
+                          date < startOfDay(new Date()) && // Can't pick past date unless
+                          !(pilot?.medical_expiry && startOfDay(parseISO(pilot.medical_expiry)).getTime() === startOfDay(date).getTime()) // it's the exact original past date
                         }
                         initialFocus
                         locale={es}
@@ -312,7 +349,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
                         checked={field.value ?? false}
                         onCheckedChange={field.onChange}
                         aria-labelledby="is_admin_label"
-                        disabled={!currentUser?.is_admin} // Solo un admin puede cambiar esto
+                        disabled={!currentUser?.is_admin} 
                       />
                     </FormControl>
                   </FormItem>
