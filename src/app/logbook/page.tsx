@@ -66,11 +66,13 @@ export default function LogbookPage() {
         </Card>
       </div>
       <div className="mt-8 p-4 border rounded-lg bg-card text-card-foreground">
-        <h3 className="text-lg font-semibold mb-2">Próximos Pasos:</h3>
+        <h3 className="text-lg font-semibold mb-2">Próximos Pasos (Fase 2 - Libro de Vuelo):</h3>
         <ul className="list-disc list-inside space-y-1 text-sm">
+          <li><span className="font-semibold text-green-600">[Hecho]</span> Creación de tablas en Base de Datos.</li>
+          <li><span className="font-semibold text-green-600">[Hecho]</span> Navegación desde Agenda a formularios.</li>
           <li>Implementar formularios para registrar vuelos de planeador y motor.</li>
           <li>Desarrollar listados para visualizar los vuelos registrados.</li>
-          <li>Integrar la pre-carga de datos desde la Agenda al registrar un nuevo vuelo.</li>
+          <li>Implementar políticas RLS detalladas si es necesario.</li>
         </ul>
       </div>
     </>

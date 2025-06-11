@@ -24,7 +24,7 @@ import {
 } from '@/store/data-hooks';
 import type { ScheduleEntry, PilotCategory, DailyNews, Aircraft } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
-import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2, ClipboardPlus } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
@@ -391,36 +391,53 @@ export function ScheduleClient() {
  const handleRegisterFlight = (entry: ScheduleEntry) => {
     const aircraftUsed = aircraft.find(ac => ac.id === entry.aircraft_id);
     let flightTypeForLogbook: 'glider' | 'engine' | undefined;
+    let targetPath = '';
+    const queryParams = new URLSearchParams({
+        schedule_id: entry.id,
+        date: entry.date,
+        pilot_id: entry.pilot_id,
+        start_time: entry.start_time.substring(0,5),
+    });
+    if (entry.aircraft_id) {
+        queryParams.set('aircraft_id', entry.aircraft_id);
+    }
+
 
     if (aircraftUsed) {
         if (aircraftUsed.type === 'Glider') {
             flightTypeForLogbook = 'glider';
+            targetPath = '/logbook/glider/new';
+            // Si es planeador y el tipo de vuelo de la agenda fue 'Remolque', no tiene sentido.
+            // Esto podría indicar un instructor o piloto de planeador en un turno de remolque.
+            // La lógica de preselección en el form deberá manejar esto.
         } else if (aircraftUsed.type === 'Tow Plane' || aircraftUsed.type === 'Avión') {
             flightTypeForLogbook = 'engine';
+            targetPath = '/logbook/engine/new';
+             if (aircraftUsed.type === 'Tow Plane' && entry.flight_type_id === 'towage') {
+                // Este es un piloto de remolcador en un avión remolcador.
+                // El formulario de vuelo a motor podrá preseleccionar "Remolque planeador"
+                // y permitir buscar el vuelo de planeador asociado (futura mejora)
+            }
         }
     } else {
-        // Fallback if aircraft_id is null or not found, try to infer from pilot category or flight type
-        const pilotCategory = categories.find(cat => cat.id === entry.pilot_category_id);
-        if (pilotCategory?.name.toLowerCase().includes('planeador')) {
+        // No hay aeronave en la agenda, intentamos inferir por la categoría del piloto para el turno
+        const pilotCategoryForTurn = categories.find(cat => cat.id === entry.pilot_category_id);
+        if (pilotCategoryForTurn?.name.toLowerCase().includes('planeador') || entry.flight_type_id === 'sport' || entry.flight_type_id === 'instruction' ) {
+             // Asumimos planeador si la categoría es de planeador o si el tipo de vuelo es deportivo/instrucción sin aeronave especificada
             flightTypeForLogbook = 'glider';
-        } else if (entry.flight_type_id === 'towage' || pilotCategory?.name.toLowerCase().includes('remolcador')) {
-            flightTypeForLogbook = 'engine'; // Towing is done by an engine aircraft
+            targetPath = '/logbook/glider/new';
+        } else if (entry.flight_type_id === 'towage' || pilotCategoryForTurn?.name.toLowerCase().includes('remolcador')) {
+            flightTypeForLogbook = 'engine';
+            targetPath = '/logbook/engine/new';
         }
-        // If still undefined, it's ambiguous
     }
 
-    if (flightTypeForLogbook) {
-        // Navigate to a generic new page, or specific ones if forms are very different
-        // For now, we'll just show a toast as the forms are not ready.
-        // router.push(`/logbook/${flightTypeForLogbook}/new?schedule_id=${entry.id}`);
-        toast({
-            title: "Registrar Vuelo",
-            description: `Redirigiendo para registrar vuelo de tipo '${flightTypeForLogbook}' (ID: ${entry.id}). Formularios en desarrollo.`,
-        });
+    if (flightTypeForLogbook && targetPath) {
+        router.push(`${targetPath}?${queryParams.toString()}`);
     } else {
         toast({
             title: "Tipo de Vuelo Ambiguo",
-            description: "No se pudo determinar si es un vuelo de planeador o motor para el registro. Revise los datos del turno.",
+            description: "No se pudo determinar el tipo de vuelo para registrar. Revise los datos del turno o registre manualmente.",
             variant: "destructive",
         });
     }
