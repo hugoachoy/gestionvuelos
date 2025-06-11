@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Turnos de Vuelo',
   description: 'Gestión de Turnos de Vuelo a Vela para el Aeroclub 9 de Julio. Planifica y coordina tus vuelos de forma eficiente y segura.',
-  manifest: '/manifest.json', // Link to the manifest file
+  // manifest: '/manifest.json', // Temporarily commented out for CORS diagnosis
   applicationName: 'Turnos de Vuelo',
   appleWebApp: {
     capable: true,
