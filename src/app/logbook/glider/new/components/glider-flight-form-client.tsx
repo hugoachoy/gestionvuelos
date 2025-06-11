@@ -6,12 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays } from 'date-fns';
+import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry } from '@/types';
-import { ENGINE_FLIGHT_PURPOSES } from '@/types';
-import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore } from '@/store/data-hooks';
+import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry } from '@/types';
+import { GLIDER_FLIGHT_PURPOSES } from '@/types';
+import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 
 import { Button } from '@/components/ui/button';
@@ -28,19 +28,16 @@ import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save } fro
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
-const engineFlightSchema = z.object({
+const gliderFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   instructor_id: z.string().optional().nullable(),
-  engine_aircraft_id: z.string().min(1, "Seleccione una aeronave."),
-  flight_purpose: z.enum(ENGINE_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
+  tow_pilot_id: z.string().optional().nullable(),
+  glider_aircraft_id: z.string().min(1, "Seleccione un planeador."),
+  tow_aircraft_id: z.string().optional().nullable(),
+  flight_purpose: z.enum(GLIDER_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
   departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de salida inválido (HH:MM)."),
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
-  route_from_to: z.string().optional().nullable(),
-  landings_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
-  tows_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
-  oil_added_liters: z.coerce.number().min(0, "Debe ser 0 o más.").optional().nullable(),
-  fuel_added_liters: z.coerce.number().min(0, "Debe ser 0 o más.").optional().nullable(),
   notes: z.string().optional().nullable(),
   schedule_entry_id: z.string().optional().nullable(),
 }).refine(data => {
@@ -55,9 +52,9 @@ const engineFlightSchema = z.object({
   path: ["arrival_time"],
 });
 
-type EngineFlightFormData = z.infer<typeof engineFlightSchema>;
+type GliderFlightFormData = z.infer<typeof gliderFlightSchema>;
 
-export function EngineFlightFormClient() {
+export function GliderFlightFormClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -66,31 +63,31 @@ export function EngineFlightFormClient() {
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
   const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName } = useAircraftStore();
   const { scheduleEntries, fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedEngineFlight, loading: submitting } = useCompletedEngineFlightsStore();
+  const { addCompletedGliderFlight, loading: submitting } = useCompletedGliderFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [pilotSearchTerm, setPilotSearchTerm] = useState('');
-  const [pilotPopoverOpen, setPilotPopoverOpen] = useState(false);
+  
+  const [picPilotSearchTerm, setPicPilotSearchTerm] = useState('');
+  const [picPilotPopoverOpen, setPicPilotPopoverOpen] = useState(false);
   const [instructorSearchTerm, setInstructorSearchTerm] = useState('');
   const [instructorPopoverOpen, setInstructorPopoverOpen] = useState(false);
+  const [towPilotSearchTerm, setTowPilotSearchTerm] = useState('');
+  const [towPilotPopoverOpen, setTowPilotPopoverOpen] = useState(false);
   const [medicalWarning, setMedicalWarning] = useState<string | null>(null);
 
-  const form = useForm<EngineFlightFormData>({
-    resolver: zodResolver(engineFlightSchema),
+  const form = useForm<GliderFlightFormData>({
+    resolver: zodResolver(gliderFlightSchema),
     defaultValues: {
       date: new Date(),
       pilot_id: '',
       instructor_id: null,
-      engine_aircraft_id: '',
+      tow_pilot_id: null,
+      glider_aircraft_id: '',
+      tow_aircraft_id: null,
       flight_purpose: undefined,
       departure_time: '',
       arrival_time: '',
-      route_from_to: null,
-      landings_count: 0,
-      tows_count: 0,
-      oil_added_liters: null,
-      fuel_added_liters: null,
       notes: null,
       schedule_entry_id: null,
     },
@@ -102,8 +99,8 @@ export function EngineFlightFormClient() {
     fetchPilots();
     fetchAircraft();
     if (scheduleEntryIdParam) {
-        const dateParam = searchParams.get('date');
-        if (dateParam) fetchScheduleEntries(dateParam);
+      const dateParam = searchParams.get('date');
+      if (dateParam) fetchScheduleEntries(dateParam);
     }
   }, [fetchPilots, fetchAircraft, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
 
@@ -114,49 +111,43 @@ export function EngineFlightFormClient() {
         form.reset({
           date: entry.date ? parseISO(entry.date) : new Date(),
           pilot_id: entry.pilot_id || '',
-          engine_aircraft_id: entry.aircraft_id || '',
+          glider_aircraft_id: entry.aircraft_id || '',
           departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
           schedule_entry_id: entry.id,
-          // Reset other fields to default or derive if possible
+          // Reset other fields to default
           instructor_id: null,
+          tow_pilot_id: null,
+          tow_aircraft_id: null,
           flight_purpose: undefined,
           arrival_time: '',
-          route_from_to: null,
-          landings_count: 0,
-          tows_count: 0,
-          oil_added_liters: null,
-          fuel_added_liters: null,
           notes: null,
         });
       }
     } else if (!scheduleEntryIdParam) {
         // If not coming from schedule, reset to sensible defaults
-        form.reset({
+         form.reset({
             date: new Date(),
             pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '', // Pre-select current user if possible
             instructor_id: null,
-            engine_aircraft_id: '',
+            tow_pilot_id: null,
+            glider_aircraft_id: '',
+            tow_aircraft_id: null,
             flight_purpose: undefined,
             departure_time: '',
             arrival_time: '',
-            route_from_to: null,
-            landings_count: 0,
-            tows_count: 0,
-            oil_added_liters: null,
-            fuel_added_liters: null,
             notes: null,
             schedule_entry_id: null,
         });
     }
   }, [scheduleEntryIdParam, scheduleEntries, form, pilots, user]);
 
-  const watchedPilotId = form.watch("pilot_id");
+  const watchedPicPilotId = form.watch("pilot_id");
   const watchedDate = form.watch("date");
 
   useEffect(() => {
     setMedicalWarning(null);
-    if (watchedPilotId && watchedDate) {
-      const pilot = pilots.find(p => p.id === watchedPilotId);
+    if (watchedPicPilotId && watchedDate) {
+      const pilot = pilots.find(p => p.id === watchedPicPilotId);
       if (pilot?.medical_expiry) {
         const medicalExpiryDate = parseISO(pilot.medical_expiry);
         const flightDate = startOfDay(watchedDate);
@@ -172,18 +163,22 @@ export function EngineFlightFormClient() {
         }
       }
     }
-  }, [watchedPilotId, watchedDate, pilots]);
+  }, [watchedPicPilotId, watchedDate, pilots]);
+
 
   const sortedPilots = useMemo(() => {
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots]);
 
-  const filteredEngineAircraft = useMemo(() => {
-    return aircraft.filter(ac => ac.type === 'Tow Plane' || ac.type === 'Avión')
-                   .sort((a,b) => a.name.localeCompare(b.name));
+  const filteredGliders = useMemo(() => {
+    return aircraft.filter(ac => ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
-  const onSubmit = async (data: EngineFlightFormData) => {
+  const filteredTowPlanes = useMemo(() => {
+    return aircraft.filter(ac => ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
+  }, [aircraft]);
+
+  const onSubmit = async (data: GliderFlightFormData) => {
     if (!user) {
       toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
       return;
@@ -195,29 +190,25 @@ export function EngineFlightFormClient() {
     const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
     const flightDurationDecimal = parseFloat((durationMinutes / 60).toFixed(2));
 
-    const submissionData: Omit<CompletedEngineFlight, 'id' | 'created_at'> = {
+    const submissionData: Omit<CompletedGliderFlight, 'id' | 'created_at'> = {
       ...data,
       date: format(data.date, 'yyyy-MM-dd'),
       flight_duration_decimal: flightDurationDecimal,
-      billable_minutes: durationMinutes, // Can be adjusted by admin later if needed
-      logbook_type: 'engine',
+      logbook_type: 'glider',
       auth_user_id: user.id,
       schedule_entry_id: data.schedule_entry_id || null,
       instructor_id: data.instructor_id || null,
-      route_from_to: data.route_from_to || null,
-      landings_count: data.landings_count || 0,
-      tows_count: data.tows_count || 0,
-      oil_added_liters: data.oil_added_liters || null,
-      fuel_added_liters: data.fuel_added_liters || null,
+      tow_pilot_id: data.tow_pilot_id || null,
+      tow_aircraft_id: data.tow_aircraft_id || null,
       notes: data.notes || null,
     };
 
-    const result = await addCompletedEngineFlight(submissionData);
+    const result = await addCompletedGliderFlight(submissionData);
     setIsSubmittingForm(false);
 
     if (result) {
-      toast({ title: "Vuelo a Motor Registrado", description: "El vuelo ha sido guardado exitosamente." });
-      router.push('/logbook'); // Or to a list page when it exists
+      toast({ title: "Vuelo en Planeador Registrado", description: "El vuelo ha sido guardado exitosamente." });
+      router.push('/logbook');
     } else {
       toast({ title: "Error al Registrar", description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
     }
@@ -228,7 +219,7 @@ export function EngineFlightFormClient() {
   return (
     <Card className="max-w-3xl mx-auto">
       <CardHeader>
-        <CardTitle>Detalles del Vuelo a Motor</CardTitle>
+        <CardTitle>Detalles del Vuelo en Planeador</CardTitle>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -265,7 +256,7 @@ export function EngineFlightFormClient() {
                         mode="single"
                         selected={field.value}
                         onSelect={(date) => { field.onChange(date); setIsCalendarOpen(false); }}
-                        disabled={(date) => date > new Date() || isLoading}
+                        disabled={(date) => date > new Date() || isLoading }
                         initialFocus
                         locale={es}
                       />
@@ -282,7 +273,7 @@ export function EngineFlightFormClient() {
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Piloto a Cargo (PIC)</FormLabel>
-                  <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
+                   <Popover open={picPilotPopoverOpen} onOpenChange={setPicPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -298,7 +289,7 @@ export function EngineFlightFormClient() {
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                       <Command>
-                        <CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} />
+                        <CommandInput placeholder="Buscar piloto..." value={picPilotSearchTerm} onValueChange={setPicPilotSearchTerm}/>
                         <CommandList>
                           <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                           <CommandGroup>
@@ -308,10 +299,10 @@ export function EngineFlightFormClient() {
                                 key={pilot.id}
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
-                                  setPilotPopoverOpen(false);
+                                  setPicPilotPopoverOpen(false);
                                 }}
                               >
-                                <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
+                                <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
                                 {pilot.last_name}, {pilot.first_name}
                               </CommandItem>
                             ))}
@@ -338,7 +329,7 @@ export function EngineFlightFormClient() {
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                           disabled={isLoading}
+                          disabled={isLoading}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -351,7 +342,7 @@ export function EngineFlightFormClient() {
                         <CommandList>
                           <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                           <CommandGroup>
-                            {sortedPilots.filter(p => p.id !== watchedPilotId).map((pilot) => (
+                             {sortedPilots.filter(p => p.id !== watchedPicPilotId).map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -360,7 +351,7 @@ export function EngineFlightFormClient() {
                                   setInstructorPopoverOpen(false);
                                 }}
                               >
-                                <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
+                                <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
                                 {pilot.last_name}, {pilot.first_name}
                               </CommandItem>
                             ))}
@@ -376,20 +367,95 @@ export function EngineFlightFormClient() {
 
             <FormField
               control={form.control}
-              name="engine_aircraft_id"
+              name="tow_pilot_id"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Piloto Remolcador (Opcional)</FormLabel>
+                   <Popover open={towPilotPopoverOpen} onOpenChange={setTowPilotPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
+                          disabled={isLoading}
+                        >
+                          {field.value ? getPilotName(field.value) : "Seleccionar piloto remolcador"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar piloto..." value={towPilotSearchTerm} onValueChange={setTowPilotSearchTerm}/>
+                        <CommandList>
+                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandGroup>
+                            {sortedPilots.filter(p => p.id !== watchedPicPilotId && p.id !== form.getValues('instructor_id')).map((pilot) => (
+                              <CommandItem
+                                value={`${pilot.last_name}, ${pilot.first_name}`}
+                                key={pilot.id}
+                                onSelect={() => {
+                                  form.setValue("tow_pilot_id", pilot.id, { shouldValidate: true });
+                                  setTowPilotPopoverOpen(false);
+                                }}
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
+                                {pilot.last_name}, {pilot.first_name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="glider_aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Aeronave de Motor</FormLabel>
+                  <FormLabel>Planeador</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar aeronave de motor" />
+                        <SelectValue placeholder="Seleccionar planeador" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {filteredEngineAircraft.map((ac) => (
+                      {filteredGliders.map((ac) => (
                         <SelectItem key={ac.id} value={ac.id}>
-                          {ac.name} ({ac.type})
+                          {ac.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="tow_aircraft_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Avión Remolcador (Opcional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar avión remolcador" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Ninguno</SelectItem> {/* Allow unselecting */}
+                      {filteredTowPlanes.map((ac) => (
+                        <SelectItem key={ac.id} value={ac.id}>
+                          {ac.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -412,7 +478,7 @@ export function EngineFlightFormClient() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {ENGINE_FLIGHT_PURPOSES.map((purpose) => (
+                      {GLIDER_FLIGHT_PURPOSES.map((purpose) => (
                         <SelectItem key={purpose} value={purpose}>
                           {purpose.charAt(0).toUpperCase() + purpose.slice(1)}
                         </SelectItem>
@@ -452,78 +518,6 @@ export function EngineFlightFormClient() {
                 )}
               />
             </div>
-            
-            <FormField
-                control={form.control}
-                name="route_from_to"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ruta (Desde - Hasta) (Opcional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej: Aeroclub - Chivilcoy - Aeroclub" {...field} value={field.value ?? ""} disabled={isLoading}/>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                    control={form.control}
-                    name="landings_count"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Aterrizajes (Opcional)</FormLabel>
-                        <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="tows_count"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Remolques Realizados (Opcional)</FormLabel>
-                        <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                    control={form.control}
-                    name="fuel_added_liters"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Nafta Cargada (Lts) (Opcional)</FormLabel>
-                        <FormControl>
-                        <Input type="number" step="0.1" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="oil_added_liters"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Aceite Cargado (Lts) (Opcional)</FormLabel>
-                        <FormControl>
-                        <Input type="number" step="0.01" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-            </div>
 
             <FormField
               control={form.control}
@@ -532,7 +526,7 @@ export function EngineFlightFormClient() {
                 <FormItem>
                   <FormLabel>Notas (Opcional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""}  disabled={isLoading}/>
+                    <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""} disabled={isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -545,7 +539,7 @@ export function EngineFlightFormClient() {
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Guardar Vuelo a Motor
+              Guardar Vuelo
             </Button>
           </CardFooter>
         </form>
