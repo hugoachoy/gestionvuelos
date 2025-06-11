@@ -22,9 +22,9 @@ import {
   useDailyObservationsStore,
   useDailyNewsStore,
 } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory, DailyNews } from '@/types';
+import type { ScheduleEntry, PilotCategory, DailyNews, Aircraft } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
-import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2, ClipboardPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +32,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+
 
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
@@ -61,6 +63,7 @@ export function ScheduleClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
   const auth = useAuth();
+  const router = useRouter();
 
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
@@ -385,6 +388,44 @@ export function ScheduleClient() {
     return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
+ const handleRegisterFlight = (entry: ScheduleEntry) => {
+    const aircraftUsed = aircraft.find(ac => ac.id === entry.aircraft_id);
+    let flightTypeForLogbook: 'glider' | 'engine' | undefined;
+
+    if (aircraftUsed) {
+        if (aircraftUsed.type === 'Glider') {
+            flightTypeForLogbook = 'glider';
+        } else if (aircraftUsed.type === 'Tow Plane' || aircraftUsed.type === 'Avión') {
+            flightTypeForLogbook = 'engine';
+        }
+    } else {
+        // Fallback if aircraft_id is null or not found, try to infer from pilot category or flight type
+        const pilotCategory = categories.find(cat => cat.id === entry.pilot_category_id);
+        if (pilotCategory?.name.toLowerCase().includes('planeador')) {
+            flightTypeForLogbook = 'glider';
+        } else if (entry.flight_type_id === 'towage' || pilotCategory?.name.toLowerCase().includes('remolcador')) {
+            flightTypeForLogbook = 'engine'; // Towing is done by an engine aircraft
+        }
+        // If still undefined, it's ambiguous
+    }
+
+    if (flightTypeForLogbook) {
+        // Navigate to a generic new page, or specific ones if forms are very different
+        // For now, we'll just show a toast as the forms are not ready.
+        // router.push(`/logbook/${flightTypeForLogbook}/new?schedule_id=${entry.id}`);
+        toast({
+            title: "Registrar Vuelo",
+            description: `Redirigiendo para registrar vuelo de tipo '${flightTypeForLogbook}' (ID: ${entry.id}). Formularios en desarrollo.`,
+        });
+    } else {
+        toast({
+            title: "Tipo de Vuelo Ambiguo",
+            description: "No se pudo determinar si es un vuelo de planeador o motor para el registro. Revise los datos del turno.",
+            variant: "destructive",
+        });
+    }
+  };
+
 
   if (anyError) {
     return (
@@ -519,6 +560,7 @@ export function ScheduleClient() {
           entries={filteredAndSortedEntries}
           onEdit={handleEditEntry}
           onDelete={handleDeleteEntry}
+          onRegisterFlight={handleRegisterFlight}
         />
       )}
 

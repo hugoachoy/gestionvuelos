@@ -6,7 +6,7 @@ import { FLIGHT_TYPES } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookOpen, AlertTriangle, PlaneTakeoff, PlaneLanding } from 'lucide-react';
+import { Edit, Trash2, Plane, Clock, Layers, CheckCircle2, XCircle, Award, BookOpen, AlertTriangle, PlaneTakeoff, PlaneLanding, ClipboardPlus } from 'lucide-react';
 import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
@@ -19,6 +19,7 @@ interface ScheduleDisplayProps {
   entries: ScheduleEntry[];
   onEdit: (entry: ScheduleEntry) => void;
   onDelete: (entry: ScheduleEntry) => void;
+  onRegisterFlight: (entry: ScheduleEntry) => void; // New prop
 }
 
 const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = ({ typeId }) => {
@@ -31,7 +32,7 @@ const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = 
   }
 };
 
-export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayProps) {
+export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }: ScheduleDisplayProps) {
   const { getPilotName, pilots } = usePilotsStore();
   const { getCategoryName, categories } = usePilotCategoriesStore(); 
   const { getAircraftName } = useAircraftStore();
@@ -155,18 +156,24 @@ export function ScheduleDisplay({ entries, onEdit, onDelete }: ScheduleDisplayPr
                     {flightTypeDisplayNode}
                   </CardDescription>
                 </div>
-                {canManageEntry && ( 
-                  <div className="flex gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="hover:text-primary">
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => onDelete(entry)} className="hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Eliminar</span>
-                      </Button>
-                    </div>
-                )}
+                <div className="flex gap-1 shrink-0">
+                    {canManageEntry && ( 
+                        <>
+                        <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="hover:text-primary">
+                            <Edit className="h-4 w-4" />
+                            <span className="sr-only">Editar Turno</span>
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => onDelete(entry)} className="hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Eliminar Turno</span>
+                        </Button>
+                        </>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => onRegisterFlight(entry)} className="hover:text-green-600" title="Registrar Vuelo Realizado">
+                        <ClipboardPlus className="h-4 w-4" />
+                        <span className="sr-only">Registrar Vuelo Realizado</span>
+                    </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-1 pt-2">

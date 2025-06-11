@@ -2,9 +2,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation, DailyNews } from '@/types';
+import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
-import { format } from 'date-fns'; // No se necesita parseISO aquí directamente
+import { format } from 'date-fns'; 
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -827,5 +827,128 @@ export function useDailyNewsStore() {
   }, [dailyNews]);
 
   return { dailyNews, loading, error, getNewsForDate, addDailyNewsItem, fetchDailyNews, fetchDailyNewsForRange, updateDailyNewsItem, deleteDailyNewsItem };
+}
+
+
+// --- Completed Glider Flights Store ---
+export function useCompletedGliderFlightsStore() {
+  const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
+
+  const fetchCompletedGliderFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      let query = supabase.from('completed_glider_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
+      if (filters?.date) query = query.eq('date', filters.date);
+      if (filters?.pilotId) query = query.eq('pilot_id', filters.pilotId);
+      
+      const { data, error: fetchError } = await query;
+      if (fetchError) {
+        logSupabaseError('Error fetching completed glider flights', fetchError);
+        setError(fetchError);
+      } else {
+        setCompletedGliderFlights(data || []);
+      }
+    } catch (e) {
+      logSupabaseError('Unexpected error fetching completed glider flights', e);
+      setError(e);
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, []);
+
+  const addCompletedGliderFlight = useCallback(async (flightData: Omit<CompletedGliderFlight, 'id' | 'created_at'>) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data: newFlight, error: insertError } = await supabase
+        .from('completed_glider_flights')
+        .insert([{ ...flightData, logbook_type: 'glider' }])
+        .select()
+        .single();
+      if (insertError) {
+        logSupabaseError('Error adding completed glider flight', insertError);
+        setError(insertError);
+        return null;
+      }
+      await fetchCompletedGliderFlights(); // Refetch all or based on some default filter
+      return newFlight;
+    } catch (e) {
+      logSupabaseError('Unexpected error adding completed glider flight', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCompletedGliderFlights]);
+
+  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight };
+}
+
+// --- Completed Engine Flights Store ---
+export function useCompletedEngineFlightsStore() {
+  const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
+
+  const fetchCompletedEngineFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      let query = supabase.from('completed_engine_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
+      if (filters?.date) query = query.eq('date', filters.date);
+      if (filters?.pilotId) query = query.eq('pilot_id', filters.pilotId);
+
+      const { data, error: fetchError } = await query;
+      if (fetchError) {
+        logSupabaseError('Error fetching completed engine flights', fetchError);
+        setError(fetchError);
+      } else {
+        setCompletedEngineFlights(data || []);
+      }
+    } catch (e) {
+      logSupabaseError('Unexpected error fetching completed engine flights', e);
+      setError(e);
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, []);
+
+  const addCompletedEngineFlight = useCallback(async (flightData: Omit<CompletedEngineFlight, 'id' | 'created_at'>) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data: newFlight, error: insertError } = await supabase
+        .from('completed_engine_flights')
+        .insert([{ ...flightData, logbook_type: 'engine' }])
+        .select()
+        .single();
+      if (insertError) {
+        logSupabaseError('Error adding completed engine flight', insertError);
+        setError(insertError);
+        return null;
+      }
+      await fetchCompletedEngineFlights(); // Refetch all or based on some default filter
+      return newFlight;
+    } catch (e) {
+      logSupabaseError('Unexpected error adding completed engine flight', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCompletedEngineFlights]);
+
+  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight };
 }
 

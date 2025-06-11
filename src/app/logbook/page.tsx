@@ -1,0 +1,78 @@
+
+import { PageHeader } from '@/components/common/page-header';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Plane, Sailboat, List } from 'lucide-react'; // Using Sailboat for Glider as a placeholder
+
+export default function LogbookPage() {
+  return (
+    <>
+      <PageHeader title="Libro de Vuelo" />
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Sailboat className="mr-2 h-6 w-6 text-primary" />
+              Vuelos en Planeador
+            </CardTitle>
+            <CardDescription>Registra y consulta vuelos realizados en planeadores.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col space-y-3">
+            <Button asChild>
+              <Link href="/logbook/glider/new">Registrar Nuevo Vuelo en Planeador</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/logbook/glider/list">Ver Historial de Vuelos en Planeador</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Plane className="mr-2 h-6 w-6 text-primary" />
+              Vuelos a Motor
+            </CardTitle>
+            <CardDescription>Registra y consulta vuelos realizados en aviones a motor.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col space-y-3">
+            <Button asChild>
+              <Link href="/logbook/engine/new">Registrar Nuevo Vuelo a Motor</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/logbook/engine/list">Ver Historial de Vuelos a Motor</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        
+        <Card className="md:col-span-2 lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <List className="mr-2 h-6 w-6 text-primary" />
+              Resumen General
+            </CardTitle>
+            <CardDescription>Visualiza estadísticas y resúmenes de todos los vuelos.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="secondary" className="w-full" asChild disabled>
+              {/* <Link href="/logbook/summary">Ver Resumen (Próximamente)</Link> */}
+              <span>Ver Resumen (Próximamente)</span>
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground text-center">
+              Funcionalidad de resumen y estadísticas estará disponible pronto.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="mt-8 p-4 border rounded-lg bg-card text-card-foreground">
+        <h3 className="text-lg font-semibold mb-2">Próximos Pasos:</h3>
+        <ul className="list-disc list-inside space-y-1 text-sm">
+          <li>Implementar formularios para registrar vuelos de planeador y motor.</li>
+          <li>Desarrollar listados para visualizar los vuelos registrados.</li>
+          <li>Integrar la pre-carga de datos desde la Agenda al registrar un nuevo vuelo.</li>
+        </ul>
+      </div>
+    </>
+  );
+}

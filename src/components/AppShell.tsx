@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut } from 'lucide-react';
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen } from 'lucide-react'; // Added BookOpen for Logbook
 
 interface NavItemProps {
   href: string;
@@ -64,6 +64,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: '/', label: 'Agenda', icon: <CalendarDays /> },
+    { href: '/logbook', label: 'Libro de Vuelo', icon: <BookOpen /> }, // New Logbook item
     { href: '/pilots', label: 'Pilotos', icon: <Users /> },
     { href: '/categories', label: 'Categorías', icon: <Tags /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
@@ -122,7 +123,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             <div className="p-2 text-sm text-sidebar-foreground/70">Cargando...</div>
           ) : user ? (
             <div className="flex flex-col items-start gap-2 p-2">
-              <span className="text-xs text-sidebar-foreground/80 truncate w-full" title={user.email ?? undefined}>
+              <span className="text-xs text-sidebar-foreground/80 truncate w-full font-semibold" title={user.email ?? undefined}>
                 {getUserDisplayName()}
               </span>
               <SidebarMenuButton onClick={handleLogout} className="w-full justify-start text-sm">

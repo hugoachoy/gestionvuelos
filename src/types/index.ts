@@ -27,7 +27,7 @@ export interface PilotCategory {
 export interface Aircraft {
   id: string;
   name: string; // Registration or common name
-  type: 'Tow Plane' | 'Glider' | 'Avión'; // Added 'Avión'
+  type: 'Tow Plane' | 'Glider' | 'Avión';
   created_at?: string;
 }
 
@@ -55,7 +55,6 @@ export interface ScheduleEntry {
   created_at?: string;
 }
 
-// Type for daily observations, matching the Supabase table structure.
 export interface DailyObservation {
   date: string; // Primary Key: YYYY-MM-DD
   observation_text: string | null;
@@ -71,3 +70,51 @@ export interface DailyNews {
   pilot_full_name: string; // Full name of the pilot for display
   created_at?: string;
 }
+
+// --- Libro de Vuelo Types ---
+export type LogbookEntryType = 'glider' | 'engine';
+
+export interface BaseCompletedFlight {
+  id: string;
+  schedule_entry_id?: string | null; // Link to the planned entry, if any
+  date: string; // YYYY-MM-DD
+  pilot_id: string; // Pilot in command
+  instructor_id?: string | null; // Instructor, if applicable
+  departure_time: string; // HH:MM
+  arrival_time: string; // HH:MM
+  flight_duration_decimal: number; // e.g., 1.5 for 1h 30m
+  notes?: string | null;
+  created_at?: string;
+  auth_user_id?: string | null; // User who created this log entry
+}
+
+export const GLIDER_FLIGHT_PURPOSES = [
+  'entrenamiento', 'readaptación', 'deportivo', 'instrucción'
+] as const;
+export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
+
+export interface CompletedGliderFlight extends BaseCompletedFlight {
+  logbook_type: 'glider';
+  tow_pilot_id?: string | null; // Tow pilot, if applicable
+  glider_aircraft_id: string;
+  tow_aircraft_id?: string | null; // Tow plane used, if applicable
+  flight_purpose: GliderFlightPurpose;
+}
+
+export const ENGINE_FLIGHT_PURPOSES = [
+  'entrenamiento', 'readaptación', 'Remolque planeador', 'instrucción', 'local', 'viaje'
+] as const;
+export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
+
+export interface CompletedEngineFlight extends BaseCompletedFlight {
+  logbook_type: 'engine';
+  engine_aircraft_id: string;
+  flight_purpose: EngineFlightPurpose;
+  billable_minutes?: number | null; // Typically for engine flights
+  route_from_to?: string | null;
+  landings_count?: number | null;
+  tows_count?: number | null; // If this engine flight was a tow
+  oil_added_liters?: number | null;
+}
+
+export type CompletedFlight = CompletedGliderFlight | CompletedEngineFlight;
