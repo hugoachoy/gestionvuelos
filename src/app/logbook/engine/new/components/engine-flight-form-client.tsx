@@ -65,7 +65,7 @@ export function EngineFlightFormClient() {
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
   const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName } = useAircraftStore();
-  const { scheduleEntries, fetchScheduleEntries } = useScheduleStore();
+  const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
   const { addCompletedEngineFlight, loading: submitting } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
@@ -108,7 +108,7 @@ export function EngineFlightFormClient() {
   }, [fetchPilots, fetchAircraft, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
 
   useEffect(() => {
-    if (scheduleEntryIdParam && scheduleEntries.length > 0) {
+    if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
       const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
       if (entry) {
         form.reset({
@@ -117,7 +117,6 @@ export function EngineFlightFormClient() {
           engine_aircraft_id: entry.aircraft_id || '',
           departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
           schedule_entry_id: entry.id,
-          // Reset other fields to default or derive if possible
           instructor_id: null,
           flight_purpose: undefined,
           arrival_time: '',
@@ -129,11 +128,10 @@ export function EngineFlightFormClient() {
           notes: null,
         });
       }
-    } else if (!scheduleEntryIdParam) {
-        // If not coming from schedule, reset to sensible defaults
+    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0) {
         form.reset({
             date: new Date(),
-            pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '', // Pre-select current user if possible
+            pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '',
             instructor_id: null,
             engine_aircraft_id: '',
             flight_purpose: undefined,
@@ -148,14 +146,14 @@ export function EngineFlightFormClient() {
             schedule_entry_id: null,
         });
     }
-  }, [scheduleEntryIdParam, scheduleEntries, form, pilots, user]);
+  }, [scheduleEntryIdParam, scheduleEntries, form, pilots, user, aircraft]);
 
   const watchedPilotId = form.watch("pilot_id");
   const watchedDate = form.watch("date");
 
   useEffect(() => {
     setMedicalWarning(null);
-    if (watchedPilotId && watchedDate) {
+    if (watchedPilotId && watchedDate && pilots.length > 0) {
       const pilot = pilots.find(p => p.id === watchedPilotId);
       if (pilot?.medical_expiry) {
         const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -199,7 +197,7 @@ export function EngineFlightFormClient() {
       ...data,
       date: format(data.date, 'yyyy-MM-dd'),
       flight_duration_decimal: flightDurationDecimal,
-      billable_minutes: durationMinutes, // Can be adjusted by admin later if needed
+      billable_minutes: durationMinutes, 
       logbook_type: 'engine',
       auth_user_id: user.id,
       schedule_entry_id: data.schedule_entry_id || null,
@@ -217,13 +215,23 @@ export function EngineFlightFormClient() {
 
     if (result) {
       toast({ title: "Vuelo a Motor Registrado", description: "El vuelo ha sido guardado exitosamente." });
-      router.push('/logbook'); // Or to a list page when it exists
+      router.push('/logbook'); 
     } else {
       toast({ title: "Error al Registrar", description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
     }
   };
 
-  const isLoading = authLoading || pilotsLoading || aircraftLoading || submitting || isSubmittingForm;
+  // DEBUG: Log loading states
+  console.log('EngineForm Loading States:', {
+    authLoading,
+    pilotsLoading,
+    aircraftLoading,
+    scheduleLoading, // Added scheduleLoading from useScheduleStore
+    submitting,
+    isSubmittingForm,
+  });
+
+  const isLoading = authLoading || pilotsLoading || aircraftLoading || scheduleLoading || submitting || isSubmittingForm;
 
   return (
     <Card className="max-w-3xl mx-auto">
@@ -553,3 +561,4 @@ export function EngineFlightFormClient() {
     </Card>
   );
 }
+

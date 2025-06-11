@@ -62,7 +62,7 @@ export function GliderFlightFormClient() {
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
   const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName } = useAircraftStore();
-  const { scheduleEntries, fetchScheduleEntries } = useScheduleStore();
+  const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
   const { addCompletedGliderFlight, loading: submitting } = useCompletedGliderFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
@@ -96,16 +96,24 @@ export function GliderFlightFormClient() {
   const scheduleEntryIdParam = searchParams.get('schedule_id');
 
   useEffect(() => {
+    // Fetch basic data needed for the form to operate
     fetchPilots();
     fetchAircraft();
+    // If coming from schedule, fetch that specific entry's details
     if (scheduleEntryIdParam) {
       const dateParam = searchParams.get('date');
-      if (dateParam) fetchScheduleEntries(dateParam);
+      if (dateParam) {
+        // fetchScheduleEntries should only fetch for the specific date,
+        // and the store should handle its own loading state.
+        // The component will react to changes in scheduleEntries.
+        fetchScheduleEntries(dateParam);
+      }
     }
   }, [fetchPilots, fetchAircraft, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
 
+
   useEffect(() => {
-    if (scheduleEntryIdParam && scheduleEntries.length > 0) {
+    if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
       const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
       if (entry) {
         form.reset({
@@ -114,7 +122,6 @@ export function GliderFlightFormClient() {
           glider_aircraft_id: entry.aircraft_id || '',
           departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
           schedule_entry_id: entry.id,
-          // Reset other fields to default
           instructor_id: null,
           tow_pilot_id: null,
           tow_aircraft_id: null,
@@ -123,11 +130,10 @@ export function GliderFlightFormClient() {
           notes: null,
         });
       }
-    } else if (!scheduleEntryIdParam) {
-        // If not coming from schedule, reset to sensible defaults
+    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0) {
          form.reset({
             date: new Date(),
-            pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '', // Pre-select current user if possible
+            pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '',
             instructor_id: null,
             tow_pilot_id: null,
             glider_aircraft_id: '',
@@ -139,14 +145,14 @@ export function GliderFlightFormClient() {
             schedule_entry_id: null,
         });
     }
-  }, [scheduleEntryIdParam, scheduleEntries, form, pilots, user]);
+  }, [scheduleEntryIdParam, scheduleEntries, form, pilots, user, aircraft]);
 
   const watchedPicPilotId = form.watch("pilot_id");
   const watchedDate = form.watch("date");
 
   useEffect(() => {
     setMedicalWarning(null);
-    if (watchedPicPilotId && watchedDate) {
+    if (watchedPicPilotId && watchedDate && pilots.length > 0) {
       const pilot = pilots.find(p => p.id === watchedPicPilotId);
       if (pilot?.medical_expiry) {
         const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -214,7 +220,18 @@ export function GliderFlightFormClient() {
     }
   };
 
-  const isLoading = authLoading || pilotsLoading || aircraftLoading || submitting || isSubmittingForm;
+  // DEBUG: Log loading states
+  console.log('GliderForm Loading States:', {
+    authLoading,
+    pilotsLoading,
+    aircraftLoading,
+    scheduleLoading, // Added scheduleLoading from useScheduleStore
+    submitting,
+    isSubmittingForm,
+  });
+
+  const isLoading = authLoading || pilotsLoading || aircraftLoading || scheduleLoading || submitting || isSubmittingForm;
+
 
   return (
     <Card className="max-w-3xl mx-auto">
