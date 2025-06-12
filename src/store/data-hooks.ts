@@ -398,7 +398,7 @@ export function useAircraftStore() {
 // Schedule Store
 export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Initial state false
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
@@ -873,7 +873,7 @@ export function useCompletedGliderFlightsStore() {
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
-        .order('date', { ascending: true }) // Changed to ascending for reports
+        .order('date', { ascending: true }) 
         .order('departure_time', { ascending: true });
       
       if (fetchError) {
@@ -925,7 +925,6 @@ export function useCompletedGliderFlightsStore() {
         setError(deleteError);
         return false;
       }
-      // Re-fetch to update the list shown to the user
       await fetchCompletedGliderFlights(); 
       return true;
     } catch (e) {
@@ -944,7 +943,7 @@ export function useCompletedGliderFlightsStore() {
 // --- Completed Engine Flights Store ---
 export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
-  const [loading, setLoading] = useState(true);  
+  const [loading, setLoading] = useState(false);  // Changed initial state to false
   const [error, setError] = useState<any>(null);
   const fetchingListRef = useRef(false); 
 
