@@ -258,12 +258,17 @@ export function EngineFlightFormClient() {
         flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
     }
 
+    let billableMins: number | null = null;
+    if (data.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
+      billableMins = durationMinutes;
+    }
+
 
     const submissionData: Omit<CompletedEngineFlight, 'id' | 'created_at'> = {
       ...data,
       date: format(data.date, 'yyyy-MM-dd'),
       flight_duration_decimal: flightDurationDecimal,
-      billable_minutes: durationMinutes, 
+      billable_minutes: billableMins, 
       logbook_type: 'engine',
       auth_user_id: user.id,
       schedule_entry_id: data.schedule_entry_id || null,
@@ -281,7 +286,7 @@ export function EngineFlightFormClient() {
 
     if (result) {
       toast({ title: "Vuelo a Motor Registrado", description: "El vuelo ha sido guardado exitosamente." });
-      router.push('/logbook'); 
+      router.push('/logbook/engine/list'); 
     } else {
       toast({ title: "Error al Registrar", description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
     }
@@ -633,3 +638,5 @@ export function EngineFlightFormClient() {
   );
 }
 
+
+    

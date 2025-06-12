@@ -117,6 +117,7 @@ export function EngineFlightListClient() {
                 <TableHead>Salida</TableHead>
                 <TableHead>Llegada</TableHead>
                 <TableHead>Duración</TableHead>
+                <TableHead>A Facturar (min)</TableHead>
                 <TableHead>Ruta</TableHead>
                 <TableHead>Aterrizajes</TableHead>
                 <TableHead>Remolques</TableHead>
@@ -128,7 +129,7 @@ export function EngineFlightListClient() {
             <TableBody>
               {sortedFlights.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={showActionsColumn ? 14 : 13} className="text-center h-24">
+                  <TableCell colSpan={showActionsColumn ? 15 : 14} className="text-center h-24">
                     No hay vuelos a motor registrados.
                   </TableCell>
                 </TableRow>
@@ -143,6 +144,11 @@ export function EngineFlightListClient() {
                     <TableCell>{flight.departure_time}</TableCell>
                     <TableCell>{flight.arrival_time}</TableCell>
                     <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
+                    <TableCell>
+                      {flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' 
+                        ? `${flight.billable_minutes} min` 
+                        : '-'}
+                    </TableCell>
                     <TableCell>{flight.route_from_to || '-'}</TableCell>
                     <TableCell>{flight.landings_count ?? '-'}</TableCell>
                     <TableCell>{flight.tows_count ?? '-'}</TableCell>
@@ -176,3 +182,6 @@ export function EngineFlightListClient() {
     </div>
   );
 }
+
+
+    
