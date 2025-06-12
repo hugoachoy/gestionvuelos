@@ -397,7 +397,7 @@ export function useAircraftStore() {
 // Schedule Store
 export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
-  const [loading, setLoading] = useState(false); // INITIALIZED TO FALSE
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
@@ -833,14 +833,14 @@ export function useDailyNewsStore() {
 // --- Completed Glider Flights Store ---
 export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
-  const [loading, setLoading] = useState(false); // Correctly initialized to false
+  const [loading, setLoading] = useState(false); // Loading specific to add/update operations
   const [error, setError] = useState<any>(null);
-  const fetchingRef = useRef(false);
+  const fetchingListRef = useRef(false); // For list fetching operations
 
   const fetchCompletedGliderFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
-    // setLoading(true); // This setLoading is for the fetch list operation
+    if (fetchingListRef.current) return;
+    fetchingListRef.current = true;
+    setLoading(true); 
     setError(null);
     try {
       let query = supabase.from('completed_glider_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
@@ -858,14 +858,14 @@ export function useCompletedGliderFlightsStore() {
       logSupabaseError('Unexpected error fetching completed glider flights', e);
       setError(e);
     } finally {
-      // setLoading(false); // For the fetch list operation
-      fetchingRef.current = false;
+      setLoading(false); 
+      fetchingListRef.current = false;
     }
   }, []);
 
   const addCompletedGliderFlight = useCallback(async (flightData: Omit<CompletedGliderFlight, 'id' | 'created_at'>) => {
     setError(null);
-    setLoading(true); // setLoading for the ADD operation
+    setLoading(true); 
     try {
       const { data: newFlight, error: insertError } = await supabase
         .from('completed_glider_flights')
@@ -883,7 +883,7 @@ export function useCompletedGliderFlightsStore() {
       setError(e);
       return null;
     } finally {
-      setLoading(false); // Clear setLoading for the ADD operation
+      setLoading(false); 
     }
   }, []); 
 
@@ -893,14 +893,14 @@ export function useCompletedGliderFlightsStore() {
 // --- Completed Engine Flights Store ---
 export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
-  const [loading, setLoading] = useState(false); // Correctly initialized to false
+  const [loading, setLoading] = useState(false); // Loading specific to add/update operations
   const [error, setError] = useState<any>(null);
-  const fetchingRef = useRef(false);
+  const fetchingListRef = useRef(false); // For list fetching operations
 
   const fetchCompletedEngineFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
-    // setLoading(true);  // This setLoading is for the fetch list operation
+    if (fetchingListRef.current) return;
+    fetchingListRef.current = true;
+    setLoading(true);  
     setError(null);
     try {
       let query = supabase.from('completed_engine_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
@@ -918,14 +918,14 @@ export function useCompletedEngineFlightsStore() {
       logSupabaseError('Unexpected error fetching completed engine flights', e);
       setError(e);
     } finally {
-      // setLoading(false); // For the fetch list operation
-      fetchingRef.current = false;
+      setLoading(false); 
+      fetchingListRef.current = false;
     }
   }, []);
 
   const addCompletedEngineFlight = useCallback(async (flightData: Omit<CompletedEngineFlight, 'id' | 'created_at'>) => {
     setError(null);
-    setLoading(true); // setLoading for the ADD operation
+    setLoading(true); 
     try {
       const { data: newFlight, error: insertError } = await supabase
         .from('completed_engine_flights')
@@ -943,7 +943,7 @@ export function useCompletedEngineFlightsStore() {
       setError(e);
       return null;
     } finally {
-      setLoading(false); // Clear setLoading for the ADD operation
+      setLoading(false); 
     }
   }, []);
 

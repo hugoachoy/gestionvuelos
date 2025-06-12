@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays } from 'date-fns';
+import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory } from '@/types';
@@ -32,9 +32,9 @@ const gliderFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   instructor_id: z.string().optional().nullable(),
-  tow_pilot_id: z.string().optional().nullable(),
+  tow_pilot_id: z.string().min(1, "Seleccione un piloto remolcador."), 
   glider_aircraft_id: z.string().min(1, "Seleccione un planeador."),
-  tow_aircraft_id: z.string().optional().nullable(),
+  tow_aircraft_id: z.string().min(1, "Seleccione un avión remolcador."), 
   flight_purpose: z.enum(GLIDER_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
   departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de salida inválido (HH:MM)."),
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
@@ -71,10 +71,10 @@ export function GliderFlightFormClient() {
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName: getAircraftFullName } = useAircraftStore();
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedGliderFlight, loading: submitting } = useCompletedGliderFlightsStore();
+  const { addCompletedGliderFlight, loading: submittingAdd, completedGliderFlights, fetchCompletedGliderFlights } = useCompletedGliderFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -95,9 +95,9 @@ export function GliderFlightFormClient() {
       date: new Date(),
       pilot_id: '',
       instructor_id: null,
-      tow_pilot_id: null,
+      tow_pilot_id: '', 
       glider_aircraft_id: '',
-      tow_aircraft_id: null,
+      tow_aircraft_id: '', 
       flight_purpose: undefined,
       departure_time: '',
       arrival_time: '',
@@ -112,13 +112,14 @@ export function GliderFlightFormClient() {
     fetchPilots();
     fetchAircraft();
     fetchPilotCategories();
+    fetchCompletedGliderFlights(); 
     if (scheduleEntryIdParam) {
       const dateParam = searchParams.get('date');
       if (dateParam) {
         fetchScheduleEntries(dateParam);
       }
     }
-  }, [fetchPilots, fetchAircraft, fetchPilotCategories, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchCompletedGliderFlights, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
 
 
   useEffect(() => {
@@ -132,8 +133,8 @@ export function GliderFlightFormClient() {
           departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
           schedule_entry_id: entry.id,
           instructor_id: null,
-          tow_pilot_id: null,
-          tow_aircraft_id: null,
+          tow_pilot_id: '',
+          tow_aircraft_id: '',
           flight_purpose: undefined,
           arrival_time: '',
           notes: null,
@@ -144,9 +145,9 @@ export function GliderFlightFormClient() {
             date: new Date(),
             pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '',
             instructor_id: null,
-            tow_pilot_id: null,
+            tow_pilot_id: '',
             glider_aircraft_id: '',
-            tow_aircraft_id: null,
+            tow_aircraft_id: '',
             flight_purpose: undefined,
             departure_time: '',
             arrival_time: '',
@@ -262,12 +263,69 @@ export function GliderFlightFormClient() {
     return aircraft.filter(ac => ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
+  const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    return start1 < end2 && start2 < end1;
+  };
+
   const onSubmit = async (data: GliderFlightFormData) => {
     if (!user) {
       toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
       return;
     }
     setIsSubmittingForm(true);
+
+    const flightDate = data.date;
+    const [depH, depM] = data.departure_time.split(':').map(Number);
+    const [arrH, arrM] = data.arrival_time.split(':').map(Number);
+
+    const newFlightStart = setMinutes(setHours(flightDate, depH), depM);
+    const newFlightEnd = setMinutes(setHours(flightDate, arrH), arrM);
+
+    // Client-side conflict check
+    const conflictingPilotFlight = completedGliderFlights.find(existingFlight => {
+        if (existingFlight.pilot_id !== data.pilot_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
+            return false;
+        }
+        const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
+        const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
+        const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
+        const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
+        return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
+    });
+
+    if (conflictingPilotFlight) {
+        toast({
+            title: "Conflicto de Horario (Piloto)",
+            description: `El piloto ${getPilotName(data.pilot_id)} ya tiene un vuelo registrado (${conflictingPilotFlight.departure_time} - ${conflictingPilotFlight.arrival_time}) que se superpone con este horario.`,
+            variant: "destructive",
+            duration: 7000,
+        });
+        setIsSubmittingForm(false);
+        return;
+    }
+
+    const conflictingAircraftFlight = completedGliderFlights.find(existingFlight => {
+        if (existingFlight.glider_aircraft_id !== data.glider_aircraft_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
+            return false;
+        }
+        const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
+        const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
+        const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
+        const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
+        return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
+    });
+
+    if (conflictingAircraftFlight) {
+        const aircraftName = getAircraftFullName(data.glider_aircraft_id);
+        toast({
+            title: "Conflicto de Horario (Aeronave)",
+            description: `El planeador ${aircraftName} ya tiene un vuelo registrado (${conflictingAircraftFlight.departure_time} - ${conflictingAircraftFlight.arrival_time}) que se superpone con este horario.`,
+            variant: "destructive",
+            duration: 7000,
+        });
+        setIsSubmittingForm(false);
+        return;
+    }
 
     const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
     const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
@@ -287,23 +345,24 @@ export function GliderFlightFormClient() {
       auth_user_id: user.id,
       schedule_entry_id: data.schedule_entry_id || null,
       instructor_id: data.instructor_id || null,
-      tow_pilot_id: data.tow_pilot_id || null,
-      tow_aircraft_id: data.tow_aircraft_id || null,
+      tow_pilot_id: data.tow_pilot_id, // Ya es string().min(1)
+      tow_aircraft_id: data.tow_aircraft_id, // Ya es string().min(1)
       notes: data.notes || null,
     };
 
     const result = await addCompletedGliderFlight(submissionData);
-    setIsSubmittingForm(false);
-
+    
     if (result) {
       toast({ title: "Vuelo en Planeador Registrado", description: "El vuelo ha sido guardado exitosamente." });
-      router.push('/logbook');
+      await fetchCompletedGliderFlights(); 
+      router.push('/logbook/glider/list');
     } else {
       toast({ title: "Error al Registrar", description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
     }
+    setIsSubmittingForm(false);
   };
 
-  const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submitting || isSubmittingForm;
+  const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAdd || isSubmittingForm;
 
 
   return (
@@ -461,7 +520,7 @@ export function GliderFlightFormClient() {
               name="tow_pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Piloto Remolcador (Opcional)</FormLabel>
+                  <FormLabel>Piloto Remolcador</FormLabel>
                    <Popover open={towPilotPopoverOpen} onOpenChange={setTowPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -536,11 +595,11 @@ export function GliderFlightFormClient() {
               name="tow_aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Avión Remolcador (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? undefined} disabled={isLoading}>
+                  <FormLabel>Avión Remolcador</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar avión remolcador (o ninguno)" />
+                        <SelectValue placeholder="Seleccionar avión remolcador" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
