@@ -141,7 +141,8 @@ export function usePilotsStore() {
     }
   }, [fetchPilots]);
 
-  const getPilotName = useCallback((pilotId: string): string => {
+  const getPilotName = useCallback((pilotId?: string | null): string => {
+    if (!pilotId) return '-';
     const pilot = pilots.find(p => p.id === pilotId);
     return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto no encontrado';
   }, [pilots]);
@@ -397,7 +398,7 @@ export function useAircraftStore() {
 // Schedule Store
 export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
-  const [loading, setLoading] = useState(false); // Changed to false
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
@@ -833,12 +834,12 @@ export function useDailyNewsStore() {
 // --- Completed Glider Flights Store ---
 export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
-  const [loading, setLoading] = useState(false); // Changed to false
+  const [loading, setLoading] = useState(true); 
   const [error, setError] = useState<any>(null);
   const fetchingListRef = useRef(false);
 
   const fetchCompletedGliderFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingListRef.current && !filters) return; // Avoid re-fetching all if already fetching, unless specific filters are applied
+    if (fetchingListRef.current && !filters) return; 
     fetchingListRef.current = true;
     setLoading(true); 
     setError(null);
@@ -872,8 +873,8 @@ export function useCompletedGliderFlightsStore() {
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
-        .order('date', { ascending: false })
-        .order('departure_time', { ascending: false });
+        .order('date', { ascending: true }) // Changed to ascending for reports
+        .order('departure_time', { ascending: true });
       
       if (fetchError) {
         logSupabaseError('Error fetching completed glider flights for range', fetchError);
@@ -904,8 +905,6 @@ export function useCompletedGliderFlightsStore() {
         setError(insertError);
         return null;
       }
-      // After adding, we might want to refetch the list if the current view depends on it.
-      // For now, just return the new flight. The component using this can decide to refetch.
       return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed glider flight', e);
@@ -916,13 +915,36 @@ export function useCompletedGliderFlightsStore() {
     }
   }, []); 
 
-  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight, fetchCompletedGliderFlightsForRange };
+  const deleteCompletedGliderFlight = useCallback(async (flightId: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: deleteError } = await supabase.from('completed_glider_flights').delete().eq('id', flightId);
+      if (deleteError) {
+        logSupabaseError('Error deleting completed glider flight', deleteError);
+        setError(deleteError);
+        return false;
+      }
+      // Re-fetch to update the list shown to the user
+      await fetchCompletedGliderFlights(); 
+      return true;
+    } catch (e) {
+      logSupabaseError('Unexpected error deleting completed glider flight', e);
+      setError(e);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCompletedGliderFlights]);
+
+
+  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight, fetchCompletedGliderFlightsForRange, deleteCompletedGliderFlight };
 }
 
 // --- Completed Engine Flights Store ---
 export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
-  const [loading, setLoading] = useState(false); // Changed to false
+  const [loading, setLoading] = useState(true);  
   const [error, setError] = useState<any>(null);
   const fetchingListRef = useRef(false); 
 
@@ -976,6 +998,27 @@ export function useCompletedEngineFlightsStore() {
     }
   }, []);
 
-  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight };
+  const deleteCompletedEngineFlight = useCallback(async (flightId: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: deleteError } = await supabase.from('completed_engine_flights').delete().eq('id', flightId);
+      if (deleteError) {
+        logSupabaseError('Error deleting completed engine flight', deleteError);
+        setError(deleteError);
+        return false;
+      }
+      await fetchCompletedEngineFlights(); 
+      return true;
+    } catch (e) {
+      logSupabaseError('Unexpected error deleting completed engine flight', e);
+      setError(e);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCompletedEngineFlights]);
+
+  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, deleteCompletedEngineFlight };
 }
 

@@ -2,8 +2,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { useCompletedGliderFlightsStore } from '@/store/data-hooks';
-import type { CompletedGliderFlight } from '@/types';
+import { useCompletedEngineFlightsStore } from '@/store/data-hooks';
+import type { CompletedEngineFlight } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -24,8 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 // import { useRouter } from 'next/navigation'; // For edit navigation (future)
 
-export function GliderFlightListClient() {
-  const { completedGliderFlights, loading: flightsLoading, error: flightsError, fetchCompletedGliderFlights, deleteCompletedGliderFlight } = useCompletedGliderFlightsStore();
+export function EngineFlightListClient() {
+  const { completedEngineFlights, loading: flightsLoading, error: flightsError, fetchCompletedEngineFlights, deleteCompletedEngineFlight } = useCompletedEngineFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -34,27 +34,27 @@ export function GliderFlightListClient() {
   
   const [isLoadingUI, setIsLoadingUI] = useState(true);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [flightToDelete, setFlightToDelete] = useState<CompletedGliderFlight | null>(null);
+  const [flightToDelete, setFlightToDelete] = useState<CompletedEngineFlight | null>(null);
 
 
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
-    fetchCompletedGliderFlights();
-  }, [fetchCompletedGliderFlights, fetchPilots, fetchAircraft]);
+    fetchCompletedEngineFlights();
+  }, [fetchCompletedEngineFlights, fetchPilots, fetchAircraft]);
   
   useEffect(() => {
     setIsLoadingUI(flightsLoading || pilotsLoading || aircraftLoading || authLoading);
   }, [flightsLoading, pilotsLoading, aircraftLoading, authLoading]);
 
-  const handleDeleteRequest = (flight: CompletedGliderFlight) => {
+  const handleDeleteRequest = (flight: CompletedEngineFlight) => {
     setFlightToDelete(flight);
     setIsDeleteDialogOpen(true);
   };
 
   const confirmDelete = async () => {
     if (flightToDelete) {
-      const success = await deleteCompletedGliderFlight(flightToDelete.id);
+      const success = await deleteCompletedEngineFlight(flightToDelete.id);
       if (success) {
         toast({ title: "Vuelo Eliminado", description: "El registro del vuelo ha sido eliminado." });
       } else {
@@ -65,21 +65,21 @@ export function GliderFlightListClient() {
     setFlightToDelete(null);
   };
 
-  // const handleEditRequest = (flight: CompletedGliderFlight) => {
-  //   router.push(`/logbook/glider/edit/${flight.id}`); // Future implementation
+  // const handleEditRequest = (flight: CompletedEngineFlight) => {
+  //   router.push(`/logbook/engine/edit/${flight.id}`); // Future implementation
   // };
 
 
   if (flightsError) {
     return (
       <div className="text-destructive">
-        Error al cargar vuelos en planeador: {flightsError.message}
-        <Button onClick={() => fetchCompletedGliderFlights()} className="ml-2">Reintentar</Button>
+        Error al cargar vuelos a motor: {flightsError.message}
+        <Button onClick={() => fetchCompletedEngineFlights()} className="ml-2">Reintentar</Button>
       </div>
     );
   }
   
-  const sortedFlights = [...completedGliderFlights].sort((a, b) => {
+  const sortedFlights = [...completedEngineFlights].sort((a, b) => {
     const dateComp = b.date.localeCompare(a.date); 
     if (dateComp !== 0) return dateComp;
     return b.departure_time.localeCompare(a.departure_time); 
@@ -90,7 +90,7 @@ export function GliderFlightListClient() {
   return (
     <div>
       <div className="flex justify-end mb-4">
-        <Button onClick={() => fetchCompletedGliderFlights()} variant="outline" size="icon" disabled={isLoadingUI}>
+        <Button onClick={() => fetchCompletedEngineFlights()} variant="outline" size="icon" disabled={isLoadingUI}>
           <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
            <span className="sr-only">Refrescar vuelos</span>
         </Button>
@@ -111,22 +111,25 @@ export function GliderFlightListClient() {
               <TableRow>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Piloto (PIC)</TableHead>
-                <TableHead>Planeador</TableHead>
+                <TableHead>Aeronave</TableHead>
                 <TableHead>Instructor</TableHead>
-                <TableHead>Piloto Rem.</TableHead>
-                <TableHead>Avión Rem.</TableHead>
+                <TableHead>Propósito</TableHead>
                 <TableHead>Salida</TableHead>
                 <TableHead>Llegada</TableHead>
                 <TableHead>Duración</TableHead>
-                <TableHead>Propósito</TableHead>
+                <TableHead>Ruta</TableHead>
+                <TableHead>Aterrizajes</TableHead>
+                <TableHead>Remolques</TableHead>
+                <TableHead>Aceite (Lts)</TableHead>
+                <TableHead>Nafta (Lts)</TableHead>
                 {showActionsColumn && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedFlights.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={showActionsColumn ? 11 : 10} className="text-center h-24">
-                    No hay vuelos en planeador registrados.
+                  <TableCell colSpan={showActionsColumn ? 14 : 13} className="text-center h-24">
+                    No hay vuelos a motor registrados.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -134,14 +137,17 @@ export function GliderFlightListClient() {
                   <TableRow key={flight.id}>
                     <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                     <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
-                    <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
+                    <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
                     <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
-                    <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
-                    <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
+                    <TableCell>{flight.flight_purpose}</TableCell>
                     <TableCell>{flight.departure_time}</TableCell>
                     <TableCell>{flight.arrival_time}</TableCell>
                     <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
-                    <TableCell>{flight.flight_purpose}</TableCell>
+                    <TableCell>{flight.route_from_to || '-'}</TableCell>
+                    <TableCell>{flight.landings_count ?? '-'}</TableCell>
+                    <TableCell>{flight.tows_count ?? '-'}</TableCell>
+                    <TableCell>{flight.oil_added_liters ?? '-'}</TableCell>
+                    <TableCell>{flight.fuel_added_liters ?? '-'}</TableCell>
                     {showActionsColumn && (
                       <TableCell className="text-right">
                         {/* <Button variant="ghost" size="icon" onClick={() => handleEditRequest(flight)} className="mr-2 hover:text-primary" disabled>
