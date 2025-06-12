@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plane, Sailboat, List } from 'lucide-react'; // Using Sailboat for Glider as a placeholder
+import { Plane, Feather, List } from 'lucide-react'; // Changed Sailboat to Feather
 
 export default function LogbookPage() {
   return (
@@ -13,7 +13,7 @@ export default function LogbookPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Sailboat className="mr-2 h-6 w-6 text-primary" />
+              <Feather className="mr-2 h-6 w-6 text-primary" /> {/* Changed Sailboat to Feather */}
               Vuelos en Planeador
             </CardTitle>
             <CardDescription>Registra y consulta vuelos realizados en planeadores.</CardDescription>
