@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plane, Feather, List } from 'lucide-react'; // Changed Sailboat to Feather
+import { Plane, Feather, List, FileText } from 'lucide-react'; // Changed Sailboat to Feather, Added FileText
 
 export default function LogbookPage() {
   return (
@@ -49,18 +49,17 @@ export default function LogbookPage() {
         <Card className="md:col-span-2 lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center">
-              <List className="mr-2 h-6 w-6 text-primary" />
-              Resumen General
+              <FileText className="mr-2 h-6 w-6 text-primary" /> {/* Changed List to FileText */}
+              Informes y Resúmenes
             </CardTitle>
-            <CardDescription>Visualiza estadísticas y resúmenes de todos los vuelos.</CardDescription>
+            <CardDescription>Genera informes y visualiza estadísticas de vuelos.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="secondary" className="w-full" asChild disabled>
-              {/* <Link href="/logbook/summary">Ver Resumen (Próximamente)</Link> */}
-              <span>Ver Resumen (Próximamente)</span>
+            <Button variant="secondary" className="w-full" asChild>
+              <Link href="/logbook/reports">Acceder a Informes</Link>
             </Button>
             <p className="mt-2 text-xs text-muted-foreground text-center">
-              Funcionalidad de resumen y estadísticas estará disponible pronto.
+              Genera informes detallados de vuelos por rango de fechas.
             </p>
           </CardContent>
         </Card>
@@ -70,9 +69,10 @@ export default function LogbookPage() {
         <ul className="list-disc list-inside space-y-1 text-sm">
           <li><span className="font-semibold text-green-600">[Hecho]</span> Creación de tablas en Base de Datos.</li>
           <li><span className="font-semibold text-green-600">[Hecho]</span> Navegación desde Agenda a formularios.</li>
-          <li>Implementar formularios para registrar vuelos de planeador y motor.</li>
-          <li>Desarrollar listados para visualizar los vuelos registrados.</li>
+          <li><span className="font-semibold text-green-600">[Hecho]</span> Implementar formularios para registrar vuelos de planeador y motor.</li>
+          <li><span className="font-semibold text-green-600">[Hecho]</span> Desarrollar listados para visualizar los vuelos registrados.</li>
           <li>Implementar políticas RLS detalladas si es necesario.</li>
+          <li><span className="font-semibold text-blue-600">[En Progreso]</span> Desarrollar sección de informes.</li>
         </ul>
       </div>
     </>

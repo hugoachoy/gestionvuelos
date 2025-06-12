@@ -833,12 +833,12 @@ export function useDailyNewsStore() {
 // --- Completed Glider Flights Store ---
 export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
-  const [loading, setLoading] = useState(false); // Loading specific to add/update operations
+  const [loading, setLoading] = useState(true); 
   const [error, setError] = useState<any>(null);
-  const fetchingListRef = useRef(false); // For list fetching operations
+  const fetchingListRef = useRef(false);
 
   const fetchCompletedGliderFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingListRef.current) return;
+    if (fetchingListRef.current && !filters) return; // Avoid re-fetching all if already fetching, unless specific filters are applied
     fetchingListRef.current = true;
     setLoading(true); 
     setError(null);
@@ -860,6 +860,33 @@ export function useCompletedGliderFlightsStore() {
     } finally {
       setLoading(false); 
       fetchingListRef.current = false;
+    }
+  }, []);
+
+  const fetchCompletedGliderFlightsForRange = useCallback(async (startDate: string, endDate: string): Promise<CompletedGliderFlight[] | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('completed_glider_flights')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false })
+        .order('departure_time', { ascending: false });
+      
+      if (fetchError) {
+        logSupabaseError('Error fetching completed glider flights for range', fetchError);
+        setError(fetchError);
+        return null;
+      }
+      return data || [];
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchCompletedGliderFlightsForRange', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -887,18 +914,18 @@ export function useCompletedGliderFlightsStore() {
     }
   }, []); 
 
-  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight };
+  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight, fetchCompletedGliderFlightsForRange };
 }
 
 // --- Completed Engine Flights Store ---
 export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
-  const [loading, setLoading] = useState(false); // Loading specific to add/update operations
+  const [loading, setLoading] = useState(true); 
   const [error, setError] = useState<any>(null);
-  const fetchingListRef = useRef(false); // For list fetching operations
+  const fetchingListRef = useRef(false); 
 
   const fetchCompletedEngineFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingListRef.current) return;
+    if (fetchingListRef.current && !filters) return;
     fetchingListRef.current = true;
     setLoading(true);  
     setError(null);
@@ -949,4 +976,3 @@ export function useCompletedEngineFlightsStore() {
 
   return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight };
 }
-
