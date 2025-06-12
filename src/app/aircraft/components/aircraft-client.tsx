@@ -77,11 +77,10 @@ export function AircraftClient() {
     setIsFormOpen(false);
   };
 
-  useEffect(() => {
-    if (!loading && aircraft.length === 0) {
-      fetchAircraft();
-    }
-  }, [fetchAircraft, loading, aircraft.length]);
+  // El store (useAircraftStore) se encarga de la carga inicial de datos a través de su propio useEffect.
+  // No es necesario un useEffect aquí para llamar a fetchAircraft en el montaje inicial.
+  // Se podría añadir lógica aquí para reintentar la carga si hay un error y aircraft.length es 0,
+  // pero el botón de refresco manual ya cumple esa función.
 
   const sortedAircraft = useMemo(() => {
     return [...aircraft].sort((a, b) => {
@@ -154,7 +153,7 @@ export function AircraftClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedAircraft.length === 0 ? (
+              {sortedAircraft.length === 0 && !isLoadingUI ? ( // Añadido !isLoadingUI para mostrar el mensaje solo si no está cargando
                 <TableRow>
                   <TableCell colSpan={currentUser?.is_admin ? 3 : 2} className="text-center h-24">
                     No hay aeronaves registradas.
