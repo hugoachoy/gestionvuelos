@@ -67,7 +67,7 @@ export function EngineFlightFormClient() {
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore(); // Removed getAircraftName
+  const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
   const { addCompletedEngineFlight, loading: submitting } = useCompletedEngineFlightsStore();
@@ -166,8 +166,11 @@ export function EngineFlightFormClient() {
       const [arrH, arrM] = watchedArrivalTime.split(':').map(Number);
 
       if (arrH * 60 + arrM <= depH * 60 + depM) {
-        setCalculatedDuration(null); // Error handled by Zod schema for arrival_time
+        setCalculatedDuration(null);
+        form.setError("arrival_time", { type: "manual", message: "La hora de llegada debe ser posterior a la hora de salida." });
         return;
+      } else {
+        form.clearErrors("arrival_time");
       }
 
       const departureDateTime = new Date(watchedDate);
@@ -190,8 +193,11 @@ export function EngineFlightFormClient() {
       }
     } else {
       setCalculatedDuration(null);
+       if (form.formState.errors.arrival_time?.message === "La hora de llegada debe ser posterior a la hora de salida.") {
+            form.clearErrors("arrival_time");
+        }
     }
-  }, [watchedDepartureTime, watchedArrivalTime, watchedDate]);
+  }, [watchedDepartureTime, watchedArrivalTime, watchedDate, form]);
 
   useEffect(() => {
     setMedicalWarning(null);
@@ -245,7 +251,13 @@ export function EngineFlightFormClient() {
     const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
     const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
     const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
-    const flightDurationDecimal = parseFloat((durationMinutes / 60).toFixed(2));
+    
+    let flightDurationDecimal = 0;
+    if (durationMinutes > 0) {
+        const decimalHours = durationMinutes / 60;
+        flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
+    }
+
 
     const submissionData: Omit<CompletedEngineFlight, 'id' | 'created_at'> = {
       ...data,
@@ -487,6 +499,9 @@ export function EngineFlightFormClient() {
                     <FormControl>
                       <Input type="time" {...field} disabled={isLoading} />
                     </FormControl>
+                    <FormDescription className="text-xs">
+                      Formato de 24 horas (ej: 14:30 para 2:30 PM).
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -500,6 +515,9 @@ export function EngineFlightFormClient() {
                     <FormControl>
                       <Input type="time" {...field} disabled={isLoading} />
                     </FormControl>
+                     <FormDescription className="text-xs">
+                      Formato de 24 horas (ej: 15:00 para 3:00 PM).
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
