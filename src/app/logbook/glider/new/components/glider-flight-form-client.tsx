@@ -24,7 +24,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save } from 'lucide-react';
+import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,7 +71,7 @@ export function GliderFlightFormClient() {
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName } = useAircraftStore();
+  const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore(); // Removed getAircraftName as it is not used
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
   const { addCompletedGliderFlight, loading: submitting } = useCompletedGliderFlightsStore();
@@ -86,6 +86,8 @@ export function GliderFlightFormClient() {
   const [towPilotSearchTerm, setTowPilotSearchTerm] = useState('');
   const [towPilotPopoverOpen, setTowPilotPopoverOpen] = useState(false);
   const [medicalWarning, setMedicalWarning] = useState<string | null>(null);
+  const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
+
 
   const form = useForm<GliderFlightFormData>({
     resolver: zodResolver(gliderFlightSchema),
@@ -157,6 +159,42 @@ export function GliderFlightFormClient() {
   const watchedPicPilotId = form.watch("pilot_id");
   const watchedInstructorId = form.watch("instructor_id");
   const watchedDate = form.watch("date");
+  const watchedDepartureTime = form.watch('departure_time');
+  const watchedArrivalTime = form.watch('arrival_time');
+
+  useEffect(() => {
+    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}$/.test(watchedDepartureTime) && /^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
+      const [depH, depM] = watchedDepartureTime.split(':').map(Number);
+      const [arrH, arrM] = watchedArrivalTime.split(':').map(Number);
+
+      if (arrH * 60 + arrM <= depH * 60 + depM) {
+        setCalculatedDuration(null); // Error handled by Zod schema for arrival_time
+        return;
+      }
+
+      const departureDateTime = new Date(watchedDate);
+      departureDateTime.setHours(depH, depM, 0, 0);
+
+      const arrivalDateTime = new Date(watchedDate);
+      arrivalDateTime.setHours(arrH, arrM, 0, 0);
+
+      if (isValid(departureDateTime) && isValid(arrivalDateTime)) {
+        const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
+        if (durationMinutes > 0) {
+          const decimalHours = durationMinutes / 60;
+          const roundedDecimalHours = Math.ceil(decimalHours * 10) / 10;
+          setCalculatedDuration(`${roundedDecimalHours.toFixed(1)} hs`);
+        } else {
+          setCalculatedDuration(null);
+        }
+      } else {
+        setCalculatedDuration(null);
+      }
+    } else {
+      setCalculatedDuration(null);
+    }
+  }, [watchedDepartureTime, watchedArrivalTime, watchedDate]);
+
 
   useEffect(() => {
     setMedicalWarning(null);
@@ -560,6 +598,15 @@ export function GliderFlightFormClient() {
                 )}
               />
             </div>
+            {calculatedDuration && (
+              <div className="mt-1 p-3 border rounded-md bg-muted/50 shadow-sm">
+                <div className="flex items-center text-sm font-medium text-muted-foreground">
+                  <Clock className="h-4 w-4 mr-2 text-primary" />
+                  Duración Calculada: <span className="ml-1 text-foreground font-semibold">{calculatedDuration}</span>
+                </div>
+              </div>
+            )}
+
 
             <FormField
               control={form.control}
