@@ -79,6 +79,7 @@ export function EngineFlightFormClient() {
   const [instructorSearchTerm, setInstructorSearchTerm] = useState('');
   const [instructorPopoverOpen, setInstructorPopoverOpen] = useState(false);
   const [medicalWarning, setMedicalWarning] = useState<string | null>(null);
+  const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
 
   const form = useForm<EngineFlightFormData>({
@@ -199,16 +200,21 @@ export function EngineFlightFormClient() {
     }
   }, [watchedDepartureTime, watchedArrivalTime, watchedDate, form]);
 
-  useEffect(() => {
+  const checkPilotValidity = useCallback(() => {
     setMedicalWarning(null);
-    if (watchedPilotId && watchedDate && pilots.length > 0) {
+    setCategoryWarning(null);
+
+    if (watchedPilotId && watchedDate && pilots.length > 0 && categories.length > 0) {
       const pilot = pilots.find(p => p.id === watchedPilotId);
-      if (pilot?.medical_expiry) {
+      if (!pilot) return;
+
+      // Medical Check
+      if (pilot.medical_expiry) {
         const medicalExpiryDate = parseISO(pilot.medical_expiry);
         const flightDate = startOfDay(watchedDate);
         if (isValid(medicalExpiryDate)) {
           if (isBefore(medicalExpiryDate, flightDate)) {
-            setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`);
+            setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}! No se puede registrar el vuelo.`);
           } else {
             const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
             if (daysDiff <= 30) {
@@ -217,24 +223,56 @@ export function EngineFlightFormClient() {
           }
         }
       }
-    }
-  }, [watchedPilotId, watchedDate, pilots]);
 
-  const sortedPilots = useMemo(() => {
-    return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots]);
+      // Category Check
+      const requiredCategoryKeywords = ["piloto de avión", "remolcador"];
+      const pilotCategoryNames = pilot.category_ids
+        .map(catId => categories.find(c => c.id === catId)?.name.toLowerCase())
+        .filter(Boolean) as string[];
+
+      const hasRequiredCategory = pilotCategoryNames.some(catName =>
+        requiredCategoryKeywords.some(keyword => catName.includes(keyword))
+      );
+
+      if (!hasRequiredCategory) {
+        setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión o Remolcador) para registrar este vuelo.");
+      }
+    }
+  }, [watchedPilotId, watchedDate, pilots, categories]);
+
+  useEffect(() => {
+    checkPilotValidity();
+  }, [checkPilotValidity]);
+
+
+  const enginePilotCategories = useMemo(() => {
+    if (categoriesLoading || !categories.length) return [];
+    const requiredKeywords = ["piloto de avión", "remolcador"];
+    return categories.filter(cat =>
+      requiredKeywords.some(keyword => cat.name.toLowerCase().includes(keyword))
+    ).map(cat => cat.id);
+  }, [categories, categoriesLoading]);
+
+  const sortedPilotsForEngineFlights = useMemo(() => {
+    if (pilotsLoading || !pilots.length || !enginePilotCategories.length) return [];
+    return [...pilots]
+      .filter(pilot => pilot.category_ids.some(catId => enginePilotCategories.includes(catId)))
+      .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  }, [pilots, pilotsLoading, enginePilotCategories]);
+
 
   const instructorCategoryId = useMemo(() => {
     return categories.find(cat => cat.name.trim().toLowerCase() === 'instructor')?.id;
   }, [categories]);
 
   const sortedInstructors = useMemo(() => {
-    if (!instructorCategoryId) return [];
-    return sortedPilots.filter(pilot => 
+    if (!instructorCategoryId || pilotsLoading || !pilots.length) return [];
+    return pilots.filter(pilot =>
       pilot.category_ids.includes(instructorCategoryId) &&
       pilot.id !== watchedPilotId
-    );
-  }, [sortedPilots, instructorCategoryId, watchedPilotId]);
+    ).sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  }, [pilots, pilotsLoading, instructorCategoryId, watchedPilotId]);
+
 
   const filteredEngineAircraft = useMemo(() => {
     return aircraft.filter(ac => ac.type === 'Tow Plane' || ac.type === 'Avión')
@@ -246,12 +284,42 @@ export function EngineFlightFormClient() {
       toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
       return;
     }
+
+    // Re-check validity on submit, as state updates might be async
+    checkPilotValidity(); 
+    // A brief delay to allow state updates from checkPilotValidity to reflect, if any.
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+
+    if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
+      toast({
+        title: "Error de Psicofísico",
+        description: medicalWarning,
+        variant: "destructive",
+        duration: 7000,
+      });
+      setIsSubmittingForm(false);
+      return;
+    }
+
+    if (categoryWarning) {
+       toast({
+        title: "Error de Categoría",
+        description: categoryWarning,
+        variant: "destructive",
+        duration: 7000,
+      });
+      setIsSubmittingForm(false);
+      return;
+    }
+
+
     setIsSubmittingForm(true);
 
     const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
     const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
     const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
-    
+
     let flightDurationDecimal = 0;
     if (durationMinutes > 0) {
         const decimalHours = durationMinutes / 60;
@@ -268,7 +336,7 @@ export function EngineFlightFormClient() {
       ...data,
       date: format(data.date, 'yyyy-MM-dd'),
       flight_duration_decimal: flightDurationDecimal,
-      billable_minutes: billableMins, 
+      billable_minutes: billableMins,
       logbook_type: 'engine',
       auth_user_id: user.id,
       schedule_entry_id: data.schedule_entry_id || null,
@@ -286,13 +354,15 @@ export function EngineFlightFormClient() {
 
     if (result) {
       toast({ title: "Vuelo a Motor Registrado", description: "El vuelo ha sido guardado exitosamente." });
-      router.push('/logbook/engine/list'); 
+      router.push('/logbook/engine/list');
     } else {
       toast({ title: "Error al Registrar", description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
     }
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submitting || isSubmittingForm;
+  const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || (categoryWarning != null);
+
 
   return (
     <Card className="max-w-3xl mx-auto">
@@ -303,10 +373,17 @@ export function EngineFlightFormClient() {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
             {medicalWarning && (
-              <Alert variant={medicalWarning.includes("VENCIDO") ? "destructive" : "default"} className={!medicalWarning.includes("VENCIDO") ? "border-yellow-500" : ""}>
-                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.includes("VENCIDO") && "text-yellow-600")} />
-                <AlertTitle>{medicalWarning.includes("VENCIDO") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
+              <Alert variant={medicalWarning.includes("VENCIDO!") ? "destructive" : "default"} className={!medicalWarning.includes("VENCIDO!") ? "border-yellow-500" : ""}>
+                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.includes("VENCIDO!") && "text-yellow-600")} />
+                <AlertTitle>{medicalWarning.includes("VENCIDO!") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
                 <AlertDescription>{medicalWarning}</AlertDescription>
+              </Alert>
+            )}
+            {categoryWarning && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Categoría No Válida</AlertTitle>
+                <AlertDescription>{categoryWarning}</AlertDescription>
               </Alert>
             )}
 
@@ -358,7 +435,7 @@ export function EngineFlightFormClient() {
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading}
+                          disabled={isLoading || !sortedPilotsForEngineFlights || sortedPilotsForEngineFlights.length === 0}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -369,15 +446,20 @@ export function EngineFlightFormClient() {
                       <Command>
                         <CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} />
                         <CommandList>
-                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                           {(!sortedPilotsForEngineFlights || sortedPilotsForEngineFlights.length === 0) && !pilotsLoading && !categoriesLoading ? (
+                            <CommandEmpty>No hay pilotos con categoría para vuelo a motor.</CommandEmpty>
+                          ) : (
+                            <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          )}
                           <CommandGroup>
-                            {sortedPilots.map((pilot) => (
+                            {sortedPilotsForEngineFlights?.map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
                                   setPilotPopoverOpen(false);
+                                  checkPilotValidity(); 
                                 }}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
@@ -389,6 +471,7 @@ export function EngineFlightFormClient() {
                       </Command>
                     </PopoverContent>
                   </Popover>
+                  {(!sortedPilotsForEngineFlights || sortedPilotsForEngineFlights.length === 0) && !pilotsLoading && !categoriesLoading && <FormDescription className="text-xs text-destructive">No hay pilotos habilitados para vuelos a motor. Verifique las categorías de los pilotos.</FormDescription>}
                   <FormMessage />
                 </FormItem>
               )}
@@ -536,7 +619,7 @@ export function EngineFlightFormClient() {
                 </div>
               </div>
             )}
-            
+
             <FormField
                 control={form.control}
                 name="route_from_to"
@@ -627,7 +710,7 @@ export function EngineFlightFormClient() {
             <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isSubmitDisabled}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Guardar Vuelo a Motor
             </Button>
@@ -637,6 +720,5 @@ export function EngineFlightFormClient() {
     </Card>
   );
 }
-
 
     
