@@ -397,7 +397,7 @@ export function useAircraftStore() {
 // Schedule Store
 export function useScheduleStore() {
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Changed to false
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
@@ -833,7 +833,7 @@ export function useDailyNewsStore() {
 // --- Completed Glider Flights Store ---
 export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(false); // Changed to false
   const [error, setError] = useState<any>(null);
   const fetchingListRef = useRef(false);
 
@@ -904,6 +904,8 @@ export function useCompletedGliderFlightsStore() {
         setError(insertError);
         return null;
       }
+      // After adding, we might want to refetch the list if the current view depends on it.
+      // For now, just return the new flight. The component using this can decide to refetch.
       return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed glider flight', e);
@@ -920,7 +922,7 @@ export function useCompletedGliderFlightsStore() {
 // --- Completed Engine Flights Store ---
 export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(false); // Changed to false
   const [error, setError] = useState<any>(null);
   const fetchingListRef = useRef(false); 
 
@@ -976,3 +978,4 @@ export function useCompletedEngineFlightsStore() {
 
   return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight };
 }
+
