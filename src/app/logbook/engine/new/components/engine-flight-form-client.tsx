@@ -60,6 +60,17 @@ const engineFlightSchema = z.object({
 
 type EngineFlightFormData = z.infer<typeof engineFlightSchema>;
 
+// Helper function to normalize text (lowercase and remove accents)
+const normalizeText = (text?: string | null): string => {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .normalize("NFD") // Normalizes to decomposed form (letter + diacritic)
+    .replace(/[\u0300-\u036f]/g, ""); // Removes diacritics
+};
+
+const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador"]; // Already normalized
+
 export function EngineFlightFormClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -204,39 +215,43 @@ export function EngineFlightFormClient() {
     setMedicalWarning(null);
     setCategoryWarning(null);
 
-    if (watchedPilotId && watchedDate && pilots.length > 0 && categories.length > 0) {
-      const pilot = pilots.find(p => p.id === watchedPilotId);
-      if (!pilot) return;
+    if (!watchedPilotId || !watchedDate || pilots.length === 0 || categories.length === 0) {
+      return;
+    }
 
-      // Medical Check
-      if (pilot.medical_expiry) {
-        const medicalExpiryDate = parseISO(pilot.medical_expiry);
-        const flightDate = startOfDay(watchedDate);
-        if (isValid(medicalExpiryDate)) {
-          if (isBefore(medicalExpiryDate, flightDate)) {
-            setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}! No se puede registrar el vuelo.`);
-          } else {
-            const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
-            if (daysDiff <= 30) {
-              setMedicalWarning(`Psicofísico vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (en ${daysDiff} días).`);
-            }
+    const pilot = pilots.find(p => p.id === watchedPilotId);
+    if (!pilot) return;
+
+    // Medical Check
+    if (pilot.medical_expiry) {
+      const medicalExpiryDate = parseISO(pilot.medical_expiry);
+      const flightDate = startOfDay(watchedDate);
+      if (isValid(medicalExpiryDate)) {
+        if (isBefore(medicalExpiryDate, flightDate)) {
+          setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}! No se puede registrar el vuelo.`);
+        } else {
+          const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
+          if (daysDiff <= 30) {
+            setMedicalWarning(`Psicofísico vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (en ${daysDiff} días).`);
           }
         }
       }
+    }
 
-      // Category Check
-      const requiredCategoryKeywords = ["piloto de avión", "remolcador"];
-      const pilotCategoryNames = pilot.category_ids
-        .map(catId => categories.find(c => c.id === catId)?.name.toLowerCase())
-        .filter(Boolean) as string[];
+    // Category Check
+    const pilotCategoryNamesNormalized = pilot.category_ids
+      .map(catId => {
+        const foundCategory = categories.find(c => c.id === catId);
+        return foundCategory ? normalizeText(foundCategory.name) : null;
+      })
+      .filter(Boolean) as string[];
 
-      const hasRequiredCategory = pilotCategoryNames.some(catName =>
-        requiredCategoryKeywords.some(keyword => catName.includes(keyword))
-      );
+    const hasRequiredCategory = pilotCategoryNamesNormalized.some(normalizedCatName =>
+      ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS.some(normalizedKeyword => normalizedCatName.includes(normalizedKeyword))
+    );
 
-      if (!hasRequiredCategory) {
-        setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión o Remolcador) para registrar este vuelo.");
-      }
+    if (!hasRequiredCategory) {
+      setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión o Remolcador) para registrar este vuelo.");
     }
   }, [watchedPilotId, watchedDate, pilots, categories]);
 
@@ -245,24 +260,23 @@ export function EngineFlightFormClient() {
   }, [checkPilotValidity]);
 
 
-  const enginePilotCategories = useMemo(() => {
+  const enginePilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
-    const requiredKeywords = ["piloto de avión", "remolcador"];
-    return categories.filter(cat =>
-      requiredKeywords.some(keyword => cat.name.toLowerCase().includes(keyword))
-    ).map(cat => cat.id);
+    return categories
+      .filter(cat => ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS.some(keyword => normalizeText(cat.name).includes(keyword)))
+      .map(cat => cat.id);
   }, [categories, categoriesLoading]);
 
   const sortedPilotsForEngineFlights = useMemo(() => {
-    if (pilotsLoading || !pilots.length || !enginePilotCategories.length) return [];
+    if (pilotsLoading || !pilots.length || !enginePilotCategoryIds.length) return [];
     return [...pilots]
-      .filter(pilot => pilot.category_ids.some(catId => enginePilotCategories.includes(catId)))
+      .filter(pilot => pilot.category_ids.some(catId => enginePilotCategoryIds.includes(catId)))
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, pilotsLoading, enginePilotCategories]);
+  }, [pilots, pilotsLoading, enginePilotCategoryIds]);
 
 
   const instructorCategoryId = useMemo(() => {
-    return categories.find(cat => cat.name.trim().toLowerCase() === 'instructor')?.id;
+    return categories.find(cat => normalizeText(cat.name) === 'instructor')?.id;
   }, [categories]);
 
   const sortedInstructors = useMemo(() => {
@@ -284,7 +298,7 @@ export function EngineFlightFormClient() {
       toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
       return;
     }
-
+    setIsSubmittingForm(true);
     // Re-check validity on submit, as state updates might be async
     checkPilotValidity(); 
     // A brief delay to allow state updates from checkPilotValidity to reflect, if any.
@@ -313,8 +327,6 @@ export function EngineFlightFormClient() {
       return;
     }
 
-
-    setIsSubmittingForm(true);
 
     const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
     const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
@@ -459,7 +471,7 @@ export function EngineFlightFormClient() {
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
                                   setPilotPopoverOpen(false);
-                                  checkPilotValidity(); 
+                                  // checkPilotValidity is called via useEffect on watchedPilotId change
                                 }}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
@@ -720,5 +732,3 @@ export function EngineFlightFormClient() {
     </Card>
   );
 }
-
-    
