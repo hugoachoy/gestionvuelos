@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen } from 'lucide-react'; // Added BookOpen for Logbook
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise } from 'lucide-react'; // Added BookOpen for Logbook, Sunrise for Twilight
 
 interface NavItemProps {
   href: string;
@@ -64,10 +64,11 @@ function AppShellLayout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: '/', label: 'Agenda', icon: <CalendarDays /> },
-    { href: '/logbook', label: 'Libro de Vuelo', icon: <BookOpen /> }, // New Logbook item
+    { href: '/logbook', label: 'Libro de Vuelo', icon: <BookOpen /> },
     { href: '/pilots', label: 'Pilotos', icon: <Users /> },
     { href: '/categories', label: 'Categorías', icon: <Tags /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
+    { href: '/twilight', label: 'Crepúsculo Civil', icon: <Sunrise /> },
   ];
 
   const handleLogout = async () => {
