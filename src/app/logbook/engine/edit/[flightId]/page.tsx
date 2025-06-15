@@ -19,24 +19,36 @@ async function getFlightData(flightId: string): Promise<CompletedEngineFlight | 
       .single();
 
     if (supabaseError) {
-      // Log if there's a descriptive message, ensuring the message itself is part of the primary log string.
       const message = supabaseError.message;
+      const code = supabaseError.code;
+      const details = supabaseError.details;
+      const hint = supabaseError.hint;
+
+      let logMessage = `Supabase error fetching engine flight ${flightId}:`;
       if (typeof message === 'string' && message.trim() !== '') {
-        console.error(`Supabase error fetching engine flight ${flightId}: ${message}. Full error object:`, supabaseError);
+        logMessage += ` ${message}`;
       } else {
-        // Log a generic message if specific message is not available but an error object exists
-        console.error(`Supabase error (no specific message) fetching engine flight ${flightId}. Error object:`, supabaseError);
+        logMessage += ` No specific message.`;
       }
-      return null; // Critical: ensure we return null if Supabase indicates an error.
+      if (code) logMessage += ` (Code: ${code})`;
+      
+      console.error(logMessage);
+
+      if (details) console.error(`Supabase Details: ${details}`);
+      if (hint) console.error(`Supabase Hint: ${hint}`);
+      
+      if (!(typeof message === 'string' && message.trim() !== '')) {
+        console.error("Full Supabase error object (as message was empty):", supabaseError);
+      }
+      return null;
     }
-    // If no error and data is null (not found by .single()), it will correctly return null.
     return data as CompletedEngineFlight;
 
   } catch (e: any) {
-    // Catch any other unexpected errors during the operation
-    // Ensure e.message is part of the primary log string.
     const errorMessage = e.message || "No specific message in caught exception.";
-    console.error(`Unexpected exception while trying to fetch engine flight ${flightId}: ${errorMessage}. Full exception:`, e);
+    console.error(`Unexpected exception while trying to fetch engine flight ${flightId}: ${errorMessage}.`);
+    if (e.stack) console.error("Exception Stack:", e.stack);
+    console.error("Full exception object:", e);
     return null;
   }
 }
