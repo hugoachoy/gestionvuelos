@@ -66,7 +66,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     { href: '/', label: 'Agenda', icon: <CalendarDays /> },
     { href: '/logbook', label: 'Libro de Vuelo', icon: <BookOpen /> },
     { href: '/pilots', label: 'Pilotos', icon: <Users /> },
-    { href: '/categories', label: 'Categorías', icon: <Tags /> },
+    { href: '/categories', label: 'Categoria Pilotos', icon: <Tags /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
     { href: '/twilight', label: 'Crepúsculo Civil', icon: <Sunrise /> },
   ];
