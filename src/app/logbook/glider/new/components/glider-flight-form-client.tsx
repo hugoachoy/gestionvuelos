@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert related imports
 import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
-import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react'; // Added AlertTriangle
+import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock, XCircle } from 'lucide-react'; // Added AlertTriangle, XCircle
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -137,12 +137,12 @@ export function GliderFlightFormClient() {
           instructor_id: null,
           tow_pilot_id: '',
           tow_aircraft_id: '',
-          flight_purpose: undefined,
+          flight_purpose: entry.flight_type_id && GLIDER_FLIGHT_PURPOSES.includes(entry.flight_type_id as GliderFlightPurpose) ? entry.flight_type_id as GliderFlightPurpose : undefined,
           arrival_time: '',
           notes: null,
         });
       }
-    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) { // Added user check
+    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) {
          form.reset({
             date: new Date(),
             pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
@@ -164,6 +164,19 @@ export function GliderFlightFormClient() {
   const watchedDate = form.watch("date");
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
+  const watchedFlightPurpose = form.watch('flight_purpose');
+
+  const showInstructorField = useMemo(() => {
+    return watchedFlightPurpose === 'instrucción' || watchedFlightPurpose === 'readaptación';
+  }, [watchedFlightPurpose]);
+
+  useEffect(() => {
+    if (!showInstructorField && form.getValues("instructor_id") !== null) {
+      form.setValue("instructor_id", null, { shouldValidate: true });
+      setInstructorSearchTerm(''); // Clear search term if instructor field is hidden
+    }
+  }, [showInstructorField, form]);
+
 
   useEffect(() => {
     if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}$/.test(watchedDepartureTime) && /^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
@@ -508,56 +521,99 @@ export function GliderFlightFormClient() {
                 </FormItem>
               )}
             />
-
+            
             <FormField
               control={form.control}
-              name="instructor_id"
+              name="flight_purpose"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Instructor (Opcional)</FormLabel>
-                  <Popover open={instructorPopoverOpen} onOpenChange={setInstructorPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || !instructorCategoryId}
-                        >
-                          {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command>
-                        <CommandInput placeholder="Buscar instructor..." value={instructorSearchTerm} onValueChange={setInstructorSearchTerm}/>
-                        <CommandList>
-                          <CommandEmpty>No se encontraron instructores.</CommandEmpty>
-                          <CommandGroup>
-                             {sortedInstructors.map((pilot) => (
-                              <CommandItem
-                                value={`${pilot.last_name}, ${pilot.first_name}`}
-                                key={pilot.id}
-                                onSelect={() => {
-                                  form.setValue("instructor_id", pilot.id, { shouldValidate: true });
-                                  setInstructorPopoverOpen(false);
-                                }}
-                              >
-                                <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
-                                {pilot.last_name}, {pilot.first_name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                   {!instructorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Instructor". Por favor, créela.</FormDescription>}
+                <FormItem>
+                  <FormLabel>Propósito del Vuelo</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar propósito" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {GLIDER_FLIGHT_PURPOSES.map((purpose) => (
+                        <SelectItem key={purpose} value={purpose}>
+                          {purpose.charAt(0).toUpperCase() + purpose.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {showInstructorField && (
+              <FormField
+                control={form.control}
+                name="instructor_id"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Instructor</FormLabel>
+                    <Popover open={instructorPopoverOpen} onOpenChange={setInstructorPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
+                            disabled={isLoading || !instructorCategoryId}
+                          >
+                            {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar instructor..." value={instructorSearchTerm} onValueChange={setInstructorSearchTerm}/>
+                          <CommandList>
+                            {field.value && (
+                                <CommandItem
+                                key="clear-instructor"
+                                value="Limpiar selección"
+                                onSelect={() => {
+                                    form.setValue("instructor_id", null, { shouldValidate: true });
+                                    setInstructorPopoverOpen(false);
+                                    setInstructorSearchTerm('');
+                                }}
+                                className="text-muted-foreground italic"
+                                >
+                                <XCircle className="mr-2 h-4 w-4" />
+                                Limpiar selección de instructor
+                                </CommandItem>
+                            )}
+                            <CommandEmpty>No se encontraron instructores.</CommandEmpty>
+                            <CommandGroup>
+                              {sortedInstructors.map((pilot) => (
+                                <CommandItem
+                                  value={`${pilot.last_name}, ${pilot.first_name}`}
+                                  key={pilot.id}
+                                  onSelect={() => {
+                                    form.setValue("instructor_id", pilot.id, { shouldValidate: true });
+                                    setInstructorPopoverOpen(false);
+                                  }}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
+                                  {pilot.last_name}, {pilot.first_name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {!instructorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Instructor". Por favor, créela.</FormDescription>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
 
             <FormField
               control={form.control}
@@ -659,31 +715,6 @@ export function GliderFlightFormClient() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="flight_purpose"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Propósito del Vuelo</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar propósito" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {GLIDER_FLIGHT_PURPOSES.map((purpose) => (
-                        <SelectItem key={purpose} value={purpose}>
-                          {purpose.charAt(0).toUpperCase() + purpose.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
@@ -756,6 +787,3 @@ export function GliderFlightFormClient() {
     </Card>
   );
 }
-
-
-    
