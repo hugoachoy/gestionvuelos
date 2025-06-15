@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { RefreshCw, Trash2, Edit } from 'lucide-react'; // Added Edit
+import { RefreshCw, Trash2, Edit } from 'lucide-react'; 
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { usePilotsStore, useAircraftStore } from '@/store/data-hooks';
@@ -22,7 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { DeleteDialog } from '@/components/common/delete-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
-// import { useRouter } from 'next/navigation'; // For edit navigation (future)
+import { useRouter } from 'next/navigation'; 
 
 export function EngineFlightListClient() {
   const { completedEngineFlights, loading: flightsLoading, error: flightsError, fetchCompletedEngineFlights, deleteCompletedEngineFlight } = useCompletedEngineFlightsStore();
@@ -30,7 +30,7 @@ export function EngineFlightListClient() {
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  // const router = useRouter(); // For edit navigation (future)
+  const router = useRouter(); 
   
   const [isLoadingUI, setIsLoadingUI] = useState(true);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -65,9 +65,9 @@ export function EngineFlightListClient() {
     setFlightToDelete(null);
   };
 
-  // const handleEditRequest = (flight: CompletedEngineFlight) => {
-  //   router.push(`/logbook/engine/edit/${flight.id}`); // Future implementation
-  // };
+  const handleEditRequest = (flight: CompletedEngineFlight) => {
+    router.push(`/logbook/engine/edit/${flight.id}`); 
+  };
 
 
   if (flightsError) {
@@ -156,10 +156,10 @@ export function EngineFlightListClient() {
                     <TableCell>{flight.fuel_added_liters ?? '-'}</TableCell>
                     {showActionsColumn && (
                       <TableCell className="text-right">
-                        {/* <Button variant="ghost" size="icon" onClick={() => handleEditRequest(flight)} className="mr-2 hover:text-primary" disabled>
+                        <Button variant="ghost" size="icon" onClick={() => handleEditRequest(flight)} className="mr-2 hover:text-primary">
                           <Edit className="h-4 w-4" />
                           <span className="sr-only">Editar</span>
-                        </Button> */}
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(flight)} className="hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                           <span className="sr-only">Eliminar</span>
@@ -182,6 +182,4 @@ export function EngineFlightListClient() {
     </div>
   );
 }
-
-
     

@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link'; // Added Link
+import Link from 'next/link'; 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -24,9 +24,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert related imports
-import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
-import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react'; // Added AlertTriangle
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
+import { Skeleton } from '@/components/ui/skeleton'; 
+import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react'; 
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -72,7 +72,11 @@ const normalizeText = (text?: string | null): string => {
 
 const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador"];
 
-export function EngineFlightFormClient() {
+interface EngineFlightFormClientProps {
+  flightToEdit?: CompletedEngineFlight | null;
+}
+
+export function EngineFlightFormClient({ flightToEdit }: EngineFlightFormClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -82,7 +86,7 @@ export function EngineFlightFormClient() {
   const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedEngineFlight, loading: submitting } = useCompletedEngineFlightsStore();
+  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submitting } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -94,9 +98,22 @@ export function EngineFlightFormClient() {
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
 
+  const isEditMode = !!flightToEdit;
+
   const form = useForm<EngineFlightFormData>({
     resolver: zodResolver(engineFlightSchema),
-    defaultValues: {
+    defaultValues: flightToEdit ? {
+        ...flightToEdit,
+        date: flightToEdit.date ? parseISO(flightToEdit.date) : new Date(),
+        instructor_id: flightToEdit.instructor_id || null,
+        route_from_to: flightToEdit.route_from_to || null,
+        landings_count: flightToEdit.landings_count || 0,
+        tows_count: flightToEdit.tows_count || 0,
+        oil_added_liters: flightToEdit.oil_added_liters || null,
+        fuel_added_liters: flightToEdit.fuel_added_liters || null,
+        notes: flightToEdit.notes || null,
+        schedule_entry_id: flightToEdit.schedule_entry_id || null,
+    } : {
       date: new Date(),
       pilot_id: '',
       instructor_id: null,
@@ -120,14 +137,27 @@ export function EngineFlightFormClient() {
     fetchPilots();
     fetchAircraft();
     fetchPilotCategories();
-    if (scheduleEntryIdParam) {
+    if (scheduleEntryIdParam && !isEditMode) {
         const dateParam = searchParams.get('date');
         if (dateParam) fetchScheduleEntries(dateParam);
     }
-  }, [fetchPilots, fetchAircraft, fetchPilotCategories, scheduleEntryIdParam, searchParams, fetchScheduleEntries]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, scheduleEntryIdParam, searchParams, fetchScheduleEntries, isEditMode]);
 
   useEffect(() => {
-    if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
+    if (isEditMode && flightToEdit) {
+        form.reset({
+            ...flightToEdit,
+            date: flightToEdit.date ? parseISO(flightToEdit.date) : new Date(),
+            instructor_id: flightToEdit.instructor_id || null,
+            route_from_to: flightToEdit.route_from_to || null,
+            landings_count: flightToEdit.landings_count ?? 0, // Handle possible null
+            tows_count: flightToEdit.tows_count ?? 0, // Handle possible null
+            oil_added_liters: flightToEdit.oil_added_liters || null,
+            fuel_added_liters: flightToEdit.fuel_added_liters || null,
+            notes: flightToEdit.notes || null,
+            schedule_entry_id: flightToEdit.schedule_entry_id || null,
+        });
+    } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
       const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
       if (entry) {
         form.reset({
@@ -147,7 +177,7 @@ export function EngineFlightFormClient() {
           notes: null,
         });
       }
-    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) { // Added user check
+    } else if (!scheduleEntryIdParam && !isEditMode && pilots.length > 0 && aircraft.length > 0 && user) { 
         form.reset({
             date: new Date(),
             pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
@@ -165,7 +195,7 @@ export function EngineFlightFormClient() {
             schedule_entry_id: null,
         });
     }
-  }, [scheduleEntryIdParam, scheduleEntries, form, pilots, user, aircraft]);
+  }, [isEditMode, flightToEdit, scheduleEntryIdParam, scheduleEntries, form, pilots, user, aircraft]);
 
   const watchedPilotId = form.watch("pilot_id");
   const watchedDate = form.watch("date");
@@ -294,12 +324,12 @@ export function EngineFlightFormClient() {
 
   const onSubmit = async (data: EngineFlightFormData) => {
     if (!user) {
-      toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
+      toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
       return;
     }
     setIsSubmittingForm(true);
-    checkPilotValidity();
-    await new Promise(resolve => setTimeout(resolve, 100));
+    checkPilotValidity(); // Re-check just before submit
+    await new Promise(resolve => setTimeout(resolve, 100)); // Ensure state updates
 
 
     if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
@@ -340,14 +370,11 @@ export function EngineFlightFormClient() {
       billableMins = durationMinutes;
     }
 
-
-    const submissionData: Omit<CompletedEngineFlight, 'id' | 'created_at'> = {
+    const submissionData = {
       ...data,
       date: format(data.date, 'yyyy-MM-dd'),
       flight_duration_decimal: flightDurationDecimal,
       billable_minutes: billableMins,
-      logbook_type: 'engine',
-      auth_user_id: user.id,
       schedule_entry_id: data.schedule_entry_id || null,
       instructor_id: data.instructor_id || null,
       route_from_to: data.route_from_to || null,
@@ -357,15 +384,26 @@ export function EngineFlightFormClient() {
       fuel_added_liters: data.fuel_added_liters || null,
       notes: data.notes || null,
     };
+    
+    let result;
+    if (isEditMode && flightToEdit) {
+        const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = submissionData;
+        result = await updateCompletedEngineFlight(flightToEdit.id, updatePayload);
+    } else {
+        result = await addCompletedEngineFlight({
+            ...submissionData,
+            logbook_type: 'engine',
+            auth_user_id: user.id,
+        });
+    }
 
-    const result = await addCompletedEngineFlight(submissionData);
     setIsSubmittingForm(false);
 
     if (result) {
-      toast({ title: "Vuelo a Motor Registrado", description: "El vuelo ha sido guardado exitosamente." });
+      toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
       router.push('/logbook/engine/list');
     } else {
-      toast({ title: "Error al Registrar", description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
+      toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
     }
   };
 
@@ -373,7 +411,7 @@ export function EngineFlightFormClient() {
   const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || (categoryWarning != null);
 
 
-  if (authLoading) {
+  if (authLoading && !isEditMode) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -396,14 +434,14 @@ export function EngineFlightFormClient() {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
-          <CardTitle>Detalles del Vuelo a Motor</CardTitle>
+          <CardTitle>{isEditMode ? 'Editar Vuelo a Motor' : 'Detalles del Vuelo a Motor'}</CardTitle>
         </CardHeader>
         <CardContent>
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Autenticación Requerida</AlertTitle>
             <AlertDescription>
-              Debes iniciar sesión para registrar un nuevo vuelo.
+              Debes iniciar sesión para {isEditMode ? 'editar' : 'registrar'} un nuevo vuelo.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -419,7 +457,7 @@ export function EngineFlightFormClient() {
   return (
     <Card className="max-w-3xl mx-auto">
       <CardHeader>
-        <CardTitle>Detalles del Vuelo a Motor</CardTitle>
+        <CardTitle>{isEditMode ? 'Editar Vuelo a Motor' : 'Detalles del Vuelo a Motor'}</CardTitle>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -763,7 +801,7 @@ export function EngineFlightFormClient() {
             </Button>
             <Button type="submit" disabled={isSubmitDisabled}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Guardar Vuelo a Motor
+              {isEditMode ? 'Guardar Cambios' : 'Guardar Vuelo a Motor'}
             </Button>
           </CardFooter>
         </form>
@@ -771,5 +809,3 @@ export function EngineFlightFormClient() {
     </Card>
   );
 }
-
-    

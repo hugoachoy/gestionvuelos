@@ -905,6 +905,7 @@ export function useCompletedGliderFlightsStore() {
         setError(insertError);
         return null;
       }
+      // No need to fetch all after add, list page will fetch on mount
       return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed glider flight', e);
@@ -914,6 +915,32 @@ export function useCompletedGliderFlightsStore() {
       setLoading(false); 
     }
   }, []); 
+
+  const updateCompletedGliderFlight = useCallback(async (flightId: string, flightData: Partial<Omit<CompletedGliderFlight, 'id' | 'created_at' | 'logbook_type' | 'auth_user_id'>>) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data: updatedFlight, error: updateError } = await supabase
+        .from('completed_glider_flights')
+        .update(flightData)
+        .eq('id', flightId)
+        .select()
+        .single();
+      if (updateError) {
+        logSupabaseError('Error updating completed glider flight', updateError);
+        setError(updateError);
+        return null;
+      }
+      // No need to fetch all after update, list page will refresh or form redirects
+      return updatedFlight;
+    } catch (e) {
+      logSupabaseError('Unexpected error updating completed glider flight', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const deleteCompletedGliderFlight = useCallback(async (flightId: string) => {
     setError(null);
@@ -937,7 +964,7 @@ export function useCompletedGliderFlightsStore() {
   }, [fetchCompletedGliderFlights]);
 
 
-  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight, fetchCompletedGliderFlightsForRange, deleteCompletedGliderFlight };
+  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight, updateCompletedGliderFlight, fetchCompletedGliderFlightsForRange, deleteCompletedGliderFlight };
 }
 
 // --- Completed Engine Flights Store ---
@@ -987,6 +1014,7 @@ export function useCompletedEngineFlightsStore() {
         setError(insertError);
         return null;
       }
+      // No need to fetch all after add, list page will fetch on mount
       return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed engine flight', e);
@@ -996,6 +1024,33 @@ export function useCompletedEngineFlightsStore() {
       setLoading(false); 
     }
   }, []);
+
+  const updateCompletedEngineFlight = useCallback(async (flightId: string, flightData: Partial<Omit<CompletedEngineFlight, 'id' | 'created_at' | 'logbook_type' | 'auth_user_id'>>) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data: updatedFlight, error: updateError } = await supabase
+        .from('completed_engine_flights')
+        .update(flightData)
+        .eq('id', flightId)
+        .select()
+        .single();
+      if (updateError) {
+        logSupabaseError('Error updating completed engine flight', updateError);
+        setError(updateError);
+        return null;
+      }
+      // No need to fetch all after update, list page will refresh or form redirects
+      return updatedFlight;
+    } catch (e) {
+      logSupabaseError('Unexpected error updating completed engine flight', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
 
   const deleteCompletedEngineFlight = useCallback(async (flightId: string) => {
     setError(null);
@@ -1018,6 +1073,6 @@ export function useCompletedEngineFlightsStore() {
     }
   }, [fetchCompletedEngineFlights]);
 
-  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, deleteCompletedEngineFlight };
+  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight };
 }
 
