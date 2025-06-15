@@ -289,6 +289,17 @@ export function GliderFlightFormClient() {
     }
     setIsSubmittingForm(true);
 
+    if (medicalWarning && medicalWarning.toUpperCase().includes("VENCIDO")) {
+      toast({
+        title: "Error de Psicofísico",
+        description: medicalWarning,
+        variant: "destructive",
+        duration: 7000,
+      });
+      setIsSubmittingForm(false);
+      return;
+    }
+
     const flightDate = data.date;
     const [depH, depM] = data.departure_time.split(':').map(Number);
     const [arrH, arrM] = data.arrival_time.split(':').map(Number);
@@ -378,6 +389,7 @@ export function GliderFlightFormClient() {
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAdd || isSubmittingForm;
+  const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.toUpperCase().includes("VENCIDO"));
 
   if (authLoading) {
     return (
@@ -431,9 +443,9 @@ export function GliderFlightFormClient() {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
             {medicalWarning && (
-              <Alert variant={medicalWarning.includes("VENCIDO") ? "destructive" : "default"} className={!medicalWarning.includes("VENCIDO") ? "border-yellow-500" : ""}>
-                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.includes("VENCIDO") && "text-yellow-600")} />
-                <AlertTitle>{medicalWarning.includes("VENCIDO") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
+              <Alert variant={medicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className={!medicalWarning.toUpperCase().includes("VENCIDO") ? "border-yellow-500" : ""}>
+                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.toUpperCase().includes("VENCIDO") && "text-yellow-600")} />
+                <AlertTitle>{medicalWarning.toUpperCase().includes("VENCIDO") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
                 <AlertDescription>{medicalWarning}</AlertDescription>
               </Alert>
             )}
@@ -777,7 +789,7 @@ export function GliderFlightFormClient() {
             <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isSubmitDisabled}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Guardar Vuelo
             </Button>
@@ -787,3 +799,4 @@ export function GliderFlightFormClient() {
     </Card>
   );
 }
+
