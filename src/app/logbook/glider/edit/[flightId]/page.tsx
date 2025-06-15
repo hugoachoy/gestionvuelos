@@ -11,20 +11,30 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 async function getFlightData(flightId: string): Promise<CompletedGliderFlight | null> {
-  const { data, error } = await supabase
-    .from('completed_glider_flights')
-    .select('*')
-    .eq('id', flightId)
-    .single();
+  try {
+    const { data, error: supabaseError } = await supabase
+      .from('completed_glider_flights')
+      .select('*')
+      .eq('id', flightId)
+      .single();
 
-  // Only log a console error if the error object has a message.
-  // If data is null (e.g., not found, or error was {}), it will be returned as null.
-  // The page component handles null flightData by showing "flight not found".
-  if (error && error.message) { 
-    console.error(`Error fetching glider flight ${flightId}:`, error);
+    if (supabaseError) {
+      // Log only if there's a descriptive message.
+      // Avoid logging if supabaseError is just {} or has no meaningful message.
+      if (typeof supabaseError.message === 'string' && supabaseError.message.trim() !== '') {
+        console.error(`Supabase error fetching glider flight ${flightId}:`, supabaseError);
+      }
+      // Regardless of logging, if there's any supabaseError object, treat it as an error and return null.
+      return null;
+    }
+    // If no error and data is null (not found by .single()), it will correctly return null.
+    return data as CompletedGliderFlight;
+
+  } catch (e: any) {
+    // Catch any other unexpected errors during the operation
+    console.error(`Unexpected exception fetching glider flight ${flightId}:`, e);
     return null;
   }
-  return data as CompletedGliderFlight;
 }
 
 export default async function EditGliderFlightPage({ params }: { params: { flightId: string } }) {
