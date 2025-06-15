@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link'; // Added Link
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,8 +24,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert related imports
+import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
+import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react'; // Added AlertTriangle
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,9 +34,9 @@ const gliderFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   instructor_id: z.string().optional().nullable(),
-  tow_pilot_id: z.string().min(1, "Seleccione un piloto remolcador."), 
+  tow_pilot_id: z.string().min(1, "Seleccione un piloto remolcador."),
   glider_aircraft_id: z.string().min(1, "Seleccione un planeador."),
-  tow_aircraft_id: z.string().min(1, "Seleccione un avión remolcador."), 
+  tow_aircraft_id: z.string().min(1, "Seleccione un avión remolcador."),
   flight_purpose: z.enum(GLIDER_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
   departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de salida inválido (HH:MM)."),
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
@@ -78,7 +80,7 @@ export function GliderFlightFormClient() {
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  
+
   const [picPilotSearchTerm, setPicPilotSearchTerm] = useState('');
   const [picPilotPopoverOpen, setPicPilotPopoverOpen] = useState(false);
   const [instructorSearchTerm, setInstructorSearchTerm] = useState('');
@@ -95,9 +97,9 @@ export function GliderFlightFormClient() {
       date: new Date(),
       pilot_id: '',
       instructor_id: null,
-      tow_pilot_id: '', 
+      tow_pilot_id: '',
       glider_aircraft_id: '',
-      tow_aircraft_id: '', 
+      tow_aircraft_id: '',
       flight_purpose: undefined,
       departure_time: '',
       arrival_time: '',
@@ -112,7 +114,7 @@ export function GliderFlightFormClient() {
     fetchPilots();
     fetchAircraft();
     fetchPilotCategories();
-    fetchCompletedGliderFlights(); 
+    fetchCompletedGliderFlights();
     if (scheduleEntryIdParam) {
       const dateParam = searchParams.get('date');
       if (dateParam) {
@@ -140,10 +142,10 @@ export function GliderFlightFormClient() {
           notes: null,
         });
       }
-    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0) {
+    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) { // Added user check
          form.reset({
             date: new Date(),
-            pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '',
+            pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
             instructor_id: null,
             tow_pilot_id: '',
             glider_aircraft_id: '',
@@ -239,7 +241,7 @@ export function GliderFlightFormClient() {
 
   const sortedInstructors = useMemo(() => {
     if (!instructorCategoryId) return [];
-    return sortedPilots.filter(pilot => 
+    return sortedPilots.filter(pilot =>
       pilot.category_ids.includes(instructorCategoryId) &&
       pilot.id !== watchedPicPilotId
     );
@@ -247,7 +249,7 @@ export function GliderFlightFormClient() {
 
   const sortedTowPilots = useMemo(() => {
     if (!towPilotCategoryId) return [];
-    return sortedPilots.filter(pilot => 
+    return sortedPilots.filter(pilot =>
       pilot.category_ids.includes(towPilotCategoryId) &&
       pilot.id !== watchedPicPilotId &&
       pilot.id !== watchedInstructorId
@@ -330,7 +332,7 @@ export function GliderFlightFormClient() {
     const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
     const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
     const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
-    
+
     let flightDurationDecimal = 0;
     if (durationMinutes > 0) {
         const decimalHours = durationMinutes / 60;
@@ -345,16 +347,16 @@ export function GliderFlightFormClient() {
       auth_user_id: user.id,
       schedule_entry_id: data.schedule_entry_id || null,
       instructor_id: data.instructor_id || null,
-      tow_pilot_id: data.tow_pilot_id, // Ya es string().min(1)
-      tow_aircraft_id: data.tow_aircraft_id, // Ya es string().min(1)
+      tow_pilot_id: data.tow_pilot_id,
+      tow_aircraft_id: data.tow_aircraft_id,
       notes: data.notes || null,
     };
 
     const result = await addCompletedGliderFlight(submissionData);
-    
+
     if (result) {
       toast({ title: "Vuelo en Planeador Registrado", description: "El vuelo ha sido guardado exitosamente." });
-      await fetchCompletedGliderFlights(); 
+      await fetchCompletedGliderFlights();
       router.push('/logbook/glider/list');
     } else {
       toast({ title: "Error al Registrar", description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
@@ -364,6 +366,48 @@ export function GliderFlightFormClient() {
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAdd || isSubmittingForm;
 
+  if (authLoading) {
+    return (
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader>
+          <CardTitle>Detalles del Vuelo en Planeador</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-1/2" />
+        </CardContent>
+        <CardFooter className="flex justify-end gap-2 pt-6">
+          <Skeleton className="h-10 w-24" />
+          <Skeleton className="h-10 w-32" />
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader>
+          <CardTitle>Detalles del Vuelo en Planeador</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Autenticación Requerida</AlertTitle>
+            <AlertDescription>
+              Debes iniciar sesión para registrar un nuevo vuelo.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button asChild>
+            <Link href="/login">Iniciar Sesión</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   return (
     <Card className="max-w-3xl mx-auto">
@@ -564,7 +608,7 @@ export function GliderFlightFormClient() {
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="glider_aircraft_id"
@@ -713,3 +757,5 @@ export function GliderFlightFormClient() {
   );
 }
 
+
+    

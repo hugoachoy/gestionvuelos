@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link'; // Added Link
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,8 +24,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert related imports
+import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
+import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock } from 'lucide-react'; // Added AlertTriangle
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,16 +62,15 @@ const engineFlightSchema = z.object({
 
 type EngineFlightFormData = z.infer<typeof engineFlightSchema>;
 
-// Helper function to normalize text (lowercase and remove accents)
 const normalizeText = (text?: string | null): string => {
   if (!text) return "";
   return text
     .toLowerCase()
-    .normalize("NFD") // Normalizes to decomposed form (letter + diacritic)
-    .replace(/[\u0300-\u036f]/g, ""); // Removes diacritics
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 };
 
-const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador"]; // Already normalized
+const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador"];
 
 export function EngineFlightFormClient() {
   const router = useRouter();
@@ -146,10 +147,10 @@ export function EngineFlightFormClient() {
           notes: null,
         });
       }
-    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0) {
+    } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) { // Added user check
         form.reset({
             date: new Date(),
-            pilot_id: pilots.find(p => p.auth_user_id === user?.id)?.id || '',
+            pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
             instructor_id: null,
             engine_aircraft_id: '',
             flight_purpose: undefined,
@@ -222,7 +223,6 @@ export function EngineFlightFormClient() {
     const pilot = pilots.find(p => p.id === watchedPilotId);
     if (!pilot) return;
 
-    // Medical Check
     if (pilot.medical_expiry) {
       const medicalExpiryDate = parseISO(pilot.medical_expiry);
       const flightDate = startOfDay(watchedDate);
@@ -238,7 +238,6 @@ export function EngineFlightFormClient() {
       }
     }
 
-    // Category Check
     const pilotCategoryNamesNormalized = pilot.category_ids
       .map(catId => {
         const foundCategory = categories.find(c => c.id === catId);
@@ -299,9 +298,7 @@ export function EngineFlightFormClient() {
       return;
     }
     setIsSubmittingForm(true);
-    // Re-check validity on submit, as state updates might be async
-    checkPilotValidity(); 
-    // A brief delay to allow state updates from checkPilotValidity to reflect, if any.
+    checkPilotValidity();
     await new Promise(resolve => setTimeout(resolve, 100));
 
 
@@ -375,6 +372,49 @@ export function EngineFlightFormClient() {
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submitting || isSubmittingForm;
   const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || (categoryWarning != null);
 
+
+  if (authLoading) {
+    return (
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader>
+          <CardTitle>Detalles del Vuelo a Motor</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-1/2" />
+        </CardContent>
+        <CardFooter className="flex justify-end gap-2 pt-6">
+          <Skeleton className="h-10 w-24" />
+          <Skeleton className="h-10 w-32" />
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader>
+          <CardTitle>Detalles del Vuelo a Motor</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Autenticación Requerida</AlertTitle>
+            <AlertDescription>
+              Debes iniciar sesión para registrar un nuevo vuelo.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button asChild>
+            <Link href="/login">Iniciar Sesión</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   return (
     <Card className="max-w-3xl mx-auto">
@@ -471,7 +511,6 @@ export function EngineFlightFormClient() {
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
                                   setPilotPopoverOpen(false);
-                                  // checkPilotValidity is called via useEffect on watchedPilotId change
                                 }}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
@@ -732,3 +771,5 @@ export function EngineFlightFormClient() {
     </Card>
   );
 }
+
+    
