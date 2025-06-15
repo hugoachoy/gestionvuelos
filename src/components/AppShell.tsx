@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise } from 'lucide-react'; // Added BookOpen for Logbook, Sunrise for Twilight
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText } from 'lucide-react'; // Added FileText
 
 interface NavItemProps {
   href: string;
@@ -60,7 +60,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, loading: authLoading } = useAuth();
-  const sidebar = useSidebar(); // Correctly called within a child of SidebarProvider
+  const sidebar = useSidebar(); 
 
   const navItems = [
     { href: '/', label: 'Agenda', icon: <CalendarDays /> },
@@ -92,6 +92,8 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     }
     return user.email ?? '';
   };
+  
+  const NOTAM_URL_SAZX = "https://ais.anac.gob.ar/notam?lugar=SAZX";
 
   return (
     <>
@@ -117,6 +119,21 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             {navItems.map((item) => (
               <NavItem key={item.href} {...item} pathname={pathname} />
             ))}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  window.open(NOTAM_URL_SAZX, '_blank', 'noopener,noreferrer');
+                  if (sidebar.isMobile) {
+                    sidebar.setOpenMobile(false);
+                  }
+                }}
+                tooltip="NOTAMs (SAZX)"
+                className="justify-start"
+              >
+                <FileText />
+                <span className="truncate">NOTAMs (SAZX)</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">
