@@ -1,16 +1,21 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // Added useRef, useCallback
 import SunCalc from 'suncalc';
-import { format, isValid } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns'; // Added parseISO
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { CalendarIcon, Sunrise as SunriseIcon, Sunset as SunsetIcon, Sparkles, Sun, Moon } from 'lucide-react';
+import { CalendarIcon, Sunrise as SunriseIcon, Sunset as SunsetIcon, Sparkles, Sun, Moon, Save, MessageSquare, Loader2 } from 'lucide-react'; // Added Save, MessageSquare, Loader2
 import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea'; // Added Textarea
+import { useAuth } from '@/contexts/AuthContext'; // Added useAuth
+import { useDailyObservationsStore } from '@/store/data-hooks'; // Added useDailyObservationsStore
+import { useToast } from "@/hooks/use-toast"; // Added useToast
+import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
 
 // Coordenadas del Aeroclub 9 de Julio (aproximadas)
 const NUEVE_DE_JULIO_LAT = -35.4445;
@@ -18,16 +23,31 @@ const NUEVE_DE_JULIO_LON = -60.8857;
 const LOCATION_NAME = "Aeroclub 9 de Julio (Lat: -35.44, Lon: -60.89)";
 
 interface TwilightTimes {
-  dawn: Date | null;       // Inicio Crepúsculo Civil Matutino (Alba Civil)
-  sunrise: Date | null;    // Salida del Sol
-  sunset: Date | null;     // Puesta del Sol
-  dusk: Date | null;       // Fin Crepúsculo Civil Vespertino (Ocaso Civil)
+  dawn: Date | null;
+  sunrise: Date | null;
+  sunset: Date | null;
+  dusk: Date | null;
 }
 
 export function TwilightClient() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [twilightTimes, setTwilightTimes] = useState<TwilightTimes | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+
+  const { user: currentUser, loading: authLoading } = useAuth();
+  const { getObservation, updateObservation, loading: obsLoading, fetchObservations, error: obsError } = useDailyObservationsStore();
+  const { toast } = useToast();
+  
+  const [observationInput, setObservationInput] = useState('');
+  const observationTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const formattedSelectedDate = useMemo(() => {
+    return selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+  }, [selectedDate]);
+  
+  const formattedSelectedDateDisplay = useMemo(() => {
+    return selectedDate ? format(selectedDate, "PPP", { locale: es }) : 'Fecha no seleccionada';
+  }, [selectedDate]);
 
   useEffect(() => {
     if (selectedDate) {
@@ -41,14 +61,36 @@ export function TwilightClient() {
         });
       } catch (error) {
         console.error("Error calculating sun times:", error);
-        setTwilightTimes(null); // Reset times on error
+        setTwilightTimes(null);
       }
+      fetchObservations(formattedSelectedDate); // Fetch observations for the selected date
     }
-  }, [selectedDate]);
+  }, [selectedDate, formattedSelectedDate, fetchObservations]);
+  
+  const savedObservationText = useMemo(() => {
+    return formattedSelectedDate ? getObservation(formattedSelectedDate) : undefined;
+  }, [formattedSelectedDate, getObservation]);
 
-  const formattedSelectedDate = useMemo(() => {
-    return selectedDate ? format(selectedDate, "PPP", { locale: es }) : 'Fecha no seleccionada';
-  }, [selectedDate]);
+  useEffect(() => {
+    setObservationInput(savedObservationText || '');
+  }, [savedObservationText]);
+
+  useEffect(() => {
+    if (observationTextareaRef.current) {
+      observationTextareaRef.current.style.height = 'auto';
+      observationTextareaRef.current.style.height = `${observationTextareaRef.current.scrollHeight}px`;
+    }
+  }, [observationInput]);
+
+  const handleSaveObservation = async () => {
+    if (selectedDate && currentUser?.is_admin) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      await updateObservation(dateStr, observationInput);
+      toast({ title: "Observaciones guardadas", description: "Las observaciones para el día han sido guardadas." });
+    } else if (!currentUser?.is_admin) {
+      toast({ title: "Acción no permitida", description: "Solo los administradores pueden guardar observaciones.", variant: "destructive" });
+    }
+  };
 
   const formatTime = (date: Date | null): string => {
     if (date && isValid(date)) {
@@ -56,6 +98,8 @@ export function TwilightClient() {
     }
     return 'N/A';
   };
+
+  const isLoadingUI = authLoading || obsLoading;
 
   return (
     <div className="space-y-6">
@@ -72,9 +116,10 @@ export function TwilightClient() {
                   "w-full justify-start text-left font-normal",
                   !selectedDate && "text-muted-foreground"
                 )}
+                disabled={isLoadingUI}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {formattedSelectedDate}
+                {formattedSelectedDateDisplay}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
@@ -87,17 +132,58 @@ export function TwilightClient() {
                 }}
                 initialFocus
                 locale={es}
+                disabled={isLoadingUI}
               />
             </PopoverContent>
           </Popover>
         </CardContent>
       </Card>
 
+      {selectedDate && (
+        <Card className="mb-6 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl flex items-center">
+              <MessageSquare className="mr-2 h-5 w-5 text-primary" />
+              Observaciones del Día
+            </CardTitle>
+            <CardDescription>Notas relevantes para este día. Solo administradores pueden editar.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {obsLoading && !observationInput && !savedObservationText ? (
+                 <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    {currentUser?.is_admin && <Skeleton className="h-9 w-36" />}
+                 </div>
+            ) : obsError ? (
+                <p className="text-destructive">Error al cargar observaciones.</p>
+            ) : (
+              <>
+                <Textarea
+                  ref={observationTextareaRef}
+                  placeholder="Escribe observaciones..."
+                  value={observationInput}
+                  onChange={(e) => setObservationInput(e.target.value)}
+                  rows={1}
+                  className="mb-3 resize-none overflow-hidden"
+                  disabled={isLoadingUI || !currentUser?.is_admin}
+                />
+                {currentUser?.is_admin && (
+                  <Button onClick={handleSaveObservation} size="sm" disabled={isLoadingUI}>
+                    {isLoadingUI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar Observaciones
+                  </Button>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {selectedDate && twilightTimes && (
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl text-center">
-              Horarios para {formattedSelectedDate}
+              Horarios Astronómicos para {formattedSelectedDateDisplay}
             </CardTitle>
             <CardDescription className="text-center text-sm">
               Ubicación: {LOCATION_NAME}
@@ -127,7 +213,7 @@ export function TwilightClient() {
           </CardContent>
         </Card>
       )}
-       {selectedDate && !twilightTimes && (
+      {selectedDate && !twilightTimes && !isLoadingUI && ( // Added !isLoadingUI
         <Card>
             <CardContent className="pt-6">
                 <p className="text-center text-destructive">No se pudieron calcular los horarios para la fecha seleccionada.</p>
@@ -153,3 +239,4 @@ function InfoCard({ title, time, icon }: InfoCardProps) {
     </div>
   );
 }
+
