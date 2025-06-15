@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory } from '@/types';
+import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, GliderFlightPurpose } from '@/types'; // Added GliderFlightPurpose
 import { GLIDER_FLIGHT_PURPOSES } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -227,7 +227,7 @@ export function GliderFlightFormClient() {
         const flightDate = startOfDay(watchedDate);
         if (isValid(medicalExpiryDate)) {
           if (isBefore(medicalExpiryDate, flightDate)) {
-            setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`);
+            setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}! No puede registrar vuelos.`);
           } else {
             const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
             if (daysDiff <= 30) {
@@ -282,6 +282,10 @@ export function GliderFlightFormClient() {
     return start1 < end2 && start2 < end1;
   };
 
+  const isPilotInvalidForFlight = useMemo(() => {
+    return !!(medicalWarning && medicalWarning.toUpperCase().includes("VENCIDO"));
+  }, [medicalWarning]);
+
   const onSubmit = async (data: GliderFlightFormData) => {
     if (!user) {
       toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
@@ -289,10 +293,10 @@ export function GliderFlightFormClient() {
     }
     setIsSubmittingForm(true);
 
-    if (medicalWarning && medicalWarning.toUpperCase().includes("VENCIDO")) {
+    if (isPilotInvalidForFlight) { // Check derived state
       toast({
         title: "Error de Psicofísico",
-        description: medicalWarning,
+        description: medicalWarning || "El psicofísico del piloto está vencido. No puede registrar vuelos.",
         variant: "destructive",
         duration: 7000,
       });
@@ -389,7 +393,9 @@ export function GliderFlightFormClient() {
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAdd || isSubmittingForm;
-  const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.toUpperCase().includes("VENCIDO"));
+  const isSubmitDisabled = isLoading || isPilotInvalidForFlight;
+  const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
+
 
   if (authLoading) {
     return (
@@ -442,14 +448,6 @@ export function GliderFlightFormClient() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            {medicalWarning && (
-              <Alert variant={medicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className={!medicalWarning.toUpperCase().includes("VENCIDO") ? "border-yellow-500" : ""}>
-                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.toUpperCase().includes("VENCIDO") && "text-yellow-600")} />
-                <AlertTitle>{medicalWarning.toUpperCase().includes("VENCIDO") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
-                <AlertDescription>{medicalWarning}</AlertDescription>
-              </Alert>
-            )}
-
             <FormField
               control={form.control}
               name="date"
@@ -462,7 +460,7 @@ export function GliderFlightFormClient() {
                         <Button
                           variant={"outline"}
                           className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          disabled={isLoading}
+                          disabled={isLoading} // Fecha y Piloto no se deshabilitan por isPilotInvalidForFlight
                         >
                           {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -498,7 +496,7 @@ export function GliderFlightFormClient() {
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading}
+                          disabled={isLoading} // Fecha y Piloto no se deshabilitan por isPilotInvalidForFlight
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -533,6 +531,14 @@ export function GliderFlightFormClient() {
                 </FormItem>
               )}
             />
+
+            {medicalWarning && (
+              <Alert variant={isPilotInvalidForFlight ? "destructive" : "default"} className={!isPilotInvalidForFlight ? "border-yellow-500" : ""}>
+                <AlertTriangle className={cn("h-4 w-4", !isPilotInvalidForFlight && "text-yellow-600")} />
+                <AlertTitle>{isPilotInvalidForFlight ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
+                <AlertDescription>{medicalWarning}</AlertDescription>
+              </Alert>
+            )}
             
             <FormField
               control={form.control}
@@ -540,7 +546,7 @@ export function GliderFlightFormClient() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Propósito del Vuelo</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar propósito" />
@@ -573,7 +579,7 @@ export function GliderFlightFormClient() {
                             variant="outline"
                             role="combobox"
                             className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                            disabled={isLoading || !instructorCategoryId}
+                            disabled={areFieldsDisabled || !instructorCategoryId}
                           >
                             {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -640,7 +646,7 @@ export function GliderFlightFormClient() {
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || !towPilotCategoryId}
+                          disabled={areFieldsDisabled || !towPilotCategoryId}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto remolcador"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -683,7 +689,7 @@ export function GliderFlightFormClient() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Planeador</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar planeador" />
@@ -708,7 +714,7 @@ export function GliderFlightFormClient() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Avión Remolcador</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoading}>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar avión remolcador" />
@@ -735,7 +741,7 @@ export function GliderFlightFormClient() {
                   <FormItem>
                     <FormLabel>Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} disabled={isLoading} />
+                      <Input type="time" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
                      <FormDescription className="text-xs">
                       Formato de 24 horas (ej: 09:00 para 9:00 AM).
@@ -751,7 +757,7 @@ export function GliderFlightFormClient() {
                   <FormItem>
                     <FormLabel>Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} disabled={isLoading} />
+                      <Input type="time" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
                     <FormDescription className="text-xs">
                       Formato de 24 horas (ej: 17:30 para 5:30 PM).
@@ -778,7 +784,7 @@ export function GliderFlightFormClient() {
                 <FormItem>
                   <FormLabel>Notas (Opcional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""} disabled={isLoading}/>
+                    <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""} disabled={areFieldsDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
