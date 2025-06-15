@@ -32,6 +32,15 @@ export default function LoginPage() {
       // Limpiar el parámetro de la URL
       router.replace('/login', undefined);
     }
+    if (params.get('reset_success') === 'true') {
+      toast({
+        title: "Correo Enviado",
+        description: "Si el correo existe, recibirás instrucciones para restablecer tu contraseña.",
+        variant: "default",
+        duration: 7000,
+      });
+      router.replace('/login', undefined);
+    }
   }, [router, toast]);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -88,8 +97,13 @@ export default function LoginPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col items-center text-sm">
-          <p className="mt-2">
+        <CardFooter className="flex flex-col items-center text-sm space-y-2">
+          <Link href="/forgot-password" passHref legacyBehavior>
+            <a className="text-xs text-muted-foreground hover:text-primary hover:underline">
+              ¿Olvidaste tu contraseña?
+            </a>
+          </Link>
+          <p>
             ¿No tienes cuenta?{' '}
             <Link href="/signup" className="text-primary hover:underline">
               Regístrate
