@@ -19,32 +19,16 @@ async function getFlightData(flightId: string): Promise<CompletedEngineFlight | 
       .single();
 
     if (supabaseError) {
-      const message = supabaseError.message;
-      const code = supabaseError.code;
-      const details = supabaseError.details;
-      const hint = supabaseError.hint;
-
-      let logMessage = `Supabase error fetching engine flight ${flightId}:`;
-      if (typeof message === 'string' && message.trim() !== '') {
-        logMessage += ` ${message}`;
-      } else {
-        logMessage += ` No specific message.`;
-      }
-      if (code) logMessage += ` (Code: ${code})`;
-      
-      console.error(logMessage);
-
-      if (details) console.error(`Supabase Details: ${details}`);
-      if (hint) console.error(`Supabase Hint: ${hint}`);
-      
-      if (!(typeof message === 'string' && message.trim() !== '')) {
-        console.error("Full Supabase error object (as message was empty):", supabaseError);
-      }
+      // If Supabase returns an error (e.g., flight not found, RLS issue),
+      // we handle this by returning null. No need to log this as an "error"
+      // on the server if the application logic handles the null case.
+      // Next.js might interpret console.error here as an unhandled server issue.
       return null;
     }
     return data as CompletedEngineFlight;
 
   } catch (e: any) {
+    // For truly unexpected errors during the try block
     const errorMessage = e.message || "No specific message in caught exception.";
     console.error(`Unexpected exception while trying to fetch engine flight ${flightId}: ${errorMessage}.`);
     if (e.stack) console.error("Exception Stack:", e.stack);
