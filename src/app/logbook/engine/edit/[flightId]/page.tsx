@@ -18,21 +18,34 @@ async function getFlightData(flightId: string): Promise<CompletedEngineFlight | 
       .eq('id', flightId)
       .single();
 
+    // Condition 1: Supabase itself reported an error (e.g., RLS, network issue detailed by Supabase)
     if (supabaseError) {
-      // If Supabase returns an error (e.g., flight not found, RLS issue),
-      // we handle this by returning null. No need to log this as an "error"
-      // on the server if the application logic handles the null case.
-      // Next.js might interpret console.error here as an unhandled server issue.
+      // Intentionally not logging console.error for handled cases like PGRST116.
+      // The function will return null, and the UI handles the "not found" message.
+      // For deep debugging, one might temporarily uncomment specific logging:
+      // if (supabaseError.code === 'PGRST116') {
+      //   console.info(`getFlightData (Engine): Flight ${flightId} not found or RLS issue (PGRST116). Supabase message: "${supabaseError.message}". Returning null.`);
+      // } else {
+      //   console.warn(`getFlightData (Engine): Supabase error for flight ${flightId} (Code: ${supabaseError.code}): ${supabaseError.message}. Details: ${supabaseError.details}. Hint: ${supabaseError.hint}. Returning null.`);
+      // }
       return null;
     }
+
+    // Condition 2: No Supabase error, but .single() found no data (which is valid for .single() if row doesn't exist or RLS blocks)
+    if (!data) {
+      // This is an expected case if the flightId doesn't exist or RLS prevents access without throwing a specific Supabase error object.
+      // console.info(`getFlightData (Engine): No data returned for flight ${flightId} (and no Supabase error). Likely not found or RLS. Returning null.`);
+      return null;
+    }
+
     return data as CompletedEngineFlight;
 
   } catch (e: any) {
-    // For truly unexpected errors during the try block
+    // For truly unexpected errors during the try block (e.g., programming errors, network issues not caught by Supabase client)
     const errorMessage = e.message || "No specific message in caught exception.";
-    console.error(`Unexpected exception while trying to fetch engine flight ${flightId}: ${errorMessage}.`);
-    if (e.stack) console.error("Exception Stack:", e.stack);
-    console.error("Full exception object:", e);
+    console.error(`getFlightData (Engine): Unexpected JS exception while trying to fetch flight ${flightId}: ${errorMessage}.`);
+    // Avoid logging the full 'e' object if it's too verbose or circular, focus on message and stack.
+    // if (e.stack) console.error("getFlightData (Engine): Exception Stack:", e.stack);
     return null;
   }
 }
