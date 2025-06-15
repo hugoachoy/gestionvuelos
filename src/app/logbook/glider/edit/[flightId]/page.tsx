@@ -17,7 +17,10 @@ async function getFlightData(flightId: string): Promise<CompletedGliderFlight | 
     .eq('id', flightId)
     .single();
 
-  if (error) {
+  // Only log a console error if the error object has a message.
+  // If data is null (e.g., not found, or error was {}), it will be returned as null.
+  // The page component handles null flightData by showing "flight not found".
+  if (error && error.message) { 
     console.error(`Error fetching glider flight ${flightId}:`, error);
     return null;
   }
