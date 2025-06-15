@@ -9,18 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { CalendarIcon, Sunrise as SunriseIcon, Sunset as SunsetIcon, Sparkles, Sun, Moon, Save, MessageSquare, Loader2 } from 'lucide-react'; // Added Save, MessageSquare, Loader2
+import { CalendarIcon, Sunrise as SunriseIcon, Sunset as SunsetIcon, Sparkles, Sun, Moon, Save, MessageSquare, Loader2, ExternalLink, Info } from 'lucide-react'; // Added Save, MessageSquare, Loader2, ExternalLink, Info
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea'; // Added Textarea
 import { useAuth } from '@/contexts/AuthContext'; // Added useAuth
 import { useDailyObservationsStore } from '@/store/data-hooks'; // Added useDailyObservationsStore
 import { useToast } from "@/hooks/use-toast"; // Added useToast
 import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
+import Link from 'next/link'; // Added Link
 
 // Coordenadas del Aeroclub 9 de Julio (aproximadas)
 const NUEVE_DE_JULIO_LAT = -35.4445;
 const NUEVE_DE_JULIO_LON = -60.8857;
 const LOCATION_NAME = "Aeroclub 9 de Julio (Lat: -35.44, Lon: -60.89)";
+const NOTAM_URL_NUEVE_DE_JULIO = "https://ais.anac.gob.ar/notam?lugar=SAZX";
 
 interface TwilightTimes {
   dawn: Date | null;
@@ -175,6 +177,26 @@ export function TwilightClient() {
                 )}
               </>
             )}
+          </CardContent>
+        </Card>
+      )}
+      
+      {selectedDate && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center">
+              <Info className="mr-2 h-5 w-5 text-primary" />
+              Información Adicional
+            </CardTitle>
+             <CardDescription>Enlaces útiles para la planificación.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="w-full">
+              <Link href={NOTAM_URL_NUEVE_DE_JULIO} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Consultar NOTAMs (ANAC - Nueve de Julio)
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       )}
