@@ -19,20 +19,24 @@ async function getFlightData(flightId: string): Promise<CompletedEngineFlight | 
       .single();
 
     if (supabaseError) {
-      // Log only if there's a descriptive message.
-      // Avoid logging if supabaseError is just {} or has no meaningful message.
-      if (typeof supabaseError.message === 'string' && supabaseError.message.trim() !== '') {
-        console.error(`Supabase error fetching engine flight ${flightId}:`, supabaseError);
+      // Log if there's a descriptive message, ensuring the message itself is part of the primary log string.
+      const message = supabaseError.message;
+      if (typeof message === 'string' && message.trim() !== '') {
+        console.error(`Supabase error fetching engine flight ${flightId}: ${message}. Full error object:`, supabaseError);
+      } else {
+        // Log a generic message if specific message is not available but an error object exists
+        console.error(`Supabase error (no specific message) fetching engine flight ${flightId}. Error object:`, supabaseError);
       }
-      // Regardless of logging, if there's any supabaseError object, treat it as an error and return null.
-      return null;
+      return null; // Critical: ensure we return null if Supabase indicates an error.
     }
     // If no error and data is null (not found by .single()), it will correctly return null.
     return data as CompletedEngineFlight;
 
   } catch (e: any) {
     // Catch any other unexpected errors during the operation
-    console.error(`Unexpected exception fetching engine flight ${flightId}:`, e);
+    // Ensure e.message is part of the primary log string.
+    const errorMessage = e.message || "No specific message in caught exception.";
+    console.error(`Unexpected exception while trying to fetch engine flight ${flightId}: ${errorMessage}. Full exception:`, e);
     return null;
   }
 }
