@@ -68,7 +68,7 @@ const gliderFlightSchema = z.object({
 type GliderFlightFormData = z.infer<typeof gliderFlightSchema>;
 
 interface GliderFlightFormClientProps {
-  flightIdToLoad?: string; // Changed from flightToEdit
+  flightIdToLoad?: string;
 }
 
 export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClientProps) {
@@ -124,7 +124,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     fetchPilots();
     fetchAircraft();
     fetchPilotCategories();
-    if (!isEditMode) { // Only fetch all glider flights if not editing (for conflict check)
+    if (!isEditMode) { 
       fetchCompletedGliderFlights(); 
     }
     if (scheduleEntryIdParam && !isEditMode) {
@@ -138,9 +138,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (flightIdToLoad && user) { // Ensure user is available for RLS
+      if (flightIdToLoad && user) { 
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
+        setInitialFlightData(null); 
         try {
           const { data, error } = await supabase
             .from('completed_glider_flights')
@@ -149,15 +150,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             .single();
 
           if (error) {
-            // PGRST116: No rows found, or RLS prevented access
             if (error.code === 'PGRST116' || !data) {
               setFlightFetchError("No se pudo encontrar el vuelo solicitado o no tienes permiso para editarlo.");
             } else {
               setFlightFetchError(error.message || "Error al cargar los detalles del vuelo.");
             }
-            setInitialFlightData(null);
           } else if (data) {
-             // Check if current user is owner or admin
             if (data.auth_user_id === user.id || user.is_admin) {
                 setInitialFlightData(data);
                 form.reset({
@@ -169,12 +167,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 });
             } else {
                 setFlightFetchError("No tienes permiso para editar este vuelo.");
-                setInitialFlightData(null);
             }
+          } else {
+             setFlightFetchError("No se recibieron datos del vuelo.");
           }
         } catch (e: any) {
           setFlightFetchError(e.message || "Un error inesperado ocurrió al cargar el vuelo.");
-          setInitialFlightData(null);
         } finally {
           setIsFetchingFlightDetails(false);
         }
@@ -371,13 +369,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     const newFlightStart = setMinutes(setHours(flightDate, depH), depM);
     const newFlightEnd = setMinutes(setHours(flightDate, arrH), arrM);
 
-    // For conflict checking, fetch *all* flights again if not editing or if initialFlightData not loaded
-    // This is a simplified approach; ideally, conflict check data source should be robust.
     if (!isEditMode || !initialFlightData) { 
       await fetchCompletedGliderFlights(); 
     }
     
-    // Exclude the current flight being edited from conflict checks
     const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
 
 
@@ -448,7 +443,17 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
     let result;
     if (isEditMode && flightIdToLoad) {
-      const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = initialFlightData ? { ...initialFlightData, ...submissionData } : submissionData;
+      if (!initialFlightData) {
+        console.error("Attempted to update flight but initial flight data is missing.", { flightIdToLoad });
+        toast({
+            title: "Error de Edición",
+            description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
+            variant: "destructive",
+        });
+        setIsSubmittingForm(false);
+        return;
+      }
+      const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
       result = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
     } else {
       result = await addCompletedGliderFlight({
@@ -458,6 +463,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       });
     }
 
+    setIsSubmittingForm(false);
 
     if (result) {
       toast({ title: `Vuelo en Planeador ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
@@ -466,7 +472,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     } else {
       toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: `No se pudo ${isEditMode ? 'actualizar' : 'guardar'} el vuelo. Intenta de nuevo.`, variant: "destructive" });
     }
-    setIsSubmittingForm(false);
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
@@ -618,7 +623,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || (isEditMode && initialFlightData?.auth_user_id !== user?.id && !user?.is_admin) } // Admin can change PIC
+                          disabled={isLoading || (isEditMode && initialFlightData?.auth_user_id !== user?.id && !user?.is_admin) }
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -928,3 +933,4 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+

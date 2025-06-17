@@ -14,7 +14,7 @@ import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCatego
 import { ENGINE_FLIGHT_PURPOSES } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabaseClient'; // Import supabase client
+import { supabase } from '@/lib/supabaseClient'; 
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,7 +74,7 @@ const normalizeText = (text?: string | null): string => {
 const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador"];
 
 interface EngineFlightFormClientProps {
-  flightIdToLoad?: string; // Changed from flightToEdit
+  flightIdToLoad?: string;
 }
 
 export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClientProps) {
@@ -139,9 +139,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (flightIdToLoad && user) { // Ensure user context for RLS
+      if (flightIdToLoad && user) { 
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
+        setInitialFlightData(null);
         try {
           const { data, error } = await supabase
             .from('completed_engine_flights')
@@ -155,7 +156,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             } else {
                 setFlightFetchError(error.message || "Error al cargar los detalles del vuelo.");
             }
-            setInitialFlightData(null);
           } else if (data) {
             if (data.auth_user_id === user.id || user.is_admin) {
                 setInitialFlightData(data);
@@ -173,12 +173,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 });
             } else {
                 setFlightFetchError("No tienes permiso para editar este vuelo.");
-                setInitialFlightData(null);
             }
+          } else {
+            setFlightFetchError("No se recibieron datos del vuelo.");
           }
         } catch (e: any) {
           setFlightFetchError(e.message || "Un error inesperado ocurrió al cargar el vuelo.");
-          setInitialFlightData(null);
         } finally {
           setIsFetchingFlightDetails(false);
         }
@@ -408,8 +408,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       schedule_entry_id: data.schedule_entry_id || null,
       instructor_id: data.instructor_id || null,
       route_from_to: data.route_from_to || null,
-      landings_count: data.landings_count || 0,
-      tows_count: data.tows_count || 0,
+      landings_count: data.landings_count ?? 0, // Ensure number or 0
+      tows_count: data.tows_count ?? 0, // Ensure number or 0
       oil_added_liters: data.oil_added_liters || null,
       fuel_added_liters: data.fuel_added_liters || null,
       notes: data.notes || null,
@@ -417,7 +417,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     
     let result;
     if (isEditMode && flightIdToLoad) {
-        const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = initialFlightData ? {...initialFlightData, ...submissionData} : submissionData;
+        if (!initialFlightData) {
+            console.error("Attempted to update flight but initial flight data is missing.", { flightIdToLoad });
+            toast({
+                title: "Error de Edición",
+                description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
+                variant: "destructive",
+            });
+            setIsSubmittingForm(false);
+            return;
+        }
+        const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
         result = await updateCompletedEngineFlight(flightIdToLoad, updatePayload);
     } else {
         result = await addCompletedEngineFlight({
