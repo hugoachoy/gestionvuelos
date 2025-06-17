@@ -121,37 +121,42 @@ export function usePilotsStore() {
   }, [fetchPilots]);
 
   const deletePilot = useCallback(async (pilotId: string) => {
-    setError(null); 
+    setError(null);
     setLoading(true); 
 
     try {
-      const { error: deleteError } = await supabase.from('pilots').delete().eq('id', pilotId);
+      const { error: deleteError, count } = await supabase
+        .from('pilots')
+        .delete({ count: 'exact' }) // Request the count of deleted rows
+        .eq('id', pilotId);
 
       if (deleteError) {
         logSupabaseError('Error deleting pilot from Supabase', deleteError);
         setError(deleteError);
-        setLoading(false); 
         return false; 
       }
 
-      // Optimistic update: remove the pilot from the local state immediately
+      if (count === 0) {
+        console.warn(`Pilot delete for ID ${pilotId} affected 0 rows. RLS policy might be preventing the delete or pilot ID not found.`);
+        setError(new Error("La eliminación no afectó a ninguna fila. Verifique los permisos (RLS) o si el piloto existe."));
+        return false;
+      }
+      
+      // If count > 0, then proceed with optimistic update
       setPilots(prevPilots => prevPilots.filter(p => p.id !== pilotId));
       
-      // Optional: Await fetchPilots if strict consistency immediately after delete is paramount,
-      // otherwise, let it run in the background. For faster UI, don't await.
       fetchPilots().catch(syncError => {
         console.error("Background sync after pilot delete failed:", syncError);
-        // Potentially handle this, e.g., by re-fetching or notifying the user.
       });
       
-      setLoading(false); 
       return true; 
 
     } catch (e: any) {
       logSupabaseError('Unexpected error during pilot deletion process', e);
       setError(e);
-      setLoading(false); 
       return false; 
+    } finally {
+        setLoading(false); 
     }
   }, [fetchPilots, setPilots, setError, setLoading]);
 
@@ -1090,5 +1095,6 @@ export function useCompletedEngineFlightsStore() {
 
   return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight };
 }
+
 
 
