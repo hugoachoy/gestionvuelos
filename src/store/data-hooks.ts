@@ -121,25 +121,40 @@ export function usePilotsStore() {
   }, [fetchPilots]);
 
   const deletePilot = useCallback(async (pilotId: string) => {
-    setError(null);
-    setLoading(true);
+    setError(null); 
+    setLoading(true); 
+
     try {
       const { error: deleteError } = await supabase.from('pilots').delete().eq('id', pilotId);
+
       if (deleteError) {
-        logSupabaseError('Error deleting pilot', deleteError);
+        logSupabaseError('Error deleting pilot from Supabase', deleteError);
         setError(deleteError);
-        return false;
+        setLoading(false); 
+        return false; 
       }
-      await fetchPilots(); 
-      return true;
-    } catch (e) {
-      logSupabaseError('Unexpected error deleting pilot', e);
+
+      // Optimistic update: remove the pilot from the local state immediately
+      setPilots(prevPilots => prevPilots.filter(p => p.id !== pilotId));
+      
+      // Optional: Await fetchPilots if strict consistency immediately after delete is paramount,
+      // otherwise, let it run in the background. For faster UI, don't await.
+      fetchPilots().catch(syncError => {
+        console.error("Background sync after pilot delete failed:", syncError);
+        // Potentially handle this, e.g., by re-fetching or notifying the user.
+      });
+      
+      setLoading(false); 
+      return true; 
+
+    } catch (e: any) {
+      logSupabaseError('Unexpected error during pilot deletion process', e);
       setError(e);
-      return false;
-    } finally {
-      setLoading(false);
+      setLoading(false); 
+      return false; 
     }
-  }, [fetchPilots]);
+  }, [fetchPilots, setPilots, setError, setLoading]);
+
 
   const getPilotName = useCallback((pilotId?: string | null): string => {
     if (!pilotId) return '-';
@@ -1075,4 +1090,5 @@ export function useCompletedEngineFlightsStore() {
 
   return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight };
 }
+
 
