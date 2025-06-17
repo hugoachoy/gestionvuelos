@@ -3,14 +3,14 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link'; 
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, GliderFlightPurpose } from '@/types'; 
+import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, GliderFlightPurpose } from '@/types';
 import { GLIDER_FLIGHT_PURPOSES } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,9 +25,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
-import { Skeleton } from '@/components/ui/skeleton'; 
-import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock, XCircle, Info } from 'lucide-react'; 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from '@/components/ui/skeleton';
+import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock, XCircle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -124,8 +124,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     fetchPilots();
     fetchAircraft();
     fetchPilotCategories();
-    if (!isEditMode) { 
-      fetchCompletedGliderFlights(); 
+    if (!isEditMode) {
+      fetchCompletedGliderFlights();
     }
     if (scheduleEntryIdParam && !isEditMode) {
       const dateParam = searchParams.get('date');
@@ -138,10 +138,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (flightIdToLoad && user) { 
+      if (flightIdToLoad && user) {
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
-        setInitialFlightData(null); 
+        setInitialFlightData(null);
         try {
           const { data, error } = await supabase
             .from('completed_glider_flights')
@@ -179,9 +179,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       }
     };
 
-    if (isEditMode) {
+    if (isEditMode && user) { // Ensure user is available before trying to load
       loadFlightDetails();
-    } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
+    } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
         if (entry) {
             form.reset({
@@ -214,7 +214,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, scheduleEntryIdParam, form, pilots, user, aircraft, scheduleEntries]);
+  }, [isEditMode, flightIdToLoad, form, user, pilots, aircraft, scheduleEntries]); // Added user to dependency array
 
 
   const watchedPicPilotId = form.watch("pilot_id");
@@ -231,7 +231,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   useEffect(() => {
     if (!showInstructorField && form.getValues("instructor_id") !== null) {
       form.setValue("instructor_id", null, { shouldValidate: true });
-      setInstructorSearchTerm(''); 
+      setInstructorSearchTerm('');
     }
   }, [showInstructorField, form]);
 
@@ -352,14 +352,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     setIsSubmittingForm(true);
 
     try {
-        if (isPilotInvalidForFlight) { 
+        if (isPilotInvalidForFlight) {
         toast({
             title: "Error de Psicofísico",
             description: medicalWarning || "El psicofísico del piloto está vencido. No puede registrar vuelos.",
             variant: "destructive",
             duration: 7000,
         });
-        // setIsSubmittingForm(false); // Moved to finally
         return;
         }
 
@@ -370,10 +369,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const newFlightStart = setMinutes(setHours(flightDate, depH), depM);
         const newFlightEnd = setMinutes(setHours(flightDate, arrH), arrM);
 
-        if (!isEditMode || !initialFlightData) { 
-        await fetchCompletedGliderFlights(); 
+        if (!isEditMode || !initialFlightData) {
+        await fetchCompletedGliderFlights();
         }
-        
+
         const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
 
 
@@ -395,7 +394,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
-            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
 
@@ -418,7 +416,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
-            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
 
@@ -451,7 +448,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
                     variant: "destructive",
                 });
-                // setIsSubmittingForm(false); // Moved to finally
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
@@ -465,15 +461,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         } else {
             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
-            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
-        
-        // setIsSubmittingForm(false); // Moved to finally
 
         if (result) {
             toast({ title: `Vuelo en Planeador ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            await fetchCompletedGliderFlights(); 
+            await fetchCompletedGliderFlights();
             router.push('/logbook/glider/list');
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: `No se pudo ${isEditMode ? 'actualizar' : 'guardar'} el vuelo. Intenta de nuevo.`, variant: "destructive" });
@@ -491,47 +484,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
 
 
-  if (isEditMode && isFetchingFlightDetails) {
-    return (
-        <Card className="max-w-3xl mx-auto">
-            <CardHeader><CardTitle>Cargando Detalles del Vuelo...</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-                <Skeleton className="h-20 w-full" />
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2 pt-6">
-                <Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-32" />
-            </CardFooter>
-        </Card>
-    );
-  }
-
-  if (isEditMode && flightFetchError) {
-    return (
-        <Card className="max-w-3xl mx-auto">
-            <CardHeader><CardTitle>Error al Cargar Vuelo</CardTitle></CardHeader>
-            <CardContent>
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{flightFetchError}</AlertDescription>
-                </Alert>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-                <Button asChild variant="outline"><Link href="/logbook/glider/list">Volver al listado</Link></Button>
-            </CardFooter>
-        </Card>
-    );
-  }
-
-
-  if (authLoading && !isEditMode) { 
+  if (authLoading) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
-          <CardTitle>Detalles del Vuelo en Planeador</CardTitle>
+          <CardTitle>{isEditMode ? 'Cargando Editor de Vuelo...' : 'Cargando Formulario...'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Skeleton className="h-10 w-full" />
@@ -570,6 +527,41 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     );
   }
 
+  if (isEditMode && isFetchingFlightDetails) {
+    return (
+        <Card className="max-w-3xl mx-auto">
+            <CardHeader><CardTitle>Cargando Detalles del Vuelo...</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+                <Skeleton className="h-20 w-full" />
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2 pt-6">
+                <Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-32" />
+            </CardFooter>
+        </Card>
+    );
+  }
+
+  if (isEditMode && flightFetchError) {
+    return (
+        <Card className="max-w-3xl mx-auto">
+            <CardHeader><CardTitle>Error al Cargar Vuelo</CardTitle></CardHeader>
+            <CardContent>
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{flightFetchError}</AlertDescription>
+                </Alert>
+            </CardContent>
+            <CardFooter className="flex justify-end">
+                <Button asChild variant="outline"><Link href="/logbook/glider/list">Volver al listado</Link></Button>
+            </CardFooter>
+        </Card>
+    );
+  }
+
   return (
     <Card className="max-w-3xl mx-auto">
       <CardHeader>
@@ -599,7 +591,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                         <Button
                           variant={"outline"}
                           className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          disabled={isLoading} 
+                          disabled={isLoading}
                         >
                           {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -679,7 +671,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 <AlertDescription>{medicalWarning}</AlertDescription>
               </Alert>
             )}
-            
+
             <FormField
               control={form.control}
               name="flight_purpose"

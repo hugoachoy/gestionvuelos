@@ -73,7 +73,7 @@ export function usePilotsStore() {
   const addPilot = useCallback(async (pilotData: Omit<Pilot, 'id' | 'created_at'>) => {
     setError(null);
     setLoading(true);
-    
+
     const payload = { ...pilotData };
     if (!payload.hasOwnProperty('is_admin')) {
       payload.is_admin = false;
@@ -84,17 +84,17 @@ export function usePilotsStore() {
       .insert([payload])
       .select()
       .single();
-    
+
     if (insertError) {
       logSupabaseError('Error adding pilot', insertError);
       setError(insertError);
-      setLoading(false); 
+      setLoading(false);
       return null;
     }
     if (newPilot) {
-      await fetchPilots(); 
+      await fetchPilots();
     }
-    setLoading(false); 
+    setLoading(false);
     return newPilot;
   }, [fetchPilots]);
 
@@ -114,51 +114,45 @@ export function usePilotsStore() {
       setLoading(false);
       return null;
     }
-    
-    await fetchPilots(); 
+
+    await fetchPilots();
     setLoading(false);
-    return updatedPilotData; 
+    return updatedPilotData;
   }, [fetchPilots]);
 
   const deletePilot = useCallback(async (pilotId: string) => {
     setError(null);
-    setLoading(true); 
-
+    setLoading(true);
+    let success = false;
     try {
       const { error: deleteError, count } = await supabase
         .from('pilots')
-        .delete({ count: 'exact' }) // Request the count of deleted rows
+        .delete({ count: 'exact' })
         .eq('id', pilotId);
 
       if (deleteError) {
         logSupabaseError('Error deleting pilot from Supabase', deleteError);
         setError(deleteError);
-        return false; 
-      }
-
-      if (count === 0) {
+      } else if (count === 0) {
         console.warn(`Pilot delete for ID ${pilotId} affected 0 rows. RLS policy might be preventing the delete or pilot ID not found.`);
         setError(new Error("La eliminación no afectó a ninguna fila. Verifique los permisos (RLS) o si el piloto existe."));
-        return false;
+      } else {
+        setPilots(prevPilots => prevPilots.filter(p => p.id !== pilotId));
+        success = true;
+        // Optionally, refetch in the background if needed, but optimistic update is primary
+        fetchPilots().catch(syncError => {
+          console.error("Background sync after pilot delete failed:", syncError);
+          // Potentially revert optimistic update or notify user if background sync fails critically
+        });
       }
-      
-      // If count > 0, then proceed with optimistic update
-      setPilots(prevPilots => prevPilots.filter(p => p.id !== pilotId));
-      
-      fetchPilots().catch(syncError => {
-        console.error("Background sync after pilot delete failed:", syncError);
-      });
-      
-      return true; 
-
     } catch (e: any) {
       logSupabaseError('Unexpected error during pilot deletion process', e);
       setError(e);
-      return false; 
     } finally {
-        setLoading(false); 
+        setLoading(false);
     }
-  }, [fetchPilots, setPilots, setError, setLoading]);
+    return success;
+  }, [fetchPilots]);
 
 
   const getPilotName = useCallback((pilotId?: string | null): string => {
@@ -193,14 +187,14 @@ export function usePilotCategoriesStore() {
       if (fetchError) {
         logSupabaseError('Error fetching pilot categories', fetchError);
         setError(fetchError);
-        setCategories(DEFAULT_CATEGORIES); 
+        setCategories(DEFAULT_CATEGORIES);
       } else {
          setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
       }
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCategories', e);
       setError(e);
-      setCategories(DEFAULT_CATEGORIES); 
+      setCategories(DEFAULT_CATEGORIES);
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -423,7 +417,7 @@ export function useScheduleStore() {
   const fetchingRef = useRef(false);
 
   const fetchScheduleEntries = useCallback(async (date?: string) => {
-    if (fetchingRef.current && !date) return; 
+    if (fetchingRef.current && !date) return;
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
@@ -432,7 +426,7 @@ export function useScheduleStore() {
       if (date) {
         query = query.eq('date', date);
       }
-      query = query.order('date').order('start_time'); 
+      query = query.order('date').order('start_time');
       const { data, error: fetchError } = await query;
       if (fetchError) {
         logSupabaseError('Error fetching schedule entries', fetchError);
@@ -695,7 +689,7 @@ export function useDailyNewsStore() {
       if (date) {
         query = query.eq('date', date);
       }
-      
+
       const { data, error: fetchError } = await query;
 
       if (fetchError) {
@@ -766,14 +760,14 @@ export function useDailyNewsStore() {
         .insert([newsData])
         .select()
         .single();
-      
+
       if (insertError) {
         logSupabaseError('Error adding daily news item', insertError);
         setError(insertError);
         setLoading(false);
         return null;
       }
-      
+
       if (newNewsItem) {
         // Refetch news for the specific date to update the list
         await fetchDailyNews(newNewsItem.date);
@@ -854,20 +848,20 @@ export function useDailyNewsStore() {
 // --- Completed Glider Flights Store ---
 export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const fetchingListRef = useRef(false);
 
   const fetchCompletedGliderFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingListRef.current && !filters) return; 
+    if (fetchingListRef.current && !filters) return;
     fetchingListRef.current = true;
-    setLoading(true); 
+    setLoading(true);
     setError(null);
     try {
       let query = supabase.from('completed_glider_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
       if (filters?.date) query = query.eq('date', filters.date);
       if (filters?.pilotId) query = query.eq('pilot_id', filters.pilotId);
-      
+
       const { data, error: fetchError } = await query;
       if (fetchError) {
         logSupabaseError('Error fetching completed glider flights', fetchError);
@@ -879,7 +873,7 @@ export function useCompletedGliderFlightsStore() {
       logSupabaseError('Unexpected error fetching completed glider flights', e);
       setError(e);
     } finally {
-      setLoading(false); 
+      setLoading(false);
       fetchingListRef.current = false;
     }
   }, []);
@@ -893,9 +887,9 @@ export function useCompletedGliderFlightsStore() {
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
-        .order('date', { ascending: true }) 
+        .order('date', { ascending: true })
         .order('departure_time', { ascending: true });
-      
+
       if (fetchError) {
         logSupabaseError('Error fetching completed glider flights for range', fetchError);
         setError(fetchError);
@@ -912,8 +906,9 @@ export function useCompletedGliderFlightsStore() {
   }, []);
 
   const addCompletedGliderFlight = useCallback(async (flightData: Omit<CompletedGliderFlight, 'id' | 'created_at'>) => {
+    let result = null;
     setError(null);
-    setLoading(true); 
+    setLoading(true);
     try {
       const { data: newFlight, error: insertError } = await supabase
         .from('completed_glider_flights')
@@ -923,20 +918,20 @@ export function useCompletedGliderFlightsStore() {
       if (insertError) {
         logSupabaseError('Error adding completed glider flight', insertError);
         setError(insertError);
-        return null;
+      } else {
+        result = newFlight;
       }
-      // No need to fetch all after add, list page will fetch on mount
-      return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed glider flight', e);
       setError(e);
-      return null;
     } finally {
-      setLoading(false); 
+      setLoading(false);
     }
-  }, []); 
+    return result;
+  }, []);
 
   const updateCompletedGliderFlight = useCallback(async (flightId: string, flightData: Partial<Omit<CompletedGliderFlight, 'id' | 'created_at' | 'logbook_type' | 'auth_user_id'>>) => {
+    let result = null;
     setError(null);
     setLoading(true);
     try {
@@ -949,17 +944,16 @@ export function useCompletedGliderFlightsStore() {
       if (updateError) {
         logSupabaseError('Error updating completed glider flight', updateError);
         setError(updateError);
-        return null;
+      } else {
+        result = updatedFlight;
       }
-      // No need to fetch all after update, list page will refresh or form redirects
-      return updatedFlight;
     } catch (e) {
       logSupabaseError('Unexpected error updating completed glider flight', e);
       setError(e);
-      return null;
     } finally {
       setLoading(false);
     }
+    return result;
   }, []);
 
   const deleteCompletedGliderFlight = useCallback(async (flightId: string) => {
@@ -972,7 +966,7 @@ export function useCompletedGliderFlightsStore() {
         setError(deleteError);
         return false;
       }
-      await fetchCompletedGliderFlights(); 
+      await fetchCompletedGliderFlights();
       return true;
     } catch (e) {
       logSupabaseError('Unexpected error deleting completed glider flight', e);
@@ -992,12 +986,12 @@ export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
   const [loading, setLoading] = useState(false);  // Changed initial state to false
   const [error, setError] = useState<any>(null);
-  const fetchingListRef = useRef(false); 
+  const fetchingListRef = useRef(false);
 
   const fetchCompletedEngineFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
     if (fetchingListRef.current && !filters) return;
     fetchingListRef.current = true;
-    setLoading(true);  
+    setLoading(true);
     setError(null);
     try {
       let query = supabase.from('completed_engine_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
@@ -1015,14 +1009,15 @@ export function useCompletedEngineFlightsStore() {
       logSupabaseError('Unexpected error fetching completed engine flights', e);
       setError(e);
     } finally {
-      setLoading(false); 
+      setLoading(false);
       fetchingListRef.current = false;
     }
   }, []);
 
   const addCompletedEngineFlight = useCallback(async (flightData: Omit<CompletedEngineFlight, 'id' | 'created_at'>) => {
+    let result = null;
     setError(null);
-    setLoading(true); 
+    setLoading(true);
     try {
       const { data: newFlight, error: insertError } = await supabase
         .from('completed_engine_flights')
@@ -1032,20 +1027,20 @@ export function useCompletedEngineFlightsStore() {
       if (insertError) {
         logSupabaseError('Error adding completed engine flight', insertError);
         setError(insertError);
-        return null;
+      } else {
+        result = newFlight;
       }
-      // No need to fetch all after add, list page will fetch on mount
-      return newFlight;
     } catch (e) {
       logSupabaseError('Unexpected error adding completed engine flight', e);
       setError(e);
-      return null;
     } finally {
-      setLoading(false); 
+      setLoading(false);
     }
+    return result;
   }, []);
 
   const updateCompletedEngineFlight = useCallback(async (flightId: string, flightData: Partial<Omit<CompletedEngineFlight, 'id' | 'created_at' | 'logbook_type' | 'auth_user_id'>>) => {
+    let result = null;
     setError(null);
     setLoading(true);
     try {
@@ -1058,17 +1053,16 @@ export function useCompletedEngineFlightsStore() {
       if (updateError) {
         logSupabaseError('Error updating completed engine flight', updateError);
         setError(updateError);
-        return null;
+      } else {
+        result = updatedFlight;
       }
-      // No need to fetch all after update, list page will refresh or form redirects
-      return updatedFlight;
     } catch (e) {
       logSupabaseError('Unexpected error updating completed engine flight', e);
       setError(e);
-      return null;
     } finally {
       setLoading(false);
     }
+    return result;
   }, []);
 
 
@@ -1082,7 +1076,7 @@ export function useCompletedEngineFlightsStore() {
         setError(deleteError);
         return false;
       }
-      await fetchCompletedEngineFlights(); 
+      await fetchCompletedEngineFlights();
       return true;
     } catch (e) {
       logSupabaseError('Unexpected error deleting completed engine flight', e);
@@ -1095,6 +1089,4 @@ export function useCompletedEngineFlightsStore() {
 
   return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight };
 }
-
-
 

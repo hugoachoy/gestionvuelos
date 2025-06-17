@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link'; 
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,7 +14,7 @@ import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCatego
 import { ENGINE_FLIGHT_PURPOSES } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabaseClient'; 
+import { supabase } from '@/lib/supabaseClient';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,9 +25,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
-import { Skeleton } from '@/components/ui/skeleton'; 
-import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock, Info } from 'lucide-react'; 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from '@/components/ui/skeleton';
+import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Clock, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -139,7 +139,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (flightIdToLoad && user) { 
+      if (flightIdToLoad && user) {
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
         setInitialFlightData(null);
@@ -184,9 +184,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
       }
     };
-    if (isEditMode) {
+    if (isEditMode && user) { // Ensure user is available before trying to load
       loadFlightDetails();
-    } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
+    } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
       const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
       if (entry) {
         form.reset({
@@ -206,7 +206,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           notes: null,
         });
       }
-    } else if (!isEditMode && !scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) { 
+    } else if (!isEditMode && !scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) {
         form.reset({
             date: new Date(),
             pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
@@ -225,7 +225,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, scheduleEntryIdParam, form, pilots, user, aircraft, scheduleEntries]);
+  }, [isEditMode, flightIdToLoad, form, user, pilots, aircraft, scheduleEntries]); // Added user to dependency array
 
   const watchedPilotId = form.watch("pilot_id");
   const watchedDate = form.watch("date");
@@ -360,8 +360,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     setIsSubmittingForm(true);
 
     try {
-        checkPilotValidity(); 
-        await new Promise(resolve => setTimeout(resolve, 100)); 
+        checkPilotValidity();
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
             toast({
@@ -370,7 +370,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
-            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
 
@@ -381,7 +380,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
-            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
 
@@ -397,7 +395,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         let billableMins: number | null = null;
         if (data.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
-        billableMins = durationMinutes;
+          billableMins = durationMinutes;
         }
 
         const submissionData = {
@@ -408,13 +406,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         schedule_entry_id: data.schedule_entry_id || null,
         instructor_id: data.instructor_id || null,
         route_from_to: data.route_from_to || null,
-        landings_count: data.landings_count ?? 0, 
-        tows_count: data.tows_count ?? 0, 
+        landings_count: data.landings_count ?? 0,
+        tows_count: data.tows_count ?? 0,
         oil_added_liters: data.oil_added_liters || null,
         fuel_added_liters: data.fuel_added_liters || null,
         notes: data.notes || null,
         };
-        
+
         let result;
         if (isEditMode && flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '') {
             if (!initialFlightData) {
@@ -424,7 +422,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
                     variant: "destructive",
                 });
-                // setIsSubmittingForm(false); // Moved to finally
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
@@ -438,11 +435,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         } else {
              console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
-            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
-
-        // setIsSubmittingForm(false); // Moved to finally
 
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
@@ -461,47 +455,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
   const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || (categoryWarning != null);
 
-
-  if (isEditMode && isFetchingFlightDetails) {
-     return (
-        <Card className="max-w-3xl mx-auto">
-            <CardHeader><CardTitle>Cargando Detalles del Vuelo...</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-                <Skeleton className="h-20 w-full" />
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2 pt-6">
-                <Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-32" />
-            </CardFooter>
-        </Card>
-    );
-  }
-
-  if (isEditMode && flightFetchError) {
-    return (
-        <Card className="max-w-3xl mx-auto">
-            <CardHeader><CardTitle>Error al Cargar Vuelo</CardTitle></CardHeader>
-            <CardContent>
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{flightFetchError}</AlertDescription>
-                </Alert>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-                <Button asChild variant="outline"><Link href="/logbook/engine/list">Volver al listado</Link></Button>
-            </CardFooter>
-        </Card>
-    );
-  }
-
-  if (authLoading && !isEditMode) {
+  if (authLoading) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
-          <CardTitle>Detalles del Vuelo a Motor</CardTitle>
+          <CardTitle>{isEditMode ? 'Cargando Editor de Vuelo...' : 'Cargando Formulario...'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Skeleton className="h-10 w-full" />
@@ -537,6 +495,41 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           </Button>
         </CardFooter>
       </Card>
+    );
+  }
+
+  if (isEditMode && isFetchingFlightDetails) {
+     return (
+        <Card className="max-w-3xl mx-auto">
+            <CardHeader><CardTitle>Cargando Detalles del Vuelo...</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+                <Skeleton className="h-20 w-full" />
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2 pt-6">
+                <Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-32" />
+            </CardFooter>
+        </Card>
+    );
+  }
+
+  if (isEditMode && flightFetchError) {
+    return (
+        <Card className="max-w-3xl mx-auto">
+            <CardHeader><CardTitle>Error al Cargar Vuelo</CardTitle></CardHeader>
+            <CardContent>
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{flightFetchError}</AlertDescription>
+                </Alert>
+            </CardContent>
+            <CardFooter className="flex justify-end">
+                <Button asChild variant="outline"><Link href="/logbook/engine/list">Volver al listado</Link></Button>
+            </CardFooter>
+        </Card>
     );
   }
 
