@@ -358,92 +358,103 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       return;
     }
     setIsSubmittingForm(true);
-    checkPilotValidity(); 
-    await new Promise(resolve => setTimeout(resolve, 100)); 
 
+    try {
+        checkPilotValidity(); 
+        await new Promise(resolve => setTimeout(resolve, 100)); 
 
-    if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
-      toast({
-        title: "Error de Psicofísico",
-        description: medicalWarning,
-        variant: "destructive",
-        duration: 7000,
-      });
-      setIsSubmittingForm(false);
-      return;
-    }
-
-    if (categoryWarning) {
-       toast({
-        title: "Error de Categoría",
-        description: categoryWarning,
-        variant: "destructive",
-        duration: 7000,
-      });
-      setIsSubmittingForm(false);
-      return;
-    }
-
-
-    const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
-    const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
-    const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
-
-    let flightDurationDecimal = 0;
-    if (durationMinutes > 0) {
-        const decimalHours = durationMinutes / 60;
-        flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
-    }
-
-    let billableMins: number | null = null;
-    if (data.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
-      billableMins = durationMinutes;
-    }
-
-    const submissionData = {
-      ...data,
-      date: format(data.date, 'yyyy-MM-dd'),
-      flight_duration_decimal: flightDurationDecimal,
-      billable_minutes: billableMins,
-      schedule_entry_id: data.schedule_entry_id || null,
-      instructor_id: data.instructor_id || null,
-      route_from_to: data.route_from_to || null,
-      landings_count: data.landings_count ?? 0, // Ensure number or 0
-      tows_count: data.tows_count ?? 0, // Ensure number or 0
-      oil_added_liters: data.oil_added_liters || null,
-      fuel_added_liters: data.fuel_added_liters || null,
-      notes: data.notes || null,
-    };
-    
-    let result;
-    if (isEditMode && flightIdToLoad) {
-        if (!initialFlightData) {
-            console.error("Attempted to update flight but initial flight data is missing.", { flightIdToLoad });
+        if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
             toast({
-                title: "Error de Edición",
-                description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
+                title: "Error de Psicofísico",
+                description: medicalWarning,
                 variant: "destructive",
+                duration: 7000,
             });
-            setIsSubmittingForm(false);
+            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
-        const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
-        result = await updateCompletedEngineFlight(flightIdToLoad, updatePayload);
-    } else {
-        result = await addCompletedEngineFlight({
-            ...submissionData,
-            logbook_type: 'engine',
-            auth_user_id: user.id,
-        });
-    }
 
-    setIsSubmittingForm(false);
+        if (categoryWarning) {
+            toast({
+                title: "Error de Categoría",
+                description: categoryWarning,
+                variant: "destructive",
+                duration: 7000,
+            });
+            // setIsSubmittingForm(false); // Moved to finally
+            return;
+        }
 
-    if (result) {
-      toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-      router.push('/logbook/engine/list');
-    } else {
-      toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
+        const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
+        const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
+        const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
+
+        let flightDurationDecimal = 0;
+        if (durationMinutes > 0) {
+            const decimalHours = durationMinutes / 60;
+            flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
+        }
+
+        let billableMins: number | null = null;
+        if (data.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
+        billableMins = durationMinutes;
+        }
+
+        const submissionData = {
+        ...data,
+        date: format(data.date, 'yyyy-MM-dd'),
+        flight_duration_decimal: flightDurationDecimal,
+        billable_minutes: billableMins,
+        schedule_entry_id: data.schedule_entry_id || null,
+        instructor_id: data.instructor_id || null,
+        route_from_to: data.route_from_to || null,
+        landings_count: data.landings_count ?? 0, 
+        tows_count: data.tows_count ?? 0, 
+        oil_added_liters: data.oil_added_liters || null,
+        fuel_added_liters: data.fuel_added_liters || null,
+        notes: data.notes || null,
+        };
+        
+        let result;
+        if (isEditMode && flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '') {
+            if (!initialFlightData) {
+                console.error("Attempted to update flight but initial flight data is missing.", { flightIdToLoad });
+                toast({
+                    title: "Error de Edición",
+                    description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
+                    variant: "destructive",
+                });
+                // setIsSubmittingForm(false); // Moved to finally
+                return;
+            }
+            const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
+            result = await updateCompletedEngineFlight(flightIdToLoad, updatePayload);
+        } else if (!isEditMode) {
+            result = await addCompletedEngineFlight({
+                ...submissionData,
+                logbook_type: 'engine',
+                auth_user_id: user.id,
+            });
+        } else {
+             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
+            toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
+            // setIsSubmittingForm(false); // Moved to finally
+            return;
+        }
+
+        // setIsSubmittingForm(false); // Moved to finally
+
+        if (result) {
+            toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
+            router.push('/logbook/engine/list');
+        } else {
+            toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
+        }
+    } catch (error) {
+        console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
+        toast({ title: "Error Inesperado", description: "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
+    } finally {
+        setIsSubmittingForm(false);
     }
   };
 
@@ -894,3 +905,4 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+

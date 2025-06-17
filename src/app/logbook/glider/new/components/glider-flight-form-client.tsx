@@ -351,126 +351,138 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
     setIsSubmittingForm(true);
 
-    if (isPilotInvalidForFlight) { 
-      toast({
-        title: "Error de Psicofísico",
-        description: medicalWarning || "El psicofísico del piloto está vencido. No puede registrar vuelos.",
-        variant: "destructive",
-        duration: 7000,
-      });
-      setIsSubmittingForm(false);
-      return;
-    }
-
-    const flightDate = data.date;
-    const [depH, depM] = data.departure_time.split(':').map(Number);
-    const [arrH, arrM] = data.arrival_time.split(':').map(Number);
-
-    const newFlightStart = setMinutes(setHours(flightDate, depH), depM);
-    const newFlightEnd = setMinutes(setHours(flightDate, arrH), arrM);
-
-    if (!isEditMode || !initialFlightData) { 
-      await fetchCompletedGliderFlights(); 
-    }
-    
-    const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
-
-
-    const conflictingPilotFlight = flightsToCheckForConflict.find(existingFlight => {
-        if (existingFlight.pilot_id !== data.pilot_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
-            return false;
-        }
-        const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
-        const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
-        const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
-        const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
-        return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
-    });
-
-    if (conflictingPilotFlight) {
+    try {
+        if (isPilotInvalidForFlight) { 
         toast({
-            title: "Conflicto de Horario (Piloto)",
-            description: `El piloto ${getPilotName(data.pilot_id)} ya tiene un vuelo registrado (${conflictingPilotFlight.departure_time} - ${conflictingPilotFlight.arrival_time}) que se superpone con este horario.`,
+            title: "Error de Psicofísico",
+            description: medicalWarning || "El psicofísico del piloto está vencido. No puede registrar vuelos.",
             variant: "destructive",
             duration: 7000,
         });
-        setIsSubmittingForm(false);
+        // setIsSubmittingForm(false); // Moved to finally
         return;
-    }
-
-    const conflictingAircraftFlight = flightsToCheckForConflict.find(existingFlight => {
-        if (existingFlight.glider_aircraft_id !== data.glider_aircraft_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
-            return false;
         }
-        const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
-        const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
-        const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
-        const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
-        return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
-    });
 
-    if (conflictingAircraftFlight) {
-        const aircraftName = getAircraftFullName(data.glider_aircraft_id);
-        toast({
-            title: "Conflicto de Horario (Aeronave)",
-            description: `El planeador ${aircraftName} ya tiene un vuelo registrado (${conflictingAircraftFlight.departure_time} - ${conflictingAircraftFlight.arrival_time}) que se superpone con este horario.`,
-            variant: "destructive",
-            duration: 7000,
+        const flightDate = data.date;
+        const [depH, depM] = data.departure_time.split(':').map(Number);
+        const [arrH, arrM] = data.arrival_time.split(':').map(Number);
+
+        const newFlightStart = setMinutes(setHours(flightDate, depH), depM);
+        const newFlightEnd = setMinutes(setHours(flightDate, arrH), arrM);
+
+        if (!isEditMode || !initialFlightData) { 
+        await fetchCompletedGliderFlights(); 
+        }
+        
+        const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
+
+
+        const conflictingPilotFlight = flightsToCheckForConflict.find(existingFlight => {
+            if (existingFlight.pilot_id !== data.pilot_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
+                return false;
+            }
+            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
+            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
+            const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
+            const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
+            return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
         });
-        setIsSubmittingForm(false);
-        return;
-    }
 
+        if (conflictingPilotFlight) {
+            toast({
+                title: "Conflicto de Horario (Piloto)",
+                description: `El piloto ${getPilotName(data.pilot_id)} ya tiene un vuelo registrado (${conflictingPilotFlight.departure_time} - ${conflictingPilotFlight.arrival_time}) que se superpone con este horario.`,
+                variant: "destructive",
+                duration: 7000,
+            });
+            // setIsSubmittingForm(false); // Moved to finally
+            return;
+        }
 
-    const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
-    const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
-    const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
-
-    let flightDurationDecimal = 0;
-    if (durationMinutes > 0) {
-        const decimalHours = durationMinutes / 60;
-        flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
-    }
-
-    const submissionData = {
-      ...data,
-      date: format(data.date, 'yyyy-MM-dd'),
-      flight_duration_decimal: flightDurationDecimal,
-      schedule_entry_id: data.schedule_entry_id || null,
-      instructor_id: data.instructor_id || null,
-      notes: data.notes || null,
-    };
-
-    let result;
-    if (isEditMode && flightIdToLoad) {
-      if (!initialFlightData) {
-        console.error("Attempted to update flight but initial flight data is missing.", { flightIdToLoad });
-        toast({
-            title: "Error de Edición",
-            description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
-            variant: "destructive",
+        const conflictingAircraftFlight = flightsToCheckForConflict.find(existingFlight => {
+            if (existingFlight.glider_aircraft_id !== data.glider_aircraft_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
+                return false;
+            }
+            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
+            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
+            const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
+            const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
+            return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
         });
+
+        if (conflictingAircraftFlight) {
+            const aircraftName = getAircraftFullName(data.glider_aircraft_id);
+            toast({
+                title: "Conflicto de Horario (Aeronave)",
+                description: `El planeador ${aircraftName} ya tiene un vuelo registrado (${conflictingAircraftFlight.departure_time} - ${conflictingAircraftFlight.arrival_time}) que se superpone con este horario.`,
+                variant: "destructive",
+                duration: 7000,
+            });
+            // setIsSubmittingForm(false); // Moved to finally
+            return;
+        }
+
+
+        const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
+        const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
+        const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
+
+        let flightDurationDecimal = 0;
+        if (durationMinutes > 0) {
+            const decimalHours = durationMinutes / 60;
+            flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
+        }
+
+        const submissionData = {
+        ...data,
+        date: format(data.date, 'yyyy-MM-dd'),
+        flight_duration_decimal: flightDurationDecimal,
+        schedule_entry_id: data.schedule_entry_id || null,
+        instructor_id: data.instructor_id || null,
+        notes: data.notes || null,
+        };
+
+        let result;
+        if (isEditMode && flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '') {
+            if (!initialFlightData) {
+                console.error("Attempted to update flight but initial flight data is missing.", { flightIdToLoad });
+                toast({
+                    title: "Error de Edición",
+                    description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
+                    variant: "destructive",
+                });
+                // setIsSubmittingForm(false); // Moved to finally
+                return;
+            }
+            const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
+            result = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
+        } else if (!isEditMode) {
+            result = await addCompletedGliderFlight({
+                ...submissionData,
+                logbook_type: 'glider',
+                auth_user_id: user.id,
+            });
+        } else {
+            console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
+            toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
+            // setIsSubmittingForm(false); // Moved to finally
+            return;
+        }
+        
+        // setIsSubmittingForm(false); // Moved to finally
+
+        if (result) {
+            toast({ title: `Vuelo en Planeador ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
+            await fetchCompletedGliderFlights(); 
+            router.push('/logbook/glider/list');
+        } else {
+            toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: `No se pudo ${isEditMode ? 'actualizar' : 'guardar'} el vuelo. Intenta de nuevo.`, variant: "destructive" });
+        }
+    } catch (error) {
+        console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
+        toast({ title: "Error Inesperado", description: "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
+    } finally {
         setIsSubmittingForm(false);
-        return;
-      }
-      const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
-      result = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
-    } else {
-      result = await addCompletedGliderFlight({
-        ...submissionData,
-        logbook_type: 'glider',
-        auth_user_id: user.id,
-      });
-    }
-
-    setIsSubmittingForm(false);
-
-    if (result) {
-      toast({ title: `Vuelo en Planeador ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-      await fetchCompletedGliderFlights(); 
-      router.push('/logbook/glider/list');
-    } else {
-      toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: `No se pudo ${isEditMode ? 'actualizar' : 'guardar'} el vuelo. Intenta de nuevo.`, variant: "destructive" });
     }
   };
 

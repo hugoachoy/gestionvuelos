@@ -26,12 +26,14 @@ import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
+import { useToast } from "@/hooks/use-toast";
 
 
 export function PilotClient() {
   const auth = useAuth();
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
   const { categories: pilotCategories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
+  const { toast } = useToast();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPilot, setEditingPilot] = useState<Pilot | undefined>(undefined);
@@ -55,7 +57,20 @@ export function PilotClient() {
 
   const confirmDelete = async () => {
     if (pilotToDelete) {
-      await removePilot(pilotToDelete.id);
+      // Double check to prevent admin self-deletion, though UI should prevent this.
+      if (auth.user?.is_admin && pilotToDelete.auth_user_id === auth.user?.id) {
+          toast({ title: "Operación no permitida", description: "Un administrador no puede eliminar su propio perfil de piloto directamente desde esta interfaz.", variant: "destructive" });
+          setIsDeleteDialogOpen(false);
+          setPilotToDelete(null);
+          return;
+      }
+      const success = await removePilot(pilotToDelete.id);
+      if (!success) {
+        // The store might set a more specific error. This is a fallback.
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el piloto. Revise los logs o contacte soporte.", variant: "destructive" });
+      } else {
+        toast({ title: "Piloto Eliminado", description: `${pilotToDelete.first_name} ${pilotToDelete.last_name} ha sido eliminado.` });
+      }
     }
     setIsDeleteDialogOpen(false);
     setPilotToDelete(null);
@@ -124,7 +139,7 @@ export function PilotClient() {
                <span className="sr-only">Refrescar datos</span>
             </Button>
             <PilotReportButton
-              pilots={pilots} // Pass original pilots for report consistency if sorting is an issue for it
+              pilots={pilots} 
               getCategoryName={getCategoryName}
               disabled={combinedLoading || pilots.length === 0}
             />
