@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { RefreshCw, Trash2, Edit } from 'lucide-react'; 
+import { RefreshCw, Trash2, Edit } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { usePilotsStore, useAircraftStore } from '@/store/data-hooks';
@@ -22,7 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { DeleteDialog } from '@/components/common/delete-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 
 export function EngineFlightListClient() {
   const { completedEngineFlights, loading: flightsLoading, error: flightsError, fetchCompletedEngineFlights, deleteCompletedEngineFlight } = useCompletedEngineFlightsStore();
@@ -30,8 +30,8 @@ export function EngineFlightListClient() {
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const router = useRouter(); 
-  
+  const router = useRouter();
+
   const [isLoadingUI, setIsLoadingUI] = useState(true);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [flightToDelete, setFlightToDelete] = useState<CompletedEngineFlight | null>(null);
@@ -42,7 +42,7 @@ export function EngineFlightListClient() {
     fetchAircraft();
     fetchCompletedEngineFlights();
   }, [fetchCompletedEngineFlights, fetchPilots, fetchAircraft]);
-  
+
   useEffect(() => {
     setIsLoadingUI(flightsLoading || pilotsLoading || aircraftLoading || authLoading);
   }, [flightsLoading, pilotsLoading, aircraftLoading, authLoading]);
@@ -66,7 +66,7 @@ export function EngineFlightListClient() {
   };
 
   const handleEditRequest = (flight: CompletedEngineFlight) => {
-    router.push(`/logbook/engine/edit/${flight.id}`); 
+    router.push(`/logbook/engine/edit/${flight.id}`);
   };
 
 
@@ -78,14 +78,12 @@ export function EngineFlightListClient() {
       </div>
     );
   }
-  
-  const sortedFlights = [...completedEngineFlights].sort((a, b) => {
-    const dateComp = b.date.localeCompare(a.date); 
-    if (dateComp !== 0) return dateComp;
-    return b.departure_time.localeCompare(a.departure_time); 
-  });
 
-  const showActionsColumn = currentUser?.is_admin;
+  const sortedFlights = [...completedEngineFlights].sort((a, b) => {
+    const dateComp = b.date.localeCompare(a.date);
+    if (dateComp !== 0) return dateComp;
+    return b.departure_time.localeCompare(a.departure_time);
+  });
 
   return (
     <div>
@@ -98,7 +96,7 @@ export function EngineFlightListClient() {
 
       {isLoadingUI && !sortedFlights.length ? (
         <div className="space-y-2">
-          <Skeleton className="h-12 w-full" /> 
+          <Skeleton className="h-12 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
@@ -123,51 +121,58 @@ export function EngineFlightListClient() {
                 <TableHead>Remolques</TableHead>
                 <TableHead>Aceite (Lts)</TableHead>
                 <TableHead>Nafta (Lts)</TableHead>
-                {showActionsColumn && <TableHead className="text-right">Acciones</TableHead>}
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedFlights.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={showActionsColumn ? 15 : 14} className="text-center h-24">
+                  <TableCell colSpan={15} className="text-center h-24">
                     No hay vuelos a motor registrados.
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedFlights.map((flight) => (
-                  <TableRow key={flight.id}>
-                    <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                    <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
-                    <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
-                    <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
-                    <TableCell>{flight.flight_purpose}</TableCell>
-                    <TableCell>{flight.departure_time}</TableCell>
-                    <TableCell>{flight.arrival_time}</TableCell>
-                    <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
-                    <TableCell>
-                      {flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' 
-                        ? `${flight.billable_minutes} min` 
-                        : '-'}
-                    </TableCell>
-                    <TableCell>{flight.route_from_to || '-'}</TableCell>
-                    <TableCell>{flight.landings_count ?? '-'}</TableCell>
-                    <TableCell>{flight.tows_count ?? '-'}</TableCell>
-                    <TableCell>{flight.oil_added_liters ?? '-'}</TableCell>
-                    <TableCell>{flight.fuel_added_liters ?? '-'}</TableCell>
-                    {showActionsColumn && (
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditRequest(flight)} className="mr-2 hover:text-primary">
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Editar</span>
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(flight)} className="hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Eliminar</span>
-                        </Button>
+                sortedFlights.map((flight) => {
+                  const canEdit = currentUser?.is_admin || (flight.auth_user_id && flight.auth_user_id === currentUser?.id);
+                  const canDelete = currentUser?.is_admin;
+
+                  return (
+                    <TableRow key={flight.id}>
+                      <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
+                      <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
+                      <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
+                      <TableCell>{flight.flight_purpose}</TableCell>
+                      <TableCell>{flight.departure_time}</TableCell>
+                      <TableCell>{flight.arrival_time}</TableCell>
+                      <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
+                      <TableCell>
+                        {flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'
+                          ? `${flight.billable_minutes} min`
+                          : '-'}
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))
+                      <TableCell>{flight.route_from_to || '-'}</TableCell>
+                      <TableCell>{flight.landings_count ?? '-'}</TableCell>
+                      <TableCell>{flight.tows_count ?? '-'}</TableCell>
+                      <TableCell>{flight.oil_added_liters ?? '-'}</TableCell>
+                      <TableCell>{flight.fuel_added_liters ?? '-'}</TableCell>
+                      <TableCell className="text-right">
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" onClick={() => handleEditRequest(flight)} className="mr-2 hover:text-primary">
+                            <Edit className="h-4 w-4" />
+                            <span className="sr-only">Editar</span>
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(flight)} className="hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Eliminar</span>
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -182,4 +187,3 @@ export function EngineFlightListClient() {
     </div>
   );
 }
-    
