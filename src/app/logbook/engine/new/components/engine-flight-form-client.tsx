@@ -37,8 +37,8 @@ const engineFlightSchema = z.object({
   instructor_id: z.string().optional().nullable(),
   engine_aircraft_id: z.string().min(1, "Seleccione una aeronave."),
   flight_purpose: z.enum(ENGINE_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
-  departure_time: z.string().regex(/^([01]\\d|2[0-3]):([0-5]\\d)$/, "Formato de hora de salida inválido (HH:MM)."),
-  arrival_time: z.string().regex(/^([01]\\d|2[0-3]):([0-5]\\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
+  departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de salida inválido (HH:MM)."),
+  arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de llegada inválido (HH:MM)."),
   route_from_to: z.string().optional().nullable(),
   landings_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
   tows_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
@@ -170,6 +170,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     fuel_added_liters: data.fuel_added_liters || null,
                     notes: data.notes || null,
                     schedule_entry_id: data.schedule_entry_id || null,
+                    // Ensure time fields are formatted as HH:MM for the input
+                    departure_time: data.departure_time ? data.departure_time.substring(0,5) : '',
+                    arrival_time: data.arrival_time ? data.arrival_time.substring(0,5) : '',
                 });
             } else {
                 setFlightFetchError("No tienes permiso para editar este vuelo.");
@@ -184,7 +187,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
       }
     };
-    if (isEditMode && user) { // Ensure user is available before trying to load
+    if (isEditMode && user) { 
       loadFlightDetails();
     } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
       const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
@@ -225,7 +228,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, form, user, pilots, aircraft, scheduleEntries]); // Added user to dependency array
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries, pilots, aircraft]); 
 
   const watchedPilotId = form.watch("pilot_id");
   const watchedDate = form.watch("date");
@@ -234,9 +237,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
 
   useEffect(() => {
-    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}$/.test(watchedDepartureTime) && /^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
-      const [depH, depM] = watchedDepartureTime.split(':').map(Number);
-      const [arrH, arrM] = watchedArrivalTime.split(':').map(Number);
+    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}/.test(watchedDepartureTime) && /^\d{2}:\d{2}/.test(watchedArrivalTime)) {
+      const depTimeCleaned = watchedDepartureTime.substring(0,5);
+      const arrTimeCleaned = watchedArrivalTime.substring(0,5);
+
+      const [depH, depM] = depTimeCleaned.split(':').map(Number);
+      const [arrH, arrM] = arrTimeCleaned.split(':').map(Number);
 
       if (arrH * 60 + arrM <= depH * 60 + depM) {
         setCalculatedDuration(null);
@@ -353,15 +359,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [aircraft]);
 
   const onSubmit = async (data: EngineFlightFormData) => {
-    if (!user) {
-      toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
-      return;
-    }
     setIsSubmittingForm(true);
-
     try {
+        if (!user) {
+            toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
+            return;
+        }
+
         checkPilotValidity();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 100)); // Allow state updates
 
         if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
             toast({
@@ -383,8 +389,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
 
-        const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
-        const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
+        // Use cleaned HH:MM format for duration calculation
+        const depTimeCleaned = data.departure_time.substring(0,5);
+        const arrTimeCleaned = data.arrival_time.substring(0,5);
+        
+        const departureDateTime = parse(depTimeCleaned, 'HH:mm', data.date);
+        const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', data.date);
         const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
 
         let flightDurationDecimal = 0;
@@ -399,18 +409,21 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         const submissionData = {
-        ...data,
-        date: format(data.date, 'yyyy-MM-dd'),
-        flight_duration_decimal: flightDurationDecimal,
-        billable_minutes: billableMins,
-        schedule_entry_id: data.schedule_entry_id || null,
-        instructor_id: data.instructor_id || null,
-        route_from_to: data.route_from_to || null,
-        landings_count: data.landings_count ?? 0,
-        tows_count: data.tows_count ?? 0,
-        oil_added_liters: data.oil_added_liters || null,
-        fuel_added_liters: data.fuel_added_liters || null,
-        notes: data.notes || null,
+            ...data,
+            date: format(data.date, 'yyyy-MM-dd'),
+            // Send HH:MM format to DB
+            departure_time: depTimeCleaned, 
+            arrival_time: arrTimeCleaned,
+            flight_duration_decimal: flightDurationDecimal,
+            billable_minutes: billableMins,
+            schedule_entry_id: data.schedule_entry_id || null,
+            instructor_id: data.instructor_id || null,
+            route_from_to: data.route_from_to || null,
+            landings_count: data.landings_count ?? 0,
+            tows_count: data.tows_count ?? 0,
+            oil_added_liters: data.oil_added_liters || null,
+            fuel_added_liters: data.fuel_added_liters || null,
+            notes: data.notes || null,
         };
 
         let result;
@@ -433,7 +446,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 auth_user_id: user.id,
             });
         } else {
-             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
+            console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
             return;
         }
@@ -455,6 +468,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
   const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || (categoryWarning != null);
 
+
   if (authLoading) {
     return (
       <Card className="max-w-3xl mx-auto">
@@ -474,7 +488,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     );
   }
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>

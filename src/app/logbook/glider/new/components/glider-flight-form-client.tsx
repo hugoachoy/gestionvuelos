@@ -39,8 +39,8 @@ const gliderFlightSchema = z.object({
   glider_aircraft_id: z.string().min(1, "Seleccione un planeador."),
   tow_aircraft_id: z.string().min(1, "Seleccione un avión remolcador."),
   flight_purpose: z.enum(GLIDER_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
-  departure_time: z.string().regex(/^([01]\\d|2[0-3]):([0-5]\\d)$/, "Formato de hora de salida inválido (HH:MM)."),
-  arrival_time: z.string().regex(/^([01]\\d|2[0-3]):([0-5]\\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
+  departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de salida inválido (HH:MM)."),
+  arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de llegada inválido (HH:MM)."),
   notes: z.string().optional().nullable(),
   schedule_entry_id: z.string().optional().nullable(),
 }).refine(data => {
@@ -164,6 +164,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     instructor_id: data.instructor_id || null,
                     notes: data.notes || null,
                     schedule_entry_id: data.schedule_entry_id || null,
+                    // Ensure time fields are formatted as HH:MM for the input
+                    departure_time: data.departure_time ? data.departure_time.substring(0,5) : '',
+                    arrival_time: data.arrival_time ? data.arrival_time.substring(0,5) : '',
                 });
             } else {
                 setFlightFetchError("No tienes permiso para editar este vuelo.");
@@ -179,7 +182,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       }
     };
 
-    if (isEditMode && user) { // Ensure user is available before trying to load
+    if (isEditMode && user) { 
       loadFlightDetails();
     } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
@@ -214,7 +217,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, form, user, pilots, aircraft, scheduleEntries]); // Added user to dependency array
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries, pilots, aircraft]); 
 
 
   const watchedPicPilotId = form.watch("pilot_id");
@@ -237,9 +240,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
 
   useEffect(() => {
-    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}$/.test(watchedDepartureTime) && /^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
-      const [depH, depM] = watchedDepartureTime.split(':').map(Number);
-      const [arrH, arrM] = watchedArrivalTime.split(':').map(Number);
+    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}/.test(watchedDepartureTime) && /^\d{2}:\d{2}/.test(watchedArrivalTime)) {
+      const depTimeCleaned = watchedDepartureTime.substring(0,5);
+      const arrTimeCleaned = watchedArrivalTime.substring(0,5);
+      
+      const [depH, depM] = depTimeCleaned.split(':').map(Number);
+      const [arrH, arrM] = arrTimeCleaned.split(':').map(Number);
 
       if (arrH * 60 + arrM <= depH * 60 + depM) {
         setCalculatedDuration(null);
@@ -345,36 +351,37 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [medicalWarning]);
 
   const onSubmit = async (data: GliderFlightFormData) => {
-    if (!user) {
-      toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
-      return;
-    }
     setIsSubmittingForm(true);
-
     try {
+        if (!user) {
+            toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
+            return;
+        }
         if (isPilotInvalidForFlight) {
-        toast({
-            title: "Error de Psicofísico",
-            description: medicalWarning || "El psicofísico del piloto está vencido. No puede registrar vuelos.",
-            variant: "destructive",
-            duration: 7000,
-        });
-        return;
+            toast({
+                title: "Error de Psicofísico",
+                description: medicalWarning || "El psicofísico del piloto está vencido. No puede registrar vuelos.",
+                variant: "destructive",
+                duration: 7000,
+            });
+            return;
         }
 
         const flightDate = data.date;
-        const [depH, depM] = data.departure_time.split(':').map(Number);
-        const [arrH, arrM] = data.arrival_time.split(':').map(Number);
+        // Use cleaned HH:MM format for calculations and DB
+        const depTimeCleaned = data.departure_time.substring(0,5);
+        const arrTimeCleaned = data.arrival_time.substring(0,5);
+
+        const [depH, depM] = depTimeCleaned.split(':').map(Number);
+        const [arrH, arrM] = arrTimeCleaned.split(':').map(Number);
 
         const newFlightStart = setMinutes(setHours(flightDate, depH), depM);
         const newFlightEnd = setMinutes(setHours(flightDate, arrH), arrM);
 
         if (!isEditMode || !initialFlightData) {
-        await fetchCompletedGliderFlights();
+            await fetchCompletedGliderFlights();
         }
-
         const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
-
 
         const conflictingPilotFlight = flightsToCheckForConflict.find(existingFlight => {
             if (existingFlight.pilot_id !== data.pilot_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
@@ -419,9 +426,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             return;
         }
 
-
-        const departureDateTime = parse(data.departure_time, 'HH:mm', data.date);
-        const arrivalDateTime = parse(data.arrival_time, 'HH:mm', data.date);
+        const departureDateTime = parse(depTimeCleaned, 'HH:mm', data.date);
+        const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', data.date);
         const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
 
         let flightDurationDecimal = 0;
@@ -431,12 +437,14 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
 
         const submissionData = {
-        ...data,
-        date: format(data.date, 'yyyy-MM-dd'),
-        flight_duration_decimal: flightDurationDecimal,
-        schedule_entry_id: data.schedule_entry_id || null,
-        instructor_id: data.instructor_id || null,
-        notes: data.notes || null,
+            ...data,
+            date: format(data.date, 'yyyy-MM-dd'),
+            departure_time: depTimeCleaned,
+            arrival_time: arrTimeCleaned,
+            flight_duration_decimal: flightDurationDecimal,
+            schedule_entry_id: data.schedule_entry_id || null,
+            instructor_id: data.instructor_id || null,
+            notes: data.notes || null,
         };
 
         let result;
@@ -503,7 +511,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     );
   }
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
