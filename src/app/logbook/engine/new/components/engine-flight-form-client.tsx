@@ -140,7 +140,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '' && user) {
+      if (isEditMode && flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '' && user) {
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
         setInitialFlightData(null);
@@ -187,48 +187,53 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
       }
     };
-    if (isEditMode && user) { 
-      loadFlightDetails();
-    } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
-      const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
-      if (entry) {
-        form.reset({
-          date: entry.date ? parseISO(entry.date) : new Date(),
-          pilot_id: entry.pilot_id || '',
-          engine_aircraft_id: entry.aircraft_id || '',
-          departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
-          schedule_entry_id: entry.id,
-          instructor_id: null,
-          flight_purpose: undefined,
-          arrival_time: '',
-          route_from_to: null,
-          landings_count: 0,
-          tows_count: 0,
-          oil_added_liters: null,
-          fuel_added_liters: null,
-          notes: null,
-        });
-      }
-    } else if (!isEditMode && !scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) {
-        form.reset({
-            date: new Date(),
-            pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
-            instructor_id: null,
-            engine_aircraft_id: '',
-            flight_purpose: undefined,
-            departure_time: '',
-            arrival_time: '',
-            route_from_to: null,
-            landings_count: 0,
-            tows_count: 0,
-            oil_added_liters: null,
-            fuel_added_liters: null,
-            notes: null,
-            schedule_entry_id: null,
-        });
+    
+    if (user) { // Ensure user context is available before trying to load or reset
+        if (isEditMode) {
+            loadFlightDetails();
+        } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
+          const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
+          if (entry) {
+            form.reset({
+              date: entry.date ? parseISO(entry.date) : new Date(),
+              pilot_id: entry.pilot_id || '',
+              engine_aircraft_id: entry.aircraft_id || '',
+              departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
+              arrival_time: '', // Keep arrival time empty for new entries from schedule
+              schedule_entry_id: entry.id,
+              instructor_id: null,
+              flight_purpose: undefined,
+              route_from_to: null,
+              landings_count: 0,
+              tows_count: 0,
+              oil_added_liters: null,
+              fuel_added_liters: null,
+              notes: null,
+            });
+          }
+        } else if (!scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0) {
+            // Default reset for new flight not from schedule
+            form.reset({
+                date: new Date(),
+                pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
+                instructor_id: null,
+                engine_aircraft_id: '',
+                flight_purpose: undefined,
+                departure_time: '',
+                arrival_time: '',
+                route_from_to: null,
+                landings_count: 0,
+                tows_count: 0,
+                oil_added_liters: null,
+                fuel_added_liters: null,
+                notes: null,
+                schedule_entry_id: null,
+            });
+        }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries, pilots, aircraft]); 
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]); // Adjusted dependencies
+
 
   const watchedPilotId = form.watch("pilot_id");
   const watchedDate = form.watch("date");
@@ -237,7 +242,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
 
   useEffect(() => {
-    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}/.test(watchedDepartureTime) && /^\d{2}:\d{2}/.test(watchedArrivalTime)) {
+    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}/.test(watchedDepartureTime.substring(0,5)) && /^\d{2}:\d{2}/.test(watchedArrivalTime.substring(0,5))) {
       const depTimeCleaned = watchedDepartureTime.substring(0,5);
       const arrTimeCleaned = watchedArrivalTime.substring(0,5);
 
@@ -363,12 +368,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     try {
         if (!user) {
             toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
-            setIsSubmittingForm(false);
+            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
 
-        checkPilotValidity();
-        await new Promise(resolve => setTimeout(resolve, 100)); 
+        checkPilotValidity(); // Ensure warnings are up-to-date
+        await new Promise(resolve => setTimeout(resolve, 10)); // Short delay for state updates
 
         if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
             toast({
@@ -377,22 +382,21 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
-            setIsSubmittingForm(false);
+            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
 
-        if (categoryWarning) {
+        if (categoryWarning && !user.is_admin) { // Admins can bypass category warning
             toast({
                 title: "Error de Categoría",
                 description: categoryWarning,
                 variant: "destructive",
                 duration: 7000,
             });
-            setIsSubmittingForm(false);
+            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
         
-        // Validate aircraft type before proceeding
         const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === data.engine_aircraft_id);
         if (!selectedAircraft || (selectedAircraft.type !== 'Tow Plane' && selectedAircraft.type !== 'Avión')) {
           toast({
@@ -401,10 +405,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             variant: "destructive",
             duration: 7000,
           });
-          setIsSubmittingForm(false);
+          // setIsSubmittingForm(false); // Moved to finally
           return;
         }
-
 
         const depTimeCleaned = data.departure_time.substring(0,5);
         const arrTimeCleaned = data.arrival_time.substring(0,5);
@@ -450,21 +453,28 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
                     variant: "destructive",
                 });
-                setIsSubmittingForm(false);
+                // setIsSubmittingForm(false); // Moved to finally
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
             result = await updateCompletedEngineFlight(flightIdToLoad, updatePayload);
         } else if (!isEditMode) {
-            result = await addCompletedEngineFlight({
-                ...submissionData,
-                logbook_type: 'engine',
-                auth_user_id: user.id,
-            });
+             if (!flightIdToLoad || flightIdToLoad.trim() === '') { // Ensure not trying to add if flightIdToLoad has some garbage value
+                result = await addCompletedEngineFlight({
+                    ...submissionData,
+                    logbook_type: 'engine',
+                    auth_user_id: user.id,
+                });
+            } else {
+                console.error("Form submission in add mode but flightIdToLoad is present and non-empty:", flightIdToLoad);
+                toast({ title: "Error de Formulario", description: "Conflicto en modo de formulario. Intente recargar.", variant: "destructive" });
+                // setIsSubmittingForm(false); // Moved to finally
+                return;
+            }
         } else {
             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
-            setIsSubmittingForm(false);
+            // setIsSubmittingForm(false); // Moved to finally
             return;
         }
 
@@ -482,30 +492,33 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     }
   };
 
-  const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
-  const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || (categoryWarning != null);
+  const isLoadingInitialData = pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || (isEditMode && isFetchingFlightDetails);
+  const isLoading = authLoading || isLoadingInitialData || submittingAddUpdate || isSubmittingForm;
+  
+  const isSubmitDisabled = 
+    isLoading || 
+    (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || 
+    (categoryWarning != null && !user?.is_admin); // Admins can bypass category warning
 
 
-  if (authLoading && !user) {
+  if (authLoading) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle>{isEditMode ? 'Cargando Editor de Vuelo...' : 'Cargando Formulario...'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-1/2" />
+          <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-1/2" /><Skeleton className="h-10 w-full" />
         </CardContent>
         <CardFooter className="flex justify-end gap-2 pt-6">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-32" />
         </CardFooter>
       </Card>
     );
   }
 
-  if (!user && !authLoading) {
+  if (!user) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -529,7 +542,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     );
   }
 
-  if (isEditMode && isFetchingFlightDetails && user) {
+  if (isEditMode && isFetchingFlightDetails) {
      return (
         <Card className="max-w-3xl mx-auto">
             <CardHeader><CardTitle>Cargando Detalles del Vuelo...</CardTitle></CardHeader>
@@ -546,7 +559,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     );
   }
 
-  if (isEditMode && flightFetchError && user) {
+  if (isEditMode && flightFetchError) {
     return (
         <Card className="max-w-3xl mx-auto">
             <CardHeader><CardTitle>Error al Cargar Vuelo</CardTitle></CardHeader>
@@ -563,6 +576,24 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         </Card>
     );
   }
+  
+  if (isLoadingInitialData && !isEditMode) { // Skeleton for new form if base data is still loading
+    return (
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader><CardTitle>Cargando Formulario...</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+             <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+             <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+             <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+             <Skeleton className="h-20 w-full" />
+        </CardContent>
+         <CardFooter className="flex justify-end gap-2 pt-6">
+            <Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-32" />
+        </CardFooter>
+      </Card>
+    );
+  }
+
 
   return (
     <Card className="max-w-3xl mx-auto">
@@ -588,11 +619,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 <AlertDescription>{medicalWarning}</AlertDescription>
               </Alert>
             )}
-            {categoryWarning && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Categoría No Válida</AlertTitle>
-                <AlertDescription>{categoryWarning}</AlertDescription>
+            {categoryWarning && ( // This will now also show for admins, but won't block them
+              <Alert variant={user?.is_admin ? "default" : "destructive"} className={user?.is_admin ? "border-blue-500 bg-blue-50" : ""}>
+                <AlertTriangle className={cn("h-4 w-4", user?.is_admin && "text-blue-600" )} />
+                <AlertTitle className={cn(user?.is_admin && "text-blue-700")}>{user?.is_admin ? "Aviso de Categoría (Admin)" : "Categoría No Válida"}</AlertTitle>
+                <AlertDescription className={cn(user?.is_admin && "text-blue-700/90")}>
+                    {categoryWarning}
+                    {user?.is_admin && " (Como administrador, puedes registrar este vuelo igualmente.)"}
+                </AlertDescription>
               </Alert>
             )}
 
