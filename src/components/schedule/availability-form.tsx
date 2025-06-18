@@ -109,6 +109,14 @@ interface AvailabilityFormProps {
   existingEntries?: ScheduleEntry[];
 }
 
+const normalizeCategoryName = (name?: string): string => {
+  return name?.trim().toLowerCase() || '';
+};
+
+const NORMALIZED_INSTRUCTOR_AVION = "instructor de avión";
+const NORMALIZED_INSTRUCTOR_PLANEADOR = "instructor de planeador";
+const NORMALIZED_REMOLCADOR = "remolcador";
+
 export function AvailabilityForm({
   open,
   onOpenChange,
@@ -173,7 +181,7 @@ export function AvailabilityForm({
             aircraft_id: entry.aircraft_id ?? '',
             start_time: entry.start_time ? entry.start_time.substring(0,5) : '',
             pilot_id: initialPilotId,
-            is_tow_pilot_available: entry.pilot_category_id && categories.find(c => c.id === entry.pilot_category_id)?.name?.trim().toLowerCase() === 'remolcador' ? entry.is_tow_pilot_available : false,
+            is_tow_pilot_available: entry.pilot_category_id && normalizeCategoryName(categories.find(c => c.id === entry.pilot_category_id)?.name) === NORMALIZED_REMOLCADOR ? entry.is_tow_pilot_available : false,
           }
         : {
             date: selectedDate || new Date(),
@@ -207,7 +215,9 @@ export function AvailabilityForm({
   }, [pilotDetails, categories]);
 
   const selectedCategoryDetailsForTurn = useMemo(() => categories.find(c => c.id === watchedPilotCategoryId), [categories, watchedPilotCategoryId]);
-  const isTowPilotCategorySelectedForTurn = selectedCategoryDetailsForTurn?.name?.trim().toLowerCase() === 'remolcador';
+  const normalizedSelectedCategoryForTurn = normalizeCategoryName(selectedCategoryDetailsForTurn?.name);
+  
+  const isRemolcadorCategorySelectedForTurn = normalizedSelectedCategoryForTurn === NORMALIZED_REMOLCADOR;
 
 
   useEffect(() => {
@@ -287,12 +297,14 @@ export function AvailabilityForm({
     );
 
     if (conflictingEntry) {
-      const currentPilotIsInstructorForThisTurn = selectedCategoryDetailsForTurn?.name?.trim().toLowerCase() === 'instructor';
+      const currentPilotIsInstructorForThisTurn = normalizedSelectedCategoryForTurn === NORMALIZED_INSTRUCTOR_AVION || normalizedSelectedCategoryForTurn === NORMALIZED_INSTRUCTOR_PLANEADOR;
+      const currentFlightTypeIsInstructionGiven = watchedFlightTypeId === 'instruction_given';
+      const conflictingFlightTypeIsInstructionTaken = conflictingEntry.flight_type_id === 'instruction_taken';
       
       const isConflictIgnorableDueToInstructionScenario =
         currentPilotIsInstructorForThisTurn &&
-        watchedFlightTypeId === 'instruction_given' && 
-        conflictingEntry.flight_type_id === 'instruction_taken' &&
+        currentFlightTypeIsInstructionGiven && 
+        conflictingFlightTypeIsInstructionTaken &&
         conflictingEntry.pilot_id !== watchedPilotId; 
 
       if (isConflictIgnorableDueToInstructionScenario) {
@@ -308,7 +320,7 @@ export function AvailabilityForm({
         });
       }
     }
-  }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry, selectedCategoryDetailsForTurn, watchedFlightTypeId, watchedPilotId]);
+  }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry, normalizedSelectedCategoryForTurn, watchedFlightTypeId, watchedPilotId]);
 
   useEffect(() => {
     setInstructorConflictWarning(null);
@@ -317,9 +329,11 @@ export function AvailabilityForm({
     }
 
     const selectedPilotForTurn = pilots.find(p => p.id === watchedPilotId);
-    const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
+    const categoryForTurnDetails = categories.find(c => c.id === watchedPilotCategoryId);
+    const normalizedCategoryForTurn = normalizeCategoryName(categoryForTurnDetails?.name);
 
-    if (selectedPilotForTurn && categoryForTurn && categoryForTurn.name?.trim().toLowerCase() === 'instructor') {
+
+    if (selectedPilotForTurn && (normalizedCategoryForTurn === NORMALIZED_INSTRUCTOR_AVION || normalizedCategoryForTurn === NORMALIZED_INSTRUCTOR_PLANEADOR)) {
       const dateString = format(watchedDate, 'yyyy-MM-dd');
       const formStartTimeHHMM = watchedStartTime.substring(0, 5);
 
@@ -328,14 +342,15 @@ export function AvailabilityForm({
           se.date === dateString &&
           se.start_time.substring(0, 5) === formStartTimeHHMM &&
           se.pilot_id === watchedPilotId &&
-          categories.find(c => c.id === se.pilot_category_id)?.name?.trim().toLowerCase() === 'instructor' &&
+          // Check if the conflicting entry's category is the *same specific* instructor category
+          se.pilot_category_id === watchedPilotCategoryId && 
           (!entry || se.id !== entry.id)
       );
 
       if (conflictingEntry) {
         setInstructorConflictWarning({
           show: true,
-          message: `El instructor ${selectedPilotForTurn.first_name} ${selectedPilotForTurn.last_name} ya tiene un turno asignado a las ${formStartTimeHHMM} en esta fecha.`,
+          message: `El instructor ${selectedPilotForTurn.first_name} ${selectedPilotForTurn.last_name} ya tiene un turno como ${categoryForTurnDetails?.name} a las ${formStartTimeHHMM} en esta fecha.`,
         });
       }
     }
@@ -344,7 +359,7 @@ export function AvailabilityForm({
 
   useEffect(() => {
     if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
-      const remolcadorCategoryDefinition = categories.find(c => c.name?.trim().toLowerCase() === 'remolcador');
+      const remolcadorCategoryDefinition = categories.find(c => normalizeCategoryName(c.name) === NORMALIZED_REMOLCADOR);
       const towageFlightTypeDefinition = FLIGHT_TYPES.find(ft => ft.id === 'towage');
 
       if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
@@ -373,14 +388,11 @@ export function AvailabilityForm({
         return;
     }
 
-    if (categoryForTurn?.name?.trim().toLowerCase() === 'remolcador') {
+    if (normalizeCategoryName(categoryForTurn?.name) === NORMALIZED_REMOLCADOR) {
       if (form.getValues('flight_type_id') !== towageFlightType.id) {
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
     }
-    // Removed the 'else' block that was clearing flight_type_id
-    // This allows instructors (or other non-tow categories) to select their flight types freely
-    // without them being reset if 'towage' was previously set (e.g., by the other useEffect).
   }, [watchedPilotCategoryId, categories, form]);
 
 
@@ -388,15 +400,14 @@ export function AvailabilityForm({
     const currentFlightTypeId = form.getValues('flight_type_id');
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.id === 'towage');
 
-    const isCategoryForTurnRemolcador = selectedCategoryDetailsForTurn?.name?.trim().toLowerCase() === 'remolcador';
     const isFlightTypeRemolque = currentFlightTypeId === towageFlightType?.id;
 
-    if (isCategoryForTurnRemolcador || isFlightTypeRemolque) {
+    if (isRemolcadorCategorySelectedForTurn || isFlightTypeRemolque) {
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
     return aircraft;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategoryDetailsForTurn, aircraft, form.watch('flight_type_id')]);
+  }, [isRemolcadorCategorySelectedForTurn, aircraft, form.watch('flight_type_id')]);
 
 
   useEffect(() => {
@@ -427,7 +438,7 @@ export function AvailabilityForm({
     }
 
     const categoryForTurn = categories.find(c => c.id === data.pilot_category_id);
-    const isCategoryForTurnActuallyRemolcador = categoryForTurn?.name?.trim().toLowerCase() === 'remolcador';
+    const isCategoryForTurnActuallyRemolcador = normalizeCategoryName(categoryForTurn?.name) === NORMALIZED_REMOLCADOR;
 
     const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
         ...data,
@@ -697,7 +708,7 @@ export function AvailabilityForm({
                     </FormControl>
                     <SelectContent>
                       {FLIGHT_TYPES.map(ft => (
-                        <SelectItem key={ft.id} value={ft.id} disabled={isTowPilotCategorySelectedForTurn && ft.id !== 'towage'}>
+                        <SelectItem key={ft.id} value={ft.id} disabled={isRemolcadorCategorySelectedForTurn && ft.id !== 'towage'}>
                           {ft.name}
                         </SelectItem>
                       ))}
@@ -765,3 +776,4 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+

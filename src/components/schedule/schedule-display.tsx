@@ -25,12 +25,21 @@ interface ScheduleDisplayProps {
 const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = ({ typeId }) => {
   switch (typeId) {
     case 'sport': return <Award className="h-4 w-4 text-yellow-500" />;
-    case 'instruction': return <BookOpen className="h-4 w-4 text-blue-500" />;
+    case 'instruction_taken': return <BookOpen className="h-4 w-4 text-blue-500" />;
+    case 'instruction_given': return <BookOpen className="h-4 w-4 text-purple-500" />; // Different color for instructor
     case 'local': return <PlaneLanding className="h-4 w-4 text-green-500" />;
     case 'towage': return <PlaneTakeoff className="h-4 w-4 text-sky-500" />;
     default: return null;
   }
 };
+
+const normalizeCategoryName = (name?: string): string => {
+  return name?.trim().toLowerCase() || '';
+};
+
+const NORMALIZED_INSTRUCTOR_AVION = "instructor de avión";
+const NORMALIZED_INSTRUCTOR_PLANEADOR = "instructor de planeador";
+const NORMALIZED_REMOLCADOR = "remolcador";
 
 export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }: ScheduleDisplayProps) {
   const { getPilotName, pilots } = usePilotsStore();
@@ -59,18 +68,18 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
 
         const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id);
         const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
-        const entryCategoryNameLower = entryCategoryDetails?.name?.trim().toLowerCase();
+        const normalizedEntryCategoryName = normalizeCategoryName(entryCategoryDetails?.name);
         
-        const isTurnByCategoryInstructor = entryCategoryNameLower === 'instructor';
-        const isTurnByCategoryRemolcador = entryCategoryNameLower === 'remolcador';
+        const isTurnByCategoryInstructor = normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR;
+        const isTurnByCategoryRemolcador = normalizedEntryCategoryName === NORMALIZED_REMOLCADOR;
 
         const flightTypeName = getFlightTypeName(entry.flight_type_id);
         let flightTypeDisplayNode: React.ReactNode = flightTypeName;
 
-        const towageFlightId = FLIGHT_TYPES.find(ft => ft.name === 'Remolque')?.id;
+        const towageFlightId = FLIGHT_TYPES.find(ft => ft.id === 'towage')?.id; // More robust way to get 'towage' id
 
         const shouldFlightTypeBeBold = 
-          (entry.flight_type_id === 'instruction' && isTurnByCategoryInstructor) ||
+          (entry.flight_type_id === 'instruction_given' && isTurnByCategoryInstructor) ||
           (isTurnByCategoryRemolcador) || 
           (entry.flight_type_id === towageFlightId); 
 
@@ -81,7 +90,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
         const displayTime = entry.start_time.substring(0, 5); 
 
         const showAvailableSinceText = 
-            (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available && isTurnByCategoryRemolcador) || // Added check for remolcador category
+            (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available && isTurnByCategoryRemolcador) || 
             isTurnByCategoryInstructor;
 
 

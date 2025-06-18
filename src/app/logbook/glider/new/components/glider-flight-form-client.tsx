@@ -31,6 +31,11 @@ import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Cloc
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
+const normalizeCategoryName = (name?: string): string => {
+  return name?.trim().toLowerCase() || '';
+};
+const NORMALIZED_INSTRUCTOR_PLANEADOR = "instructor de planeador";
+
 const gliderFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
@@ -62,7 +67,7 @@ const gliderFlightSchema = z.object({
 }).refine(data => !data.instructor_id || data.instructor_id !== data.tow_pilot_id, {
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
-}).refine(data => { // Custom validation for instructor_id based on flight_purpose
+}).refine(data => { 
   if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
     return false;
   }
@@ -86,7 +91,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const aircraftStore = useAircraftStore(); // Use the full store
+  const aircraftStore = useAircraftStore(); 
   const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName: getAircraftFullName } = aircraftStore;
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
@@ -325,21 +330,21 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots]);
 
-  const instructorCategoryId = useMemo(() => {
-    return categories.find(cat => cat.name.trim().toLowerCase() === 'instructor')?.id;
+  const instructorPlaneadorCategoryId = useMemo(() => {
+    return categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR)?.id;
   }, [categories]);
 
   const towPilotCategoryId = useMemo(() => {
-    return categories.find(cat => cat.name.trim().toLowerCase() === 'remolcador')?.id;
+    return categories.find(cat => normalizeCategoryName(cat.name) === 'remolcador')?.id;
   }, [categories]);
 
   const sortedInstructors = useMemo(() => {
-    if (!instructorCategoryId) return [];
+    if (!instructorPlaneadorCategoryId) return [];
     return sortedPilots.filter(pilot =>
-      pilot.category_ids.includes(instructorCategoryId) &&
+      pilot.category_ids.includes(instructorPlaneadorCategoryId) &&
       pilot.id !== watchedPicPilotId
     );
-  }, [sortedPilots, instructorCategoryId, watchedPicPilotId]);
+  }, [sortedPilots, instructorPlaneadorCategoryId, watchedPicPilotId]);
 
   const sortedTowPilots = useMemo(() => {
     if (!towPilotCategoryId) return [];
@@ -372,6 +377,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     try {
         if (!user) {
             toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
+            setIsSubmittingForm(false);
             return;
         }
         if (isPilotInvalidForFlight) {
@@ -381,6 +387,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -392,6 +399,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             variant: "destructive",
             duration: 7000,
           });
+          setIsSubmittingForm(false);
           return;
         }
         const selectedTowPlane = aircraftStore.aircraft.find(ac => ac.id === formData.tow_aircraft_id);
@@ -402,6 +410,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             variant: "destructive",
             duration: 7000,
           });
+          setIsSubmittingForm(false);
           return;
         }
 
@@ -438,6 +447,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -460,6 +470,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -475,7 +486,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         
         let instructorIdToSave = formData.instructor_id;
         if (formData.flight_purpose === 'Instrucción (Impartida)') {
-            instructorIdToSave = null; // Instructor es el PIC, no hay instructor adicional
+            instructorIdToSave = null; 
         }
 
 
@@ -499,6 +510,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
                     variant: "destructive",
                 });
+                setIsSubmittingForm(false);
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
@@ -513,11 +525,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             } else {
                 console.error("Form submission in add mode but flightIdToLoad is present and non-empty:", flightIdToLoad);
                 toast({ title: "Error de Formulario", description: "Conflicto en modo de formulario. Intente recargar.", variant: "destructive" });
+                setIsSubmittingForm(false);
                 return;
             }
         } else {
             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -770,7 +784,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                             variant="outline"
                             role="combobox"
                             className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                            disabled={areFieldsDisabled || !instructorCategoryId}
+                            disabled={areFieldsDisabled || !instructorPlaneadorCategoryId}
                           >
                             {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -796,7 +810,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                 Limpiar selección de instructor
                                 </CommandItem>
                             )}
-                            <CommandEmpty>No se encontraron instructores.</CommandEmpty>
+                            <CommandEmpty>No se encontraron instructores de planeador.</CommandEmpty>
                             <CommandGroup>
                               {sortedInstructors.map((pilot) => (
                                 <CommandItem
@@ -816,7 +830,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                         </Command>
                       </PopoverContent>
                     </Popover>
-                    {!instructorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Instructor". Por favor, créela.</FormDescription>}
+                    {!instructorPlaneadorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "{NORMALIZED_INSTRUCTOR_PLANEADOR}". Por favor, créela.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}

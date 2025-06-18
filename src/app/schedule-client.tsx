@@ -37,22 +37,25 @@ import { useRouter } from 'next/navigation';
 
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
+const normalizeCategoryName = (name?: string): string => {
+  return name?.trim().toLowerCase() || '';
+};
+
+const NORMALIZED_INSTRUCTOR_AVION = "instructor de avión";
+const NORMALIZED_INSTRUCTOR_PLANEADOR = "instructor de planeador";
+const NORMALIZED_REMOLCADOR = "remolcador";
+
 function getSortPriority(
   entry: ScheduleEntry,
-  categories: PilotCategory[], // Pass all categories
-  instructorCategoryName: string,
-  remolcadorCategoryName: string
+  categories: PilotCategory[]
 ): number {
   const entryCategory = categories.find(c => c.id === entry.pilot_category_id);
-  const entryCategoryNameLower = entryCategory?.name?.trim().toLowerCase();
+  const normalizedEntryCategoryName = normalizeCategoryName(entryCategory?.name);
 
-  const isCategoryRemolcador = entryCategoryNameLower === remolcadorCategoryName.toLowerCase();
-  const isCategoryInstructor = entryCategoryNameLower === instructorCategoryName.toLowerCase();
-
-  if (isCategoryRemolcador) {
+  if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR) {
     return entry.is_tow_pilot_available === true ? 1 : 2;
   }
-  if (isCategoryInstructor) {
+  if (normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR) {
     return 3;
   }
   return 4;
@@ -298,25 +301,24 @@ export function ScheduleClient() {
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate || !scheduleEntries || categoriesLoading || !categories || !categories.length) return [];
 
-    const instructorCategoryName = 'instructor';
-    const remolcadorCategoryName = 'remolcador';
-
     return [...scheduleEntries]
       .sort((a, b) => {
-        const priorityA = getSortPriority(a, categories, instructorCategoryName, remolcadorCategoryName);
-        const priorityB = getSortPriority(b, categories, instructorCategoryName, remolcadorCategoryName);
+        const priorityA = getSortPriority(a, categories);
+        const priorityB = getSortPriority(b, categories);
 
         if (priorityA !== priorityB) {
           return priorityA - priorityB;
         }
 
-        // Si la categoría es Remolcador y la prioridad es la misma, ordenar por disponibilidad
-        if (categories.find(c => c.id === a.pilot_category_id)?.name.trim().toLowerCase() === remolcadorCategoryName.toLowerCase()) {
+        const aCategoryDetails = categories.find(c => c.id === a.pilot_category_id);
+        const aNormalizedCategoryName = normalizeCategoryName(aCategoryDetails?.name);
+
+        if (aNormalizedCategoryName === NORMALIZED_REMOLCADOR) {
             if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
             if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
         }
-        // Para otras categorías o misma disponibilidad de remolcador, ordenar por hora
-        if (priorityA <= 3) { // Instructores y Remolcadores (ya sea disponibles o no)
+        
+        if (priorityA <= 3) { // Instructores y Remolcadores
           return a.start_time.localeCompare(b.start_time);
         }
 
@@ -367,7 +369,7 @@ export function ScheduleClient() {
     if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
         return false;
     }
-    const towPilotCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
+    const towPilotCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR);
     if (!towPilotCategory) {
       return true; 
     }
@@ -377,16 +379,23 @@ export function ScheduleClient() {
     );
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
-  const isInstructorConfirmed = useMemo(() => {
+  const isAnyInstructorConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
       return false;
     }
-    const instructorCategory = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
-    if (!instructorCategory) {
-      return true; 
+    const instructorAvionCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION);
+    const instructorPlaneadorCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR);
+    
+    if (!instructorAvionCategory && !instructorPlaneadorCategory) {
+        return true; // Si no existen las categorías de instructor, no mostramos la advertencia
     }
-    return scheduleEntries.some(entry => entry.pilot_category_id === instructorCategory.id);
+    
+    return scheduleEntries.some(entry => 
+        (instructorAvionCategory && entry.pilot_category_id === instructorAvionCategory.id) ||
+        (instructorPlaneadorCategory && entry.pilot_category_id === instructorPlaneadorCategory.id)
+    );
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
+
 
  const handleRegisterFlight = (entry: ScheduleEntry) => {
     const aircraftUsed = aircraft.find(ac => ac.id === entry.aircraft_id);
@@ -407,26 +416,18 @@ export function ScheduleClient() {
         if (aircraftUsed.type === 'Glider') {
             flightTypeForLogbook = 'glider';
             targetPath = '/logbook/glider/new';
-            // Si es planeador y el tipo de vuelo de la agenda fue 'Remolque', no tiene sentido.
-            // Esto podría indicar un instructor o piloto de planeador en un turno de remolque.
-            // La lógica de preselección en el form deberá manejar esto.
         } else if (aircraftUsed.type === 'Tow Plane' || aircraftUsed.type === 'Avión') {
             flightTypeForLogbook = 'engine';
             targetPath = '/logbook/engine/new';
-             if (aircraftUsed.type === 'Tow Plane' && entry.flight_type_id === 'towage') {
-                // Este es un piloto de remolcador en un avión remolcador.
-                // El formulario de vuelo a motor podrá preseleccionar "Remolque planeador"
-                // y permitir buscar el vuelo de planeador asociado (futura mejora)
-            }
         }
     } else {
-        // No hay aeronave en la agenda, intentamos inferir por la categoría del piloto para el turno
         const pilotCategoryForTurn = categories.find(cat => cat.id === entry.pilot_category_id);
-        if (pilotCategoryForTurn?.name.toLowerCase().includes('planeador') || entry.flight_type_id === 'sport' || entry.flight_type_id === 'instruction' ) {
-             // Asumimos planeador si la categoría es de planeador o si el tipo de vuelo es deportivo/instrucción sin aeronave especificada
+        const normalizedCategoryName = normalizeCategoryName(pilotCategoryForTurn?.name);
+
+        if (normalizedCategoryName.includes('planeador') || entry.flight_type_id === 'sport' || entry.flight_type_id === 'instruction_taken' || entry.flight_type_id === 'instruction_given' ) {
             flightTypeForLogbook = 'glider';
             targetPath = '/logbook/glider/new';
-        } else if (entry.flight_type_id === 'towage' || pilotCategoryForTurn?.name.toLowerCase().includes('remolcador')) {
+        } else if (entry.flight_type_id === 'towage' || normalizedCategoryName.includes('remolcador') || normalizedCategoryName.includes('avión')) {
             flightTypeForLogbook = 'engine';
             targetPath = '/logbook/engine/new';
         }
@@ -538,15 +539,15 @@ export function ScheduleClient() {
       )}
       
       {selectedDate &&
-       !isInstructorConfirmed &&
+       !isAnyInstructorConfirmed &&
        !anyLoading &&
        !auth.loading &&
-       categories.some(cat => cat.name?.trim().toLowerCase() === 'instructor') &&
+       categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION || normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR) &&
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay "Instructor" confirmado para esta fecha.' />
+                <UnderlineKeywords text='Aún no hay "Instructor de Avión" o "Instructor de Planeador" confirmado para esta fecha.' />
             </strong>
           </AlertDescription>
         </Alert>
@@ -556,7 +557,7 @@ export function ScheduleClient() {
        !isTowPilotCategoryConfirmed && 
        !anyLoading &&
        !auth.loading &&
-       categories.some(cat => cat.name?.trim().toLowerCase() === 'remolcador') && 
+       categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR) && 
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>

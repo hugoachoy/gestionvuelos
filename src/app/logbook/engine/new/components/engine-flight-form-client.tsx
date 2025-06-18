@@ -31,6 +31,11 @@ import { CalendarIcon, Check, ChevronsUpDown, AlertTriangle, Loader2, Save, Cloc
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
+const normalizeCategoryName = (name?: string): string => {
+  return name?.trim().toLowerCase() || '';
+};
+const NORMALIZED_INSTRUCTOR_AVION = "instructor de avión";
+
 const engineFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
@@ -59,7 +64,7 @@ const engineFlightSchema = z.object({
 }).refine(data => data.pilot_id !== data.instructor_id, {
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
-}).refine(data => { // Custom validation for instructor_id based on flight_purpose
+}).refine(data => { 
   if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
     return false;
   }
@@ -79,7 +84,8 @@ const normalizeText = (text?: string | null): string => {
     .replace(/[\u0300-\u036f]/g, "");
 };
 
-const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador"];
+const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador", "instructor de avión"];
+
 
 interface EngineFlightFormClientProps {
   flightIdToLoad?: string;
@@ -350,7 +356,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     );
 
     if (!hasRequiredCategory) {
-      setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión o Remolcador) para registrar este vuelo.");
+      setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión, Remolcador, o Instructor de Avión) para registrar este vuelo.");
     }
   }, [watchedPilotId, watchedDate, pilots, categories]);
 
@@ -374,17 +380,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [pilots, pilotsLoading, enginePilotCategoryIds]);
 
 
-  const instructorCategoryId = useMemo(() => {
-    return categories.find(cat => normalizeText(cat.name) === 'instructor')?.id;
+  const instructorAvionCategoryId = useMemo(() => {
+    return categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION)?.id;
   }, [categories]);
 
   const sortedInstructors = useMemo(() => {
-    if (!instructorCategoryId || pilotsLoading || !pilots.length) return [];
+    if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
     return pilots.filter(pilot =>
-      pilot.category_ids.includes(instructorCategoryId) &&
+      pilot.category_ids.includes(instructorAvionCategoryId) &&
       pilot.id !== watchedPilotId
     ).sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, pilotsLoading, instructorCategoryId, watchedPilotId]);
+  }, [pilots, pilotsLoading, instructorAvionCategoryId, watchedPilotId]);
 
 
   const filteredEngineAircraft = useMemo(() => {
@@ -397,6 +403,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     try {
         if (!user) {
             toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -410,6 +417,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -420,6 +428,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
+            setIsSubmittingForm(false);
             return;
         }
         
@@ -431,6 +440,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             variant: "destructive",
             duration: 7000,
           });
+          setIsSubmittingForm(false);
           return;
         }
 
@@ -484,6 +494,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
                     variant: "destructive",
                 });
+                setIsSubmittingForm(false);
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
@@ -498,11 +509,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             } else {
                 console.error("Form submission in add mode but flightIdToLoad is present and non-empty:", flightIdToLoad);
                 toast({ title: "Error de Formulario", description: "Conflicto en modo de formulario. Intente recargar.", variant: "destructive" });
+                setIsSubmittingForm(false);
                 return;
             }
         } else {
             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -787,7 +800,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                             variant="outline"
                             role="combobox"
                             className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                            disabled={isLoading || !instructorCategoryId}
+                            disabled={isLoading || !instructorAvionCategoryId}
                           >
                             {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -813,7 +826,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                                 Limpiar selección de instructor
                                 </CommandItem>
                             )}
-                            <CommandEmpty>No se encontraron instructores.</CommandEmpty>
+                            <CommandEmpty>No se encontraron instructores de avión.</CommandEmpty>
                             <CommandGroup>
                               {sortedInstructors.map((pilot) => (
                                 <CommandItem
@@ -833,7 +846,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                         </Command>
                       </PopoverContent>
                     </Popover>
-                    {!instructorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Instructor". Por favor, créela.</FormDescription>}
+                    {!instructorAvionCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "{NORMALIZED_INSTRUCTOR_AVION}". Por favor, créela.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
