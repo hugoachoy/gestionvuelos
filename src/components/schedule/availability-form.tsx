@@ -79,6 +79,11 @@ interface BookingConflictWarningState {
   message: string;
 }
 
+interface InstructorConflictWarningState {
+  show: boolean;
+  message: string;
+}
+
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let h = 8; h <= 20; h++) {
@@ -132,6 +137,7 @@ export function AvailabilityForm({
 
   const [medicalWarning, setMedicalWarning] = useState<MedicalWarningState | null>(null);
   const [bookingConflictWarning, setBookingConflictWarning] = useState<BookingConflictWarningState | null>(null);
+  const [instructorConflictWarning, setInstructorConflictWarning] = useState<InstructorConflictWarningState | null>(null);
   const [pilotSearchTerm, setPilotSearchTerm] = useState('');
   const [pilotPopoverOpen, setPilotPopoverOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -182,7 +188,8 @@ export function AvailabilityForm({
       form.reset(initialFormValues as AvailabilityFormData);
       setPilotSearchTerm(''); 
       setMedicalWarning(null); 
-      setBookingConflictWarning(null); 
+      setBookingConflictWarning(null);
+      setInstructorConflictWarning(null);
     }
   }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
 
@@ -259,13 +266,13 @@ export function AvailabilityForm({
   }, [watchedPilotId, watchedDate, open, pilots]);
 
 
-   useEffect(() => {
-    setBookingConflictWarning(null);
+  useEffect(() => {
+    setBookingConflictWarning(null); // Reset aircraft conflict warning
     if (!watchedAircraftId || !watchedStartTime || !watchedDate || !aircraft.length || !existingEntries?.length) {
       return;
     }
     const selectedAircraftDetails = aircraft.find(a => a.id === watchedAircraftId);
-    if (!selectedAircraftDetails || selectedAircraftDetails.type !== 'Glider') {
+    if (!selectedAircraftDetails) { // No specific type check needed here, applies to any aircraft
       return;
     }
     const dateString = format(watchedDate, 'yyyy-MM-dd');
@@ -276,16 +283,52 @@ export function AvailabilityForm({
         se.date === dateString &&
         se.start_time.substring(0, 5) === formStartTimeHHMM &&
         se.aircraft_id === watchedAircraftId &&
-        (!entry || se.id !== entry.id) 
+        (!entry || se.id !== entry.id) // Exclude current entry if editing
     );
 
     if (conflictingEntry) {
+      const aircraftTypeName = 
+        selectedAircraftDetails.type === 'Glider' ? 'planeador' : 
+        selectedAircraftDetails.type === 'Tow Plane' ? 'avión remolcador' : 
+        'avión';
       setBookingConflictWarning({
         show: true,
-        message: `El planeador ${selectedAircraftDetails.name} ya está reservado para las ${formStartTimeHHMM} en esta fecha.`,
+        message: `El ${aircraftTypeName} ${selectedAircraftDetails.name} ya está reservado para las ${formStartTimeHHMM} en esta fecha.`,
       });
     }
   }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
+
+  useEffect(() => {
+    setInstructorConflictWarning(null);
+    if (!watchedPilotId || !watchedPilotCategoryId || !watchedStartTime || !watchedDate || !pilots.length || !categories.length || !existingEntries?.length) {
+      return;
+    }
+
+    const selectedPilotForTurn = pilots.find(p => p.id === watchedPilotId);
+    const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
+
+    // Check only if the selected pilot is designated as an "Instructor" for this specific turn
+    if (selectedPilotForTurn && categoryForTurn && categoryForTurn.name?.trim().toLowerCase() === 'instructor') {
+      const dateString = format(watchedDate, 'yyyy-MM-dd');
+      const formStartTimeHHMM = watchedStartTime.substring(0, 5);
+
+      const conflictingEntry = existingEntries.find(
+        (se) =>
+          se.date === dateString &&
+          se.start_time.substring(0, 5) === formStartTimeHHMM &&
+          se.pilot_id === watchedPilotId && // This pilot (acting as instructor)
+          categories.find(c => c.id === se.pilot_category_id)?.name?.trim().toLowerCase() === 'instructor' && // is also an instructor in the other entry
+          (!entry || se.id !== entry.id) // Exclude the current entry if editing
+      );
+
+      if (conflictingEntry) {
+        setInstructorConflictWarning({
+          show: true,
+          message: `El instructor ${selectedPilotForTurn.first_name} ${selectedPilotForTurn.last_name} ya tiene un turno asignado a las ${formStartTimeHHMM} en esta fecha.`,
+        });
+      }
+    }
+  }, [watchedPilotId, watchedPilotCategoryId, watchedStartTime, watchedDate, pilots, categories, existingEntries, entry]);
 
 
   useEffect(() => {
@@ -354,7 +397,10 @@ export function AvailabilityForm({
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
-    if ((medicalWarning && medicalWarning.variant === 'destructive' && medicalWarning.show) || (bookingConflictWarning && bookingConflictWarning.show)) {
+    if ((medicalWarning && medicalWarning.variant === 'destructive' && medicalWarning.show) || 
+        (bookingConflictWarning && bookingConflictWarning.show) ||
+        (instructorConflictWarning && instructorConflictWarning.show)
+    ) {
         console.error("Form submission attempted with blocking warnings.");
         return;
     }
@@ -616,6 +662,13 @@ export function AvailabilityForm({
                 )}
               />
             )}
+            {instructorConflictWarning && instructorConflictWarning.show && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Conflicto de Instructor</AlertTitle>
+                <AlertDescription>{instructorConflictWarning.message}</AlertDescription>
+              </Alert>
+            )}
             {/* The Switch for is_tow_pilot_available has been removed */}
             <FormField
               control={form.control}
@@ -659,7 +712,8 @@ export function AvailabilityForm({
                     <SelectContent>
                       {filteredAircraftForSelect.length > 0 ? (
                         filteredAircraftForSelect.map(ac => (
-                          <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 'Remolcador'})</SelectItem>
+                          <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' : 
+                                                                          ac.type === 'Tow Plane' ? 'Remolcador' : 'Avión'})</SelectItem>
                         ))
                       ) : (
                         <div className="p-2 text-sm text-muted-foreground text-center">No hay aeronaves que coincidan.</div>
@@ -685,7 +739,8 @@ export function AvailabilityForm({
                 type="submit"
                 disabled={
                   (medicalWarning?.show && medicalWarning.variant === 'destructive') ||
-                  (bookingConflictWarning?.show ?? false)
+                  (bookingConflictWarning?.show ?? false) ||
+                  (instructorConflictWarning?.show ?? false)
                 }
               >
                 {entry ? 'Guardar Cambios' : 'Agregar Turno'}
