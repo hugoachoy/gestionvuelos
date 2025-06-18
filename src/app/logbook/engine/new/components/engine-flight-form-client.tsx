@@ -84,7 +84,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const aircraftStore = useAircraftStore(); // Use the full store
+  const { aircraft, loading: aircraftLoading, fetchAircraft } = aircraftStore;
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
   const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate } = useCompletedEngineFlightsStore();
@@ -139,7 +140,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (flightIdToLoad && user) {
+      if (flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '' && user) {
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
         setInitialFlightData(null);
@@ -170,7 +171,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     fuel_added_liters: data.fuel_added_liters || null,
                     notes: data.notes || null,
                     schedule_entry_id: data.schedule_entry_id || null,
-                    // Ensure time fields are formatted as HH:MM for the input
                     departure_time: data.departure_time ? data.departure_time.substring(0,5) : '',
                     arrival_time: data.arrival_time ? data.arrival_time.substring(0,5) : '',
                 });
@@ -363,11 +363,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     try {
         if (!user) {
             toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
+            setIsSubmittingForm(false);
             return;
         }
 
         checkPilotValidity();
-        await new Promise(resolve => setTimeout(resolve, 100)); // Allow state updates
+        await new Promise(resolve => setTimeout(resolve, 100)); 
 
         if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
             toast({
@@ -376,6 +377,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -386,10 +388,24 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
+            setIsSubmittingForm(false);
             return;
         }
+        
+        // Validate aircraft type before proceeding
+        const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === data.engine_aircraft_id);
+        if (!selectedAircraft || (selectedAircraft.type !== 'Tow Plane' && selectedAircraft.type !== 'Avión')) {
+          toast({
+            title: "Error de Aeronave",
+            description: "La aeronave seleccionada no es un avión de motor o remolcador. Solo estos tipos pueden ser registrados en este libro.",
+            variant: "destructive",
+            duration: 7000,
+          });
+          setIsSubmittingForm(false);
+          return;
+        }
 
-        // Use cleaned HH:MM format for duration calculation
+
         const depTimeCleaned = data.departure_time.substring(0,5);
         const arrTimeCleaned = data.arrival_time.substring(0,5);
         
@@ -411,7 +427,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const submissionData = {
             ...data,
             date: format(data.date, 'yyyy-MM-dd'),
-            // Send HH:MM format to DB
             departure_time: depTimeCleaned, 
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
@@ -435,6 +450,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
                     variant: "destructive",
                 });
+                setIsSubmittingForm(false);
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
@@ -448,6 +464,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         } else {
             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
+            setIsSubmittingForm(false);
             return;
         }
 
@@ -469,7 +486,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const isSubmitDisabled = isLoading || (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || (categoryWarning != null);
 
 
-  if (authLoading) {
+  if (authLoading && !user) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -512,7 +529,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     );
   }
 
-  if (isEditMode && isFetchingFlightDetails) {
+  if (isEditMode && isFetchingFlightDetails && user) {
      return (
         <Card className="max-w-3xl mx-auto">
             <CardHeader><CardTitle>Cargando Detalles del Vuelo...</CardTitle></CardHeader>
@@ -529,7 +546,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     );
   }
 
-  if (isEditMode && flightFetchError) {
+  if (isEditMode && flightFetchError && user) {
     return (
         <Card className="max-w-3xl mx-auto">
             <CardHeader><CardTitle>Error al Cargar Vuelo</CardTitle></CardHeader>
