@@ -31,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-// Switch import removed as it's no longer used
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -59,7 +58,7 @@ const availabilitySchema = z.object({
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM).").min(1, "La hora de inicio es obligatoria."),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   pilot_category_id: z.string().min(1, "Seleccione una categoría para este turno."),
-  is_tow_pilot_available: z.boolean().optional(), // Kept in schema for data structure, but not as a direct form field
+  is_tow_pilot_available: z.boolean().optional(), 
   flight_type_id: z.string().min(1, "Seleccione un tipo de vuelo."),
   aircraft_id: z.string().min(1, "La selección de aeronave es obligatoria."),
 });
@@ -129,7 +128,7 @@ export function AvailabilityForm({
         start_time: '',
         pilot_id: '',
         pilot_category_id: '',
-        is_tow_pilot_available: false, // Default, will be overridden
+        is_tow_pilot_available: false, 
         flight_type_id: '',
         aircraft_id: '',
       },
@@ -199,6 +198,7 @@ export function AvailabilityForm({
   const watchedAircraftId = form.watch('aircraft_id');
   const watchedStartTime = form.watch('start_time');
   const watchedPilotCategoryId = form.watch('pilot_category_id');
+  const watchedFlightTypeId = form.watch('flight_type_id');
 
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
   
@@ -267,12 +267,12 @@ export function AvailabilityForm({
 
 
   useEffect(() => {
-    setBookingConflictWarning(null); // Reset aircraft conflict warning
+    setBookingConflictWarning(null);
     if (!watchedAircraftId || !watchedStartTime || !watchedDate || !aircraft.length || !existingEntries?.length) {
       return;
     }
     const selectedAircraftDetails = aircraft.find(a => a.id === watchedAircraftId);
-    if (!selectedAircraftDetails) { // No specific type check needed here, applies to any aircraft
+    if (!selectedAircraftDetails) {
       return;
     }
     const dateString = format(watchedDate, 'yyyy-MM-dd');
@@ -283,20 +283,35 @@ export function AvailabilityForm({
         se.date === dateString &&
         se.start_time.substring(0, 5) === formStartTimeHHMM &&
         se.aircraft_id === watchedAircraftId &&
-        (!entry || se.id !== entry.id) // Exclude current entry if editing
+        (!entry || se.id !== entry.id) 
     );
 
     if (conflictingEntry) {
-      const aircraftTypeName = 
-        selectedAircraftDetails.type === 'Glider' ? 'planeador' : 
-        selectedAircraftDetails.type === 'Tow Plane' ? 'avión remolcador' : 
-        'avión';
-      setBookingConflictWarning({
-        show: true,
-        message: `El ${aircraftTypeName} ${selectedAircraftDetails.name} ya está reservado para las ${formStartTimeHHMM} en esta fecha.`,
-      });
+      const categoryForCurrentTurn = categories.find(c => c.id === watchedPilotCategoryId);
+      const currentPilotIsInstructorForThisTurn = categoryForCurrentTurn?.name?.trim().toLowerCase() === 'instructor';
+      const currentFlightTypeIsInstruction = watchedFlightTypeId === 'instruction';
+      const conflictingFlightTypeIsInstruction = FLIGHT_TYPES.find(ft => ft.id === conflictingEntry.flight_type_id)?.id === 'instruction';
+      
+      const isConflictIgnorableDueToInstructionScenario = 
+        currentPilotIsInstructorForThisTurn &&
+        currentFlightTypeIsInstruction &&
+        conflictingFlightTypeIsInstruction &&
+        conflictingEntry.pilot_id !== watchedPilotId;
+
+      if (isConflictIgnorableDueToInstructionScenario) {
+        setBookingConflictWarning(null); 
+      } else {
+        const aircraftTypeName = 
+          selectedAircraftDetails.type === 'Glider' ? 'planeador' : 
+          selectedAircraftDetails.type === 'Tow Plane' ? 'avión remolcador' : 
+          'avión';
+        setBookingConflictWarning({
+          show: true,
+          message: `El ${aircraftTypeName} ${selectedAircraftDetails.name} ya está reservado para las ${formStartTimeHHMM} en esta fecha.`,
+        });
+      }
     }
-  }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry]);
+  }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry, categories, watchedPilotCategoryId, watchedFlightTypeId, watchedPilotId]);
 
   useEffect(() => {
     setInstructorConflictWarning(null);
@@ -307,7 +322,6 @@ export function AvailabilityForm({
     const selectedPilotForTurn = pilots.find(p => p.id === watchedPilotId);
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
 
-    // Check only if the selected pilot is designated as an "Instructor" for this specific turn
     if (selectedPilotForTurn && categoryForTurn && categoryForTurn.name?.trim().toLowerCase() === 'instructor') {
       const dateString = format(watchedDate, 'yyyy-MM-dd');
       const formStartTimeHHMM = watchedStartTime.substring(0, 5);
@@ -316,9 +330,9 @@ export function AvailabilityForm({
         (se) =>
           se.date === dateString &&
           se.start_time.substring(0, 5) === formStartTimeHHMM &&
-          se.pilot_id === watchedPilotId && // This pilot (acting as instructor)
-          categories.find(c => c.id === se.pilot_category_id)?.name?.trim().toLowerCase() === 'instructor' && // is also an instructor in the other entry
-          (!entry || se.id !== entry.id) // Exclude the current entry if editing
+          se.pilot_id === watchedPilotId && 
+          categories.find(c => c.id === se.pilot_category_id)?.name?.trim().toLowerCase() === 'instructor' && 
+          (!entry || se.id !== entry.id) 
       );
 
       if (conflictingEntry) {
@@ -412,7 +426,6 @@ export function AvailabilityForm({
         authUserIdToSet = entry.auth_user_id;
     }
 
-    // Determine if the selected category for the turn is "Remolcador"
     const categoryForTurn = categories.find(c => c.id === data.pilot_category_id);
     const isCategoryForTurnActuallyRemolcador = categoryForTurn?.name?.trim().toLowerCase() === 'remolcador';
 
@@ -420,7 +433,7 @@ export function AvailabilityForm({
         ...data,
         date: format(data.date, 'yyyy-MM-dd'),
         aircraft_id: data.aircraft_id || null,
-        is_tow_pilot_available: isCategoryForTurnActuallyRemolcador, // Set to true if "Remolcador" category selected for turn, false otherwise
+        is_tow_pilot_available: isCategoryForTurnActuallyRemolcador, 
         auth_user_id: authUserIdToSet,
     };
     onSubmit(dataToSubmit, entry?.id);
@@ -669,7 +682,7 @@ export function AvailabilityForm({
                 <AlertDescription>{instructorConflictWarning.message}</AlertDescription>
               </Alert>
             )}
-            {/* The Switch for is_tow_pilot_available has been removed */}
+            
             <FormField
               control={form.control}
               name="flight_type_id"
