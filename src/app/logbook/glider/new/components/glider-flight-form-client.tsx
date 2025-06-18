@@ -11,7 +11,7 @@ import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBe
 import { es } from 'date-fns/locale';
 
 import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, GliderFlightPurpose } from '@/types';
-import { GLIDER_FLIGHT_PURPOSES } from '@/types';
+import { GLIDER_FLIGHT_PURPOSES, FLIGHT_TYPES } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient'; // Import supabase client for direct calls
@@ -62,6 +62,14 @@ const gliderFlightSchema = z.object({
 }).refine(data => !data.instructor_id || data.instructor_id !== data.tow_pilot_id, {
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
+}).refine(data => { // Custom validation for instructor_id based on flight_purpose
+  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
+  path: ["instructor_id"],
 });
 
 
@@ -187,18 +195,27 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
         if (entry) {
+            let prefilledFlightPurpose: GliderFlightPurpose | undefined = undefined;
+            if (entry.flight_type_id === 'instruction_taken') {
+                prefilledFlightPurpose = 'Instrucción (Recibida)';
+            } else if (entry.flight_type_id === 'instruction_given') {
+                prefilledFlightPurpose = 'Instrucción (Impartida)';
+            } else if (GLIDER_FLIGHT_PURPOSES.includes(entry.flight_type_id as GliderFlightPurpose)) {
+                prefilledFlightPurpose = entry.flight_type_id as GliderFlightPurpose;
+            }
+
             form.reset({
-            date: entry.date ? parseISO(entry.date) : new Date(),
-            pilot_id: entry.pilot_id || '',
-            glider_aircraft_id: entry.aircraft_id || '',
-            departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
-            schedule_entry_id: entry.id,
-            instructor_id: null,
-            tow_pilot_id: '',
-            tow_aircraft_id: '',
-            flight_purpose: entry.flight_type_id && GLIDER_FLIGHT_PURPOSES.includes(entry.flight_type_id as GliderFlightPurpose) ? entry.flight_type_id as GliderFlightPurpose : undefined,
-            arrival_time: '',
-            notes: null,
+              date: entry.date ? parseISO(entry.date) : new Date(),
+              pilot_id: entry.pilot_id || '',
+              glider_aircraft_id: entry.aircraft_id || '',
+              departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
+              schedule_entry_id: entry.id,
+              instructor_id: null,
+              tow_pilot_id: '',
+              tow_aircraft_id: '',
+              flight_purpose: prefilledFlightPurpose,
+              arrival_time: '',
+              notes: null,
             });
         }
     } else if (!isEditMode && !scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) {
@@ -228,7 +245,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'instrucción' || watchedFlightPurpose === 'readaptación';
+    return watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -240,7 +257,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
 
   useEffect(() => {
-    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}/.test(watchedDepartureTime) && /^\d{2}:\d{2}/.test(watchedArrivalTime)) {
+    if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}/.test(watchedDepartureTime.substring(0,5)) && /^\d{2}:\d{2}/.test(watchedArrivalTime.substring(0,5))) {
       const depTimeCleaned = watchedDepartureTime.substring(0,5);
       const arrTimeCleaned = watchedArrivalTime.substring(0,5);
       
@@ -350,12 +367,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return !!(medicalWarning && medicalWarning.toUpperCase().includes("VENCIDO"));
   }, [medicalWarning]);
 
-  const onSubmit = async (data: GliderFlightFormData) => {
+  const onSubmit = async (formData: GliderFlightFormData) => {
     setIsSubmittingForm(true);
     try {
         if (!user) {
             toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
-            setIsSubmittingForm(false);
             return;
         }
         if (isPilotInvalidForFlight) {
@@ -365,12 +381,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 variant: "destructive",
                 duration: 7000,
             });
-            setIsSubmittingForm(false);
             return;
         }
 
-        // Validate aircraft type before proceeding
-        const selectedGlider = aircraftStore.aircraft.find(ac => ac.id === data.glider_aircraft_id);
+        const selectedGlider = aircraftStore.aircraft.find(ac => ac.id === formData.glider_aircraft_id);
         if (!selectedGlider || selectedGlider.type !== 'Glider') {
           toast({
             title: "Error de Aeronave",
@@ -378,10 +392,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             variant: "destructive",
             duration: 7000,
           });
-          setIsSubmittingForm(false);
           return;
         }
-        const selectedTowPlane = aircraftStore.aircraft.find(ac => ac.id === data.tow_aircraft_id);
+        const selectedTowPlane = aircraftStore.aircraft.find(ac => ac.id === formData.tow_aircraft_id);
         if (!selectedTowPlane || selectedTowPlane.type !== 'Tow Plane') {
           toast({
             title: "Error de Aeronave Remolcadora",
@@ -389,14 +402,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             variant: "destructive",
             duration: 7000,
           });
-          setIsSubmittingForm(false);
           return;
         }
 
-
-        const flightDate = data.date;
-        const depTimeCleaned = data.departure_time.substring(0,5);
-        const arrTimeCleaned = data.arrival_time.substring(0,5);
+        const flightDate = formData.date;
+        const depTimeCleaned = formData.departure_time.substring(0,5);
+        const arrTimeCleaned = formData.arrival_time.substring(0,5);
 
         const [depH, depM] = depTimeCleaned.split(':').map(Number);
         const [arrH, arrM] = arrTimeCleaned.split(':').map(Number);
@@ -410,7 +421,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
 
         const conflictingPilotFlight = flightsToCheckForConflict.find(existingFlight => {
-            if (existingFlight.pilot_id !== data.pilot_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
+            if (existingFlight.pilot_id !== formData.pilot_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
                 return false;
             }
             const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
@@ -423,16 +434,15 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         if (conflictingPilotFlight) {
             toast({
                 title: "Conflicto de Horario (Piloto)",
-                description: `El piloto ${getPilotName(data.pilot_id)} ya tiene un vuelo registrado (${conflictingPilotFlight.departure_time} - ${conflictingPilotFlight.arrival_time}) que se superpone con este horario.`,
+                description: `El piloto ${getPilotName(formData.pilot_id)} ya tiene un vuelo registrado (${conflictingPilotFlight.departure_time} - ${conflictingPilotFlight.arrival_time}) que se superpone con este horario.`,
                 variant: "destructive",
                 duration: 7000,
             });
-            setIsSubmittingForm(false);
             return;
         }
 
         const conflictingAircraftFlight = flightsToCheckForConflict.find(existingFlight => {
-            if (existingFlight.glider_aircraft_id !== data.glider_aircraft_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
+            if (existingFlight.glider_aircraft_id !== formData.glider_aircraft_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
                 return false;
             }
             const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
@@ -443,19 +453,18 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
 
         if (conflictingAircraftFlight) {
-            const aircraftName = getAircraftFullName(data.glider_aircraft_id);
+            const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
             toast({
                 title: "Conflicto de Horario (Aeronave)",
                 description: `El planeador ${aircraftName} ya tiene un vuelo registrado (${conflictingAircraftFlight.departure_time} - ${conflictingAircraftFlight.arrival_time}) que se superpone con este horario.`,
                 variant: "destructive",
                 duration: 7000,
             });
-            setIsSubmittingForm(false);
             return;
         }
 
-        const departureDateTime = parse(depTimeCleaned, 'HH:mm', data.date);
-        const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', data.date);
+        const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
+        const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
         const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
 
         let flightDurationDecimal = 0;
@@ -463,16 +472,22 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const decimalHours = durationMinutes / 60;
             flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
         }
+        
+        let instructorIdToSave = formData.instructor_id;
+        if (formData.flight_purpose === 'Instrucción (Impartida)') {
+            instructorIdToSave = null; // Instructor es el PIC, no hay instructor adicional
+        }
+
 
         const submissionData = {
-            ...data,
-            date: format(data.date, 'yyyy-MM-dd'),
+            ...formData,
+            date: format(formData.date, 'yyyy-MM-dd'),
             departure_time: depTimeCleaned,
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
-            schedule_entry_id: data.schedule_entry_id || null,
-            instructor_id: data.instructor_id || null,
-            notes: data.notes || null,
+            schedule_entry_id: formData.schedule_entry_id || null,
+            instructor_id: instructorIdToSave,
+            notes: formData.notes || null,
         };
 
         let result;
@@ -484,23 +499,28 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     description: "No se pudieron cargar los datos originales del vuelo. Por favor, intente recargar la página o contacte soporte.",
                     variant: "destructive",
                 });
-                setIsSubmittingForm(false);
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
             result = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
         } else if (!isEditMode) {
-            result = await addCompletedGliderFlight({
-                ...submissionData,
-                logbook_type: 'glider',
-                auth_user_id: user.id,
-            });
+             if (!flightIdToLoad || flightIdToLoad.trim() === '') {
+                result = await addCompletedGliderFlight({
+                    ...submissionData,
+                    logbook_type: 'glider',
+                    auth_user_id: user.id,
+                });
+            } else {
+                console.error("Form submission in add mode but flightIdToLoad is present and non-empty:", flightIdToLoad);
+                toast({ title: "Error de Formulario", description: "Conflicto en modo de formulario. Intente recargar.", variant: "destructive" });
+                return;
+            }
         } else {
             console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
             toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
-            setIsSubmittingForm(false);
             return;
         }
+
 
         if (result) {
             toast({ title: `Vuelo en Planeador ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
@@ -522,7 +542,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
 
 
-  if (authLoading && !user) { // Show general loading skeleton if auth is loading and user is not yet available
+  if (authLoading && !user) { 
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -541,7 +561,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     );
   }
 
-  if (!user && !authLoading) { // If auth is done and still no user
+  if (!user && !authLoading) { 
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -565,7 +585,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     );
   }
 
-  // If user is available, but we are in edit mode and fetching specific flight details
   if (isEditMode && isFetchingFlightDetails && user) {
     return (
         <Card className="max-w-3xl mx-auto">
@@ -583,7 +602,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     );
   }
 
-  // If user is available, but there was an error fetching flight details for editing
   if (isEditMode && flightFetchError && user) {
     return (
         <Card className="max-w-3xl mx-auto">
@@ -728,7 +746,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     <SelectContent>
                       {GLIDER_FLIGHT_PURPOSES.map((purpose) => (
                         <SelectItem key={purpose} value={purpose}>
-                          {purpose.charAt(0).toUpperCase() + purpose.slice(1)}
+                          {purpose}
                         </SelectItem>
                       ))}
                     </SelectContent>

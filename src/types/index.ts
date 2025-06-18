@@ -32,7 +32,8 @@ export interface Aircraft {
 }
 
 export const FLIGHT_TYPES = [
-  { id: 'instruction', name: 'Instrucción' },
+  { id: 'instruction_taken', name: 'Instrucción (Alumno)' },
+  { id: 'instruction_given', name: 'Instrucción (Instructor)' },
   { id: 'local', name: 'Local' },
   { id: 'sport', name: 'Deportivo' },
   { id: 'towage', name: 'Remolque' },
@@ -89,7 +90,7 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptación', 'deportivo', 'instrucción'
+  'entrenamiento', 'readaptación', 'deportivo', 'Instrucción (Recibida)', 'Instrucción (Impartida)'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
@@ -102,7 +103,7 @@ export interface CompletedGliderFlight extends BaseCompletedFlight {
 }
 
 export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptación', 'Remolque planeador', 'instrucción', 'local', 'viaje'
+  'entrenamiento', 'readaptación', 'Remolque planeador', 'Instrucción (Recibida)', 'Instrucción (Impartida)', 'local', 'viaje'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
@@ -115,6 +116,8 @@ export interface CompletedEngineFlight extends BaseCompletedFlight {
   landings_count?: number | null;
   tows_count?: number | null; // If this engine flight was a tow
   oil_added_liters?: number | null;
+  fuel_added_liters?: number | null;
 }
 
 export type CompletedFlight = CompletedGliderFlight | CompletedEngineFlight;
+
