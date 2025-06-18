@@ -288,14 +288,12 @@ export function AvailabilityForm({
 
     if (conflictingEntry) {
       const currentPilotIsInstructorForThisTurn = selectedCategoryDetailsForTurn?.name?.trim().toLowerCase() === 'instructor';
-
-      // Scenario: Instructor creating an "Instrucción (Instructor)" entry,
-      // and there's a conflicting "Instrucción (Alumno)" entry by another pilot for the same aircraft/time.
+      
       const isConflictIgnorableDueToInstructionScenario =
         currentPilotIsInstructorForThisTurn &&
-        watchedFlightTypeId === 'instruction_given' && // Instructor is giving instruction
-        conflictingEntry.flight_type_id === 'instruction_taken' && // Conflicting entry is a student taking instruction
-        conflictingEntry.pilot_id !== watchedPilotId; // And the student is a different pilot
+        watchedFlightTypeId === 'instruction_given' && 
+        conflictingEntry.flight_type_id === 'instruction_taken' &&
+        conflictingEntry.pilot_id !== watchedPilotId; 
 
       if (isConflictIgnorableDueToInstructionScenario) {
         setBookingConflictWarning(null);
@@ -351,9 +349,13 @@ export function AvailabilityForm({
 
       if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
         const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
+        const currentCategoryForTurnIsRemolcador = form.getValues('pilot_category_id') === remolcadorCategoryDefinition.id;
+        const currentCategoryForTurnIsEmpty = form.getValues('pilot_category_id') === '';
+        const currentFlightTypeIsEmpty = form.getValues('flight_type_id') === '';
 
-        if (pilotIsInherentlyRemolcador && form.getValues('flight_type_id') === '') {
-           if (form.getValues('pilot_category_id') === remolcadorCategoryDefinition.id || form.getValues('pilot_category_id') === '') {
+
+        if (pilotIsInherentlyRemolcador && currentFlightTypeIsEmpty) {
+           if (currentCategoryForTurnIsRemolcador || currentCategoryForTurnIsEmpty) {
              form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
            }
         }
@@ -375,11 +377,10 @@ export function AvailabilityForm({
       if (form.getValues('flight_type_id') !== towageFlightType.id) {
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
-    } else {
-      if (form.getValues('flight_type_id') === towageFlightType.id) {
-         form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
-      }
     }
+    // Removed the 'else' block that was clearing flight_type_id
+    // This allows instructors (or other non-tow categories) to select their flight types freely
+    // without them being reset if 'towage' was previously set (e.g., by the other useEffect).
   }, [watchedPilotCategoryId, categories, form]);
 
 
@@ -764,4 +765,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
