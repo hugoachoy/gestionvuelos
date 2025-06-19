@@ -46,6 +46,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
@@ -209,17 +210,17 @@ export function AvailabilityForm({
   const watchedAircraftId = form.watch('aircraft_id');
   const watchedStartTime = form.watch('start_time');
   const watchedPilotCategoryId = form.watch('pilot_category_id');
-  
+
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
 
   const pilotCategoriesForSelectedPilot = useMemo(() => {
     return pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
   }, [pilotDetails, categories]);
-  
+
   const isRemolcadorCategorySelectedForTurn = useMemo(() => {
     const cat = categories.find(c => c.id === watchedPilotCategoryId);
     return normalizeCategoryName(cat?.name) === NORMALIZED_REMOLCADOR;
-  }, [watchedPilotCategoryId, categories]);
+  }, [watchedPilotCategoryId, categories, NORMALIZED_REMOLCADOR]);
 
 
   useEffect(() => {
@@ -279,7 +280,9 @@ export function AvailabilityForm({
 
 
   useEffect(() => {
-    setBookingConflictWarning(null);
+    setBookingConflictWarning(null); // Reset warning
+    let isConflictIgnorableDueToInstructionScenario = false;
+
     const formAircraftIdValue = form.getValues('aircraft_id');
     const formStartTimeValue = form.getValues('start_time');
     const formDateValue = form.getValues('date');
@@ -299,43 +302,36 @@ export function AvailabilityForm({
         se.date === dateString &&
         se.start_time.substring(0, 5) === formStartTimeHHMM &&
         se.aircraft_id === formAircraftIdValue &&
-        (!entry || se.id !== entry.id)
+        (!entry || se.id !== entry.id) // Excluir el turno actual si se está editando
     );
 
     if (conflictingEntry) {
+      // Lógica para ignorar el conflicto si es un escenario de instructor/alumno
       const currentPilotIdForTurn = form.getValues('pilot_id');
       const currentPilotCategoryIdForTurn = form.getValues('pilot_category_id');
       const currentFlightTypeIdForTurn = form.getValues('flight_type_id');
-      
-      let isConflictIgnorableDueToInstructionScenario = false;
 
-      if (currentPilotCategoryIdForTurn && currentFlightTypeIdForTurn) {
-        const categoryDetailsForCurrentTurn = categories.find(c => c.id === currentPilotCategoryIdForTurn);
-        const normalizedCategoryForCurrentTurn = normalizeCategoryName(categoryDetailsForCurrentTurn?.name);
+      const categoryDetailsForCurrentTurn = categories.find(c => c.id === currentPilotCategoryIdForTurn);
+      const normalizedCategoryForCurrentTurn = normalizeCategoryName(categoryDetailsForCurrentTurn?.name);
 
-        const currentPilotIsInstructorForThisTurn =
-          normalizedCategoryForCurrentTurn === NORMALIZED_INSTRUCTOR_AVION ||
-          normalizedCategoryForCurrentTurn === NORMALIZED_INSTRUCTOR_PLANEADOR;
+      const currentPilotIsActingAsInstructor =
+        normalizedCategoryForCurrentTurn === NORMALIZED_INSTRUCTOR_AVION ||
+        normalizedCategoryForCurrentTurn === NORMALIZED_INSTRUCTOR_PLANEADOR;
 
-        const currentTurnIsInstructorGiving = currentFlightTypeIdForTurn === 'instruction_given';
-        const conflictingTurnIsStudentTaking = conflictingEntry.flight_type_id === 'instruction_taken';
-        // Ensure pilots are different for the instructor-student scenario
-        const pilotsAreDifferent = conflictingEntry.pilot_id !== currentPilotIdForTurn; 
+      const currentTurnIsInstructorGiving = currentFlightTypeIdForTurn === 'instruction_given';
+      const conflictingTurnIsStudentTaking = conflictingEntry.flight_type_id === 'instruction_taken';
+      const pilotsAreDifferent = conflictingEntry.pilot_id !== currentPilotIdForTurn;
 
-
-        if (
-          currentPilotIsInstructorForThisTurn &&
-          currentTurnIsInstructorGiving &&
-          conflictingTurnIsStudentTaking &&
-          pilotsAreDifferent
-        ) {
-          isConflictIgnorableDueToInstructionScenario = true;
-        }
+      if (
+        currentPilotIsActingAsInstructor &&
+        currentTurnIsInstructorGiving &&
+        conflictingTurnIsStudentTaking &&
+        pilotsAreDifferent
+      ) {
+        isConflictIgnorableDueToInstructionScenario = true;
       }
-      
-      if (isConflictIgnorableDueToInstructionScenario) {
-        setBookingConflictWarning(null);
-      } else {
+
+      if (!isConflictIgnorableDueToInstructionScenario) {
         const aircraftTypeName =
           selectedAircraftDetails.type === 'Glider' ? 'planeador' :
           selectedAircraftDetails.type === 'Tow Plane' ? 'avión remolcador' :
@@ -344,11 +340,14 @@ export function AvailabilityForm({
           show: true,
           message: `El ${aircraftTypeName} ${selectedAircraftDetails.name} ya está reservado para las ${formStartTimeHHMM} en esta fecha.`,
         });
+      } else {
+        setBookingConflictWarning(null); // Conflicto ignorado
       }
     } else {
-      setBookingConflictWarning(null); 
+      setBookingConflictWarning(null); // No hay conflicto
     }
-  }, [watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry, categories, form]); // form added as dependency
+  }, [form, watchedAircraftId, watchedStartTime, watchedDate, aircraft, existingEntries, entry, categories, FLIGHT_TYPES, NORMALIZED_INSTRUCTOR_AVION, NORMALIZED_INSTRUCTOR_PLANEADOR]);
+
 
   useEffect(() => {
     setInstructorConflictWarning(null);
@@ -375,7 +374,7 @@ export function AvailabilityForm({
           se.date === dateString &&
           se.start_time.substring(0, 5) === formStartTimeHHMM &&
           se.pilot_id === currentPilotId &&
-          se.pilot_category_id === currentPilotCategoryId && 
+          se.pilot_category_id === currentPilotCategoryId &&
           (!entry || se.id !== entry.id)
       );
 
@@ -386,30 +385,10 @@ export function AvailabilityForm({
         });
       }
     }
-  }, [watchedPilotId, watchedPilotCategoryId, watchedStartTime, watchedDate, pilots, categories, existingEntries, entry, form]); // form added
+  }, [form, watchedPilotId, watchedPilotCategoryId, watchedStartTime, watchedDate, pilots, categories, existingEntries, entry, NORMALIZED_INSTRUCTOR_AVION, NORMALIZED_INSTRUCTOR_PLANEADOR]);
 
 
-  useEffect(() => {
-    if (watchedPilotId && pilotDetails && categories.length > 0 && FLIGHT_TYPES.length > 0) {
-      const remolcadorCategoryDefinition = categories.find(c => normalizeCategoryName(c.name) === NORMALIZED_REMOLCADOR);
-      const towageFlightTypeDefinition = FLIGHT_TYPES.find(ft => ft.id === 'towage');
-
-      if (remolcadorCategoryDefinition && towageFlightTypeDefinition) {
-        const pilotIsInherentlyRemolcador = pilotDetails.category_ids.includes(remolcadorCategoryDefinition.id);
-        const currentCategoryForTurnIsEmpty = form.getValues('pilot_category_id') === '';
-        const currentFlightTypeIsEmpty = form.getValues('flight_type_id') === '';
-
-
-        if (pilotIsInherentlyRemolcador && currentFlightTypeIsEmpty) {
-           if (currentCategoryForTurnIsEmpty || form.getValues('pilot_category_id') === remolcadorCategoryDefinition.id) {
-             form.setValue('flight_type_id', towageFlightTypeDefinition.id, { shouldValidate: true, shouldDirty: true });
-           }
-        }
-      }
-    }
-  }, [watchedPilotId, pilotDetails, categories, form, FLIGHT_TYPES]);
-
-
+  // Auto-set flight_type_id to 'towage' if pilot's selected category for THE TURN is Remolcador
   useEffect(() => {
     const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.id === 'towage');
@@ -423,38 +402,44 @@ export function AvailabilityForm({
         form.setValue('flight_type_id', towageFlightType.id, { shouldValidate: true, shouldDirty: true });
       }
     }
-  }, [watchedPilotCategoryId, categories, form, FLIGHT_TYPES]);
+    // No 'else' block here to avoid clearing flight_type_id if category is not Remolcador.
+    // Another useEffect handles instructor-specific flight type setting.
+  }, [watchedPilotCategoryId, categories, form, FLIGHT_TYPES, NORMALIZED_REMOLCADOR]);
 
-  // New useEffect to auto-set flight_type_id for instructors
+
+  // Auto-set flight_type_id for instructors, or clear if category changes from instructor
   useEffect(() => {
     const categoryForTurnDetails = categories.find(c => c.id === watchedPilotCategoryId);
     const normalizedCategoryForTurn = normalizeCategoryName(categoryForTurnDetails?.name);
+    const instructionGivenFlightType = FLIGHT_TYPES.find(ft => ft.id === 'instruction_given');
 
-    if (normalizedCategoryForTurn === NORMALIZED_INSTRUCTOR_AVION || normalizedCategoryForTurn === NORMALIZED_INSTRUCTOR_PLANEADOR) {
-      const instructionGivenFlightType = FLIGHT_TYPES.find(ft => ft.id === 'instruction_given');
-      if (instructionGivenFlightType && form.getValues('flight_type_id') !== instructionGivenFlightType.id) {
-        // Only set if it's not already set, or if it's different, to allow manual override if needed later
-        // Forcing it here might be too aggressive if the user wants to be an instructor but book a 'sport' flight.
-        // Let's make it a soft suggestion, or only set if flight_type_id is currently empty.
-        if (form.getValues('flight_type_id') === '' || !form.getValues('flight_type_id')) {
-           form.setValue('flight_type_id', instructionGivenFlightType.id, { shouldValidate: true, shouldDirty: true });
+    if (instructionGivenFlightType) { // Ensure the flight type definition exists
+        if (normalizedCategoryForTurn === NORMALIZED_INSTRUCTOR_AVION || normalizedCategoryForTurn === NORMALIZED_INSTRUCTOR_PLANEADOR) {
+            // If the category for the turn is Instructor, set flight type to 'instruction_given' if not already set
+            if (form.getValues('flight_type_id') !== instructionGivenFlightType.id) {
+                form.setValue('flight_type_id', instructionGivenFlightType.id, { shouldValidate: true, shouldDirty: true });
+            }
+        } else {
+            // If the category for the turn is NOT Instructor, and flight_type was 'instruction_given' (e.g., due to a previous selection),
+            // clear it to allow the user to select an appropriate flight type for the new non-instructor category.
+            if (form.getValues('flight_type_id') === instructionGivenFlightType.id) {
+                form.setValue('flight_type_id', '', { shouldValidate: true, shouldDirty: true });
+            }
         }
-      }
     }
-  }, [watchedPilotCategoryId, categories, form, FLIGHT_TYPES]);
+  }, [watchedPilotCategoryId, categories, form, FLIGHT_TYPES, NORMALIZED_INSTRUCTOR_AVION, NORMALIZED_INSTRUCTOR_PLANEADOR]);
 
 
   const filteredAircraftForSelect = useMemo(() => {
     const currentFlightTypeId = form.getValues('flight_type_id');
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.id === 'towage');
-
     const isFlightTypeRemolque = currentFlightTypeId === towageFlightType?.id;
 
     if (isRemolcadorCategorySelectedForTurn || isFlightTypeRemolque) {
       return aircraft.filter(ac => ac.type === 'Tow Plane');
     }
     return aircraft;
-  }, [isRemolcadorCategorySelectedForTurn, aircraft, form, FLIGHT_TYPES]); // Added form to dependency
+  }, [isRemolcadorCategorySelectedForTurn, aircraft, form, FLIGHT_TYPES]);
 
 
   useEffect(() => {
@@ -505,6 +490,16 @@ export function AvailabilityForm({
         form.setValue('pilot_category_id', '');
     }
   }, [watchedPilotId, pilotDetails, form]);
+
+  useEffect(() => {
+    const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
+    if (normalizeCategoryName(categoryForTurn?.name) !== NORMALIZED_REMOLCADOR) {
+      // Si la categoría del turno no es Remolcador, asegúrate de que is_tow_pilot_available sea false.
+      if (form.getValues('is_tow_pilot_available') === true) {
+        form.setValue('is_tow_pilot_available', false, { shouldValidate: true });
+      }
+    }
+  }, [watchedPilotCategoryId, categories, form, NORMALIZED_REMOLCADOR]);
 
 
   const sortedAndFilteredPilots = useMemo(() => {
@@ -732,6 +727,28 @@ export function AvailabilityForm({
                 )}
               />
             )}
+            {isRemolcadorCategorySelectedForTurn && (
+              <FormField
+                control={form.control}
+                name="is_tow_pilot_available"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm mt-2">
+                    <div className="space-y-0.5">
+                      <FormLabel>¿Disponible como Remolcador?</FormLabel>
+                      <FormDescription>
+                        Marque si está disponible para remolcar en este horario.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
             {instructorConflictWarning && instructorConflictWarning.show && (
               <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
@@ -822,5 +839,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    
