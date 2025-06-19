@@ -3,7 +3,7 @@
 
 import React from 'react'; // Explicit React import
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { format, parseISO } from 'date-fns'; 
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -52,13 +52,13 @@ function getSortPriority(
   const entryCategory = categories.find(c => c.id === entry.pilot_category_id);
   const normalizedEntryCategoryName = normalizeCategoryName(entryCategory?.name);
 
-  if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR) {
-    return entry.is_tow_pilot_available === true ? 1 : 2;
-  }
   if (normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR) {
-    return 3;
+    return 3; // Highest priority for instructors
   }
-  return 4;
+  if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR) {
+    return entry.is_tow_pilot_available === true ? 1 : 2; // Tow pilots next, available ones first
+  }
+  return 4; // General pilots
 }
 
 
@@ -181,9 +181,9 @@ export function ScheduleClient() {
       }
       return;
     }
-  
+
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-  
+
     if (editingNewsItem) {
       // Estamos editando una novedad existente
       const result = await updateDailyNewsItem(editingNewsItem.id, newsInput.trim(), dateStr);
@@ -197,7 +197,7 @@ export function ScheduleClient() {
       // Estamos agregando una nueva novedad
       let pilotDisplayName = '';
       const pilotProfileFromStore = pilots.find(p => p.auth_user_id === auth.user!.id);
-  
+
       if (pilotProfileFromStore) {
         if (pilotProfileFromStore.last_name && pilotProfileFromStore.first_name) {
           pilotDisplayName = `${pilotProfileFromStore.last_name}, ${pilotProfileFromStore.first_name}`;
@@ -219,7 +219,7 @@ export function ScheduleClient() {
           pilotDisplayName = auth.user.email || 'Piloto Anónimo';
         }
       }
-  
+
       const newsData: Omit<DailyNews, 'id' | 'created_at' | 'updated_at'> = {
         date: dateStr,
         news_text: newsInput.trim(),
@@ -235,7 +235,7 @@ export function ScheduleClient() {
     }
     setNewsInput(''); // Limpiar input en ambos casos (agregar/editar)
   };
-  
+
   const handleEditNewsItem = (newsItem: DailyNews) => {
     setEditingNewsItem(newsItem);
     setNewsInput(newsItem.news_text);
@@ -317,7 +317,7 @@ export function ScheduleClient() {
             if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
             if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
         }
-        
+
         if (priorityA <= 3) { // Instructores y Remolcadores
           return a.start_time.localeCompare(b.start_time);
         }
@@ -366,35 +366,41 @@ export function ScheduleClient() {
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError || newsError;
 
   const isTowPilotCategoryConfirmed = useMemo(() => {
-    if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
-        return false;
+    if (anyLoading || !categories || !categories.length || !selectedDate) {
+        return true; // No mostrar advertencia si los datos básicos no están listos
     }
     const towPilotCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR);
     if (!towPilotCategory) {
-      return true; 
+      return true; // Si no existe la categoría "Remolcador", no se necesita confirmación.
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
-      entry.is_tow_pilot_available === true 
+      entry.is_tow_pilot_available === true
     );
-  }, [scheduleEntries, categories, anyLoading, selectedDate]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate, NORMALIZED_REMOLCADOR]);
 
   const isAnyInstructorConfirmed = useMemo(() => {
-    if (anyLoading || !categories || !categories.length || !scheduleEntries || !selectedDate) {
-      return false;
+    if (anyLoading || !categories || !categories.length || !selectedDate) {
+      // Si los datos no están listos, asumimos que SÍ hay un instructor para evitar mostrar la advertencia prematuramente.
+      // La advertencia solo aparecerá cuando los datos estén cargados y se confirme la ausencia.
+      return true;
     }
     const instructorAvionCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION);
     const instructorPlaneadorCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR);
-    
+
+    // Si ninguna de las categorías de instructor ("Instructor de Avión" o "Instructor de Planeador") existe en la base de datos,
+    // entonces no tiene sentido mostrar una advertencia sobre su ausencia.
     if (!instructorAvionCategory && !instructorPlaneadorCategory) {
-        return true; // Si no existen las categorías de instructor, no mostramos la advertencia
+        return true;
     }
-    
-    return scheduleEntries.some(entry => 
+
+    // Si al menos una categoría de instructor existe, verificamos si hay alguna entrada en la agenda para ese día
+    // donde el piloto haya seleccionado esa categoría para su turno.
+    return scheduleEntries.some(entry =>
         (instructorAvionCategory && entry.pilot_category_id === instructorAvionCategory.id) ||
         (instructorPlaneadorCategory && entry.pilot_category_id === instructorPlaneadorCategory.id)
     );
-  }, [scheduleEntries, categories, anyLoading, selectedDate]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate, NORMALIZED_INSTRUCTOR_AVION, NORMALIZED_INSTRUCTOR_PLANEADOR]);
 
 
  const handleRegisterFlight = (entry: ScheduleEntry) => {
@@ -421,6 +427,7 @@ export function ScheduleClient() {
             targetPath = '/logbook/engine/new';
         }
     } else {
+        // If no aircraft specified in schedule, try to infer from pilot's role for this turn
         const pilotCategoryForTurn = categories.find(cat => cat.id === entry.pilot_category_id);
         const normalizedCategoryName = normalizeCategoryName(pilotCategoryForTurn?.name);
 
@@ -537,7 +544,7 @@ export function ScheduleClient() {
           </CardContent>
         </Card>
       )}
-      
+
       {selectedDate &&
        !isAnyInstructorConfirmed &&
        !anyLoading &&
@@ -554,10 +561,10 @@ export function ScheduleClient() {
       }
 
       {selectedDate &&
-       !isTowPilotCategoryConfirmed && 
+       !isTowPilotCategoryConfirmed &&
        !anyLoading &&
        !auth.loading &&
-       categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR) && 
+       categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR) &&
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -610,7 +617,7 @@ export function ScheduleClient() {
                         )}
                     </div>
                     <p className="text-xs text-muted-foreground text-right">
-                      - {news.pilot_full_name} 
+                      - {news.pilot_full_name}
                       ({news.created_at && parseISO(news.created_at) ? format(parseISO(news.created_at), 'HH:mm', { locale: es }) : 'Hora desconocida'})
                     </p>
                   </div>
@@ -670,4 +677,3 @@ export function ScheduleClient() {
     </>
   );
 }
-
