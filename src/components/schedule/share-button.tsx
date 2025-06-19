@@ -41,17 +41,28 @@ declare module 'jspdf' {
   }
 }
 
+// Helper for normalization within this component's scope for grouping
+const normalizeCategoryNameForGrouping = (name?: string): string => {
+  return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
+};
+
+// Constants for normalized category names for grouping
+const NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING = "instructor avion";
+const NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING = "instructor planeador";
+const NORMALIZED_REMOLCADOR_FOR_GROUPING = "remolcador";
+
+
 const getEntryGroupDetails = (
   entry: ScheduleEntry,
   categories: PilotCategory[],
 ): { id: string; name: string; order: number } => {
   const pilotCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
-  const categoryNameLower = pilotCategoryDetails?.name?.trim().toLowerCase();
+  const normalizedCategoryName = normalizeCategoryNameForGrouping(pilotCategoryDetails?.name);
 
-  if (categoryNameLower === 'instructor') {
+  if (normalizedCategoryName === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING || normalizedCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING) {
     return { id: 'instructor', name: 'Instructores', order: 1 };
   }
-  if (categoryNameLower === 'remolcador') {
+  if (normalizedCategoryName === NORMALIZED_REMOLCADOR_FOR_GROUPING) {
     return { id: 'remolcadores', name: 'Remolcador/es', order: 2 };
   }
   return { id: 'pilotos', name: 'Pilotos', order: 3 };
@@ -86,17 +97,17 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     
     let availableStatus = '-';
     const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
-    const entryCategoryNameLower = entryCategoryDetails?.name?.trim().toLowerCase();
+    const normalizedEntryCategoryName = normalizeCategoryNameForGrouping(entryCategoryDetails?.name); // Use grouping normalizer
     
-    if (entryCategoryNameLower === 'instructor') {
+    if (normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING) {
       availableStatus = 'Sí';
-    } else if (entryCategoryNameLower === 'remolcador') {
+    } else if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR_FOR_GROUPING) {
       availableStatus = entry.is_tow_pilot_available ? 'Sí' : 'No';
     }
     
     const shouldFlightTypeBeBoldForInstructorOrTow = 
-      (entry.flight_type_id === 'instruction' && entryCategoryNameLower === 'instructor') ||
-      (entryCategoryNameLower === 'remolcador');
+      (entry.flight_type_id === 'instruction_given' && (normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING)) ||
+      (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR_FOR_GROUPING);
 
     const isSportFlight = flightTypeName.toLowerCase() === 'deportivo';
 
@@ -273,23 +284,31 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         });
       }
 
-      const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
-      const instructorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
+      const remolcadorCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_REMOLCADOR_FOR_GROUPING);
+      const instructorAvionCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING);
+      const instructorPlaneadorCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING);
       
       const isRemolcadorConfirmedForDay = remolcadorCategoryDefinition 
         ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategoryDefinition.id && entry.is_tow_pilot_available === true) 
         : true; 
-      const isInstructorConfirmedForDay = instructorCategoryDefinition 
-        ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategoryDefinition.id) 
+      const isInstructorAvionConfirmedForDay = instructorAvionCategoryDefinition 
+        ? entriesForDay.some(entry => entry.pilot_category_id === instructorAvionCategoryDefinition.id) 
+        : true; 
+      const isInstructorPlaneadorConfirmedForDay = instructorPlaneadorCategoryDefinition 
+        ? entriesForDay.some(entry => entry.pilot_category_id === instructorPlaneadorCategoryDefinition.id) 
         : true; 
       
       let warningsText = "";
       if (remolcadorCategoryDefinition && !isRemolcadorConfirmedForDay) {
         warningsText += `*Aviso: Aún no hay REMOLCADOR confirmado para esta fecha.*\n`;
       }
-      if (instructorCategoryDefinition && !isInstructorConfirmedForDay) {
-        warningsText += `*Aviso: Aún no hay Instructor confirmado para esta fecha.*\n`;
+      if (instructorAvionCategoryDefinition && !isInstructorAvionConfirmedForDay) {
+        warningsText += `*Aviso: Aún no hay Instructor de Avión confirmado para esta fecha.*\n`;
       }
+      if (instructorPlaneadorCategoryDefinition && !isInstructorPlaneadorConfirmedForDay) {
+        warningsText += `*Aviso: Aún no hay Instructor de Planeador confirmado para esta fecha.*\n`;
+      }
+
       if (warningsText) {
         fullText += `\n${warningsText}`;
       }
@@ -403,23 +422,31 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             });
         }
         
-        const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
-        const instructorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
+        const remolcadorCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_REMOLCADOR_FOR_GROUPING);
+        const instructorAvionCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING);
+        const instructorPlaneadorCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING);
 
         const isRemolcadorConfirmedForDay = remolcadorCategoryDefinition 
           ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategoryDefinition.id && entry.is_tow_pilot_available === true) 
           : true; 
-        const isInstructorConfirmedForDay = instructorCategoryDefinition 
-          ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategoryDefinition.id) 
+        const isInstructorAvionConfirmedForDay = instructorAvionCategoryDefinition 
+          ? entriesForDay.some(entry => entry.pilot_category_id === instructorAvionCategoryDefinition.id) 
+          : true;
+        const isInstructorPlaneadorConfirmedForDay = instructorPlaneadorCategoryDefinition 
+          ? entriesForDay.some(entry => entry.pilot_category_id === instructorPlaneadorCategoryDefinition.id) 
           : true; 
         
         let warningsText = "";
         if (remolcadorCategoryDefinition && !isRemolcadorConfirmedForDay) {
           warningsText += `"Aviso: Aún no hay REMOLCADOR confirmado para esta fecha."\n`;
         }
-        if (instructorCategoryDefinition && !isInstructorConfirmedForDay) {
-          warningsText += `"Aviso: Aún no hay Instructor confirmado para esta fecha."\n`;
+        if (instructorAvionCategoryDefinition && !isInstructorAvionConfirmedForDay) {
+            warningsText += `"Aviso: Aún no hay Instructor de Avión confirmado para esta fecha."\n`;
         }
+        if (instructorPlaneadorCategoryDefinition && !isInstructorPlaneadorConfirmedForDay) {
+            warningsText += `"Aviso: Aún no hay Instructor de Planeador confirmado para esta fecha."\n`;
+        }
+
         if (warningsText) {
           csvContent += warningsText;
         }
@@ -439,7 +466,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
               
               let flightTypeCellContent = formatted.flightType;
               if (formatted.shouldFlightTypeBeBoldForInstructorOrTow || formatted.isSportFlight) {
-                  flightTypeCellContent = `${formatted.flightType}`; // No asterisks for CSV, just plain text
+                  flightTypeCellContent = `${formatted.flightType}`; 
               }
 
               const row = [
@@ -585,25 +612,34 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             currentY += 3;
         }
         
-        const remolcadorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'remolcador');
-        const instructorCategoryDefinition = categories.find(cat => cat.name?.trim().toLowerCase() === 'instructor');
+        const remolcadorCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_REMOLCADOR_FOR_GROUPING);
+        const instructorAvionCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING);
+        const instructorPlaneadorCategoryDefinition = categories.find(cat => normalizeCategoryNameForGrouping(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING);
         
         const isRemolcadorConfirmedForDay = remolcadorCategoryDefinition 
           ? entriesForDay.some(entry => entry.pilot_category_id === remolcadorCategoryDefinition.id && entry.is_tow_pilot_available === true) 
           : true; 
-        const isInstructorConfirmedForDay = instructorCategoryDefinition 
-          ? entriesForDay.some(entry => entry.pilot_category_id === instructorCategoryDefinition.id) 
+        const isInstructorAvionConfirmedForDay = instructorAvionCategoryDefinition 
+          ? entriesForDay.some(entry => entry.pilot_category_id === instructorAvionCategoryDefinition.id) 
+          : true; 
+        const isInstructorPlaneadorConfirmedForDay = instructorPlaneadorCategoryDefinition 
+          ? entriesForDay.some(entry => entry.pilot_category_id === instructorPlaneadorCategoryDefinition.id) 
           : true; 
         
         if (remolcadorCategoryDefinition && !isRemolcadorConfirmedForDay) {
             currentY = addPdfWarning(doc, 'Aviso: Aún no hay REMOLCADOR confirmado para esta fecha.', currentY, true);
         }
-        if (instructorCategoryDefinition && !isInstructorConfirmedForDay) {
-           currentY = addPdfWarning(doc, 'Aviso: Aún no hay Instructor confirmado para esta fecha.', currentY);
+        if (instructorAvionCategoryDefinition && !isInstructorAvionConfirmedForDay) {
+           currentY = addPdfWarning(doc, 'Aviso: Aún no hay Instructor de Avión confirmado para esta fecha.', currentY);
         }
+        if (instructorPlaneadorCategoryDefinition && !isInstructorPlaneadorConfirmedForDay) {
+           currentY = addPdfWarning(doc, 'Aviso: Aún no hay Instructor de Planeador confirmado para esta fecha.', currentY);
+        }
+
         doc.setTextColor(0, 0, 0); 
         if ( (remolcadorCategoryDefinition && !isRemolcadorConfirmedForDay) ||
-             (instructorCategoryDefinition && !isInstructorConfirmedForDay)
+             (instructorAvionCategoryDefinition && !isInstructorAvionConfirmedForDay) ||
+             (instructorPlaneadorCategoryDefinition && !isInstructorPlaneadorConfirmedForDay)
            ) {
             currentY +=2; 
         }
