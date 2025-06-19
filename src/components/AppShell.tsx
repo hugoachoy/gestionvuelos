@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText } from 'lucide-react'; // Added FileText
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText } from 'lucide-react';
 
 interface NavItemProps {
   href: string;
@@ -69,6 +69,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     { href: '/categories', label: 'Categoria Pilotos', icon: <Tags /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
     { href: '/twilight', label: 'Crepúsculo Civil', icon: <Sunrise /> },
+    { href: '/notams', label: 'NOTAMs', icon: <FileText /> }, // Changed link
   ];
 
   const handleLogout = async () => {
@@ -93,7 +94,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     return user.email ?? '';
   };
   
-  const NOTAM_URL_SAZX = "https://ais.anac.gob.ar/notam?lugar=SAZX";
+  // NOTAM_URL_SAZX constant removed as it's now an internal link
 
   return (
     <>
@@ -119,21 +120,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             {navItems.map((item) => (
               <NavItem key={item.href} {...item} pathname={pathname} />
             ))}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={() => {
-                  window.open(NOTAM_URL_SAZX, '_blank', 'noopener,noreferrer');
-                  if (sidebar.isMobile) {
-                    sidebar.setOpenMobile(false);
-                  }
-                }}
-                tooltip="NOTAMs (SAZX)"
-                className="justify-start"
-              >
-                <FileText />
-                <span className="truncate">NOTAMs (SAZX)</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {/* Removed the direct external link for NOTAMs, it's now an internal page in navItems */}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">
