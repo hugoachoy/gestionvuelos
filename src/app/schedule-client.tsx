@@ -38,12 +38,12 @@ import { useRouter } from 'next/navigation';
 const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
 const normalizeCategoryName = (name?: string): string => {
-  return name?.trim().toLowerCase() || '';
+  return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
 
-const NORMALIZED_INSTRUCTOR_AVION = "instructor de avión";
-const NORMALIZED_INSTRUCTOR_PLANEADOR = "instructor de planeador";
-const NORMALIZED_REMOLCADOR = "remolcador";
+const INSTRUCTOR_AVION_KEYWORDS = ["instructor", "avion"]; // Normalizado
+const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"]; // Normalizado
+const NORMALIZED_REMOLCADOR = "remolcador"; // Ya normalizado
 
 function getSortPriority(
   entry: ScheduleEntry,
@@ -52,7 +52,10 @@ function getSortPriority(
   const entryCategory = categories.find(c => c.id === entry.pilot_category_id);
   const normalizedEntryCategoryName = normalizeCategoryName(entryCategory?.name);
 
-  if (normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR) {
+  const isAvionInstructor = INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedEntryCategoryName.includes(kw));
+  const isPlaneadorInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedEntryCategoryName.includes(kw));
+
+  if (isAvionInstructor || isPlaneadorInstructor) {
     return 3; // Highest priority for instructors
   }
   if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR) {
@@ -377,30 +380,30 @@ export function ScheduleClient() {
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
     );
-  }, [scheduleEntries, categories, anyLoading, selectedDate, NORMALIZED_REMOLCADOR]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
   const isAnyInstructorConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !selectedDate) {
-      // Si los datos no están listos, asumimos que SÍ hay un instructor para evitar mostrar la advertencia prematuramente.
-      // La advertencia solo aparecerá cuando los datos estén cargados y se confirme la ausencia.
-      return true;
+      return true; // No mostrar advertencia si los datos básicos no están listos
     }
-    const instructorAvionCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION);
-    const instructorPlaneadorCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR);
+    const instructorAvionCategory = categories.find(cat => {
+      const normalizedName = normalizeCategoryName(cat.name);
+      return INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedName.includes(kw));
+    });
+    const instructorPlaneadorCategory = categories.find(cat => {
+      const normalizedName = normalizeCategoryName(cat.name);
+      return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
+    });
 
-    // Si ninguna de las categorías de instructor ("Instructor de Avión" o "Instructor de Planeador") existe en la base de datos,
-    // entonces no tiene sentido mostrar una advertencia sobre su ausencia.
     if (!instructorAvionCategory && !instructorPlaneadorCategory) {
-        return true;
+        return true; // Si no existen las categorías de instructor, no se necesita confirmación (no se muestra advertencia)
     }
 
-    // Si al menos una categoría de instructor existe, verificamos si hay alguna entrada en la agenda para ese día
-    // donde el piloto haya seleccionado esa categoría para su turno.
     return scheduleEntries.some(entry =>
         (instructorAvionCategory && entry.pilot_category_id === instructorAvionCategory.id) ||
         (instructorPlaneadorCategory && entry.pilot_category_id === instructorPlaneadorCategory.id)
     );
-  }, [scheduleEntries, categories, anyLoading, selectedDate, NORMALIZED_INSTRUCTOR_AVION, NORMALIZED_INSTRUCTOR_PLANEADOR]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
 
  const handleRegisterFlight = (entry: ScheduleEntry) => {
@@ -430,11 +433,14 @@ export function ScheduleClient() {
         // If no aircraft specified in schedule, try to infer from pilot's role for this turn
         const pilotCategoryForTurn = categories.find(cat => cat.id === entry.pilot_category_id);
         const normalizedCategoryName = normalizeCategoryName(pilotCategoryForTurn?.name);
+        const isAvionInstructor = INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedCategoryName.includes(kw));
+        const isPlaneadorInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedCategoryName.includes(kw));
 
-        if (normalizedCategoryName.includes('planeador') || entry.flight_type_id === 'sport' || entry.flight_type_id === 'instruction_taken' || entry.flight_type_id === 'instruction_given' ) {
+
+        if (normalizedCategoryName.includes('planeador') || entry.flight_type_id === 'sport' || entry.flight_type_id === 'instruction_taken' || (entry.flight_type_id === 'instruction_given' && isPlaneadorInstructor) ) {
             flightTypeForLogbook = 'glider';
             targetPath = '/logbook/glider/new';
-        } else if (entry.flight_type_id === 'towage' || normalizedCategoryName.includes('remolcador') || normalizedCategoryName.includes('avión')) {
+        } else if (entry.flight_type_id === 'towage' || normalizedCategoryName.includes('remolcador') || normalizedCategoryName.includes('avion') || (entry.flight_type_id === 'instruction_given' && isAvionInstructor)) {
             flightTypeForLogbook = 'engine';
             targetPath = '/logbook/engine/new';
         }
@@ -549,7 +555,12 @@ export function ScheduleClient() {
        !isAnyInstructorConfirmed &&
        !anyLoading &&
        !auth.loading &&
-       categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION || normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR) &&
+       categories.some(cat => {
+          const normalizedName = normalizeCategoryName(cat.name);
+          const isAvionInstructor = INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedName.includes(kw));
+          const isPlaneadorInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
+          return isAvionInstructor || isPlaneadorInstructor;
+        }) &&
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
@@ -677,3 +688,4 @@ export function ScheduleClient() {
     </>
   );
 }
+
