@@ -41,9 +41,9 @@ const normalizeCategoryName = (name?: string): string => {
   return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
 
-const INSTRUCTOR_AVION_KEYWORDS = ["instructor", "avion"]; // Normalizado
-const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"]; // Normalizado
-const NORMALIZED_REMOLCADOR = "remolcador"; // Ya normalizado
+const INSTRUCTOR_AVION_KEYWORDS = ["instructor", "avión"];
+const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
+const NORMALIZED_REMOLCADOR = "remolcador";
 
 function getSortPriority(
   entry: ScheduleEntry,
@@ -370,40 +370,54 @@ export function ScheduleClient() {
 
   const isTowPilotCategoryConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !selectedDate) {
-        return true; // No mostrar advertencia si los datos básicos no están listos
+        return true; 
     }
     const towPilotCategory = categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR);
     if (!towPilotCategory) {
-      return true; // Si no existe la categoría "Remolcador", no se necesita confirmación.
+      return true; 
     }
     return scheduleEntries.some(entry =>
       entry.pilot_category_id === towPilotCategory.id &&
       entry.is_tow_pilot_available === true
     );
-  }, [scheduleEntries, categories, anyLoading, selectedDate]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate, NORMALIZED_REMOLCADOR]);
 
-  const isAnyInstructorConfirmed = useMemo(() => {
+
+  const isAvionInstructorConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !selectedDate) {
-      return true; // No mostrar advertencia si los datos básicos no están listos
+        return true; 
     }
-    const instructorAvionCategory = categories.find(cat => {
+    const avionInstructorCategory = categories.find(cat => {
       const normalizedName = normalizeCategoryName(cat.name);
       return INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedName.includes(kw));
     });
-    const instructorPlaneadorCategory = categories.find(cat => {
+
+    if (!avionInstructorCategory) {
+      return true; 
+    }
+
+    return scheduleEntries.some(entry =>
+      entry.pilot_category_id === avionInstructorCategory.id
+    );
+  }, [scheduleEntries, categories, anyLoading, selectedDate, INSTRUCTOR_AVION_KEYWORDS]);
+
+  const isPlaneadorInstructorConfirmed = useMemo(() => {
+    if (anyLoading || !categories || !categories.length || !selectedDate) {
+        return true; 
+    }
+    const planeadorInstructorCategory = categories.find(cat => {
       const normalizedName = normalizeCategoryName(cat.name);
       return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
     });
 
-    if (!instructorAvionCategory && !instructorPlaneadorCategory) {
-        return true; // Si no existen las categorías de instructor, no se necesita confirmación (no se muestra advertencia)
+    if (!planeadorInstructorCategory) {
+      return true; 
     }
 
     return scheduleEntries.some(entry =>
-        (instructorAvionCategory && entry.pilot_category_id === instructorAvionCategory.id) ||
-        (instructorPlaneadorCategory && entry.pilot_category_id === instructorPlaneadorCategory.id)
+      entry.pilot_category_id === planeadorInstructorCategory.id
     );
-  }, [scheduleEntries, categories, anyLoading, selectedDate]);
+  }, [scheduleEntries, categories, anyLoading, selectedDate, INSTRUCTOR_PLANEADOR_KEYWORDS]);
 
 
  const handleRegisterFlight = (entry: ScheduleEntry) => {
@@ -430,7 +444,6 @@ export function ScheduleClient() {
             targetPath = '/logbook/engine/new';
         }
     } else {
-        // If no aircraft specified in schedule, try to infer from pilot's role for this turn
         const pilotCategoryForTurn = categories.find(cat => cat.id === entry.pilot_category_id);
         const normalizedCategoryName = normalizeCategoryName(pilotCategoryForTurn?.name);
         const isAvionInstructor = INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedCategoryName.includes(kw));
@@ -552,20 +565,36 @@ export function ScheduleClient() {
       )}
 
       {selectedDate &&
-       !isAnyInstructorConfirmed &&
+       !isAvionInstructorConfirmed &&
        !anyLoading &&
        !auth.loading &&
        categories.some(cat => {
-          const normalizedName = normalizeCategoryName(cat.name);
-          const isAvionInstructor = INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedName.includes(kw));
-          const isPlaneadorInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
-          return isAvionInstructor || isPlaneadorInstructor;
-        }) &&
+         const normalizedName = normalizeCategoryName(cat.name);
+         return INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedName.includes(kw));
+       }) &&
         <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                <UnderlineKeywords text='Aún no hay "Instructor de Avión" o "Instructor de Planeador" confirmado para esta fecha.' />
+                Aún no hay "<UnderlineKeywords text="Instructor de Avión" />" confirmado para esta fecha.
+            </strong>
+          </AlertDescription>
+        </Alert>
+      }
+
+      {selectedDate &&
+       !isPlaneadorInstructorConfirmed &&
+       !anyLoading &&
+       !auth.loading &&
+       categories.some(cat => {
+         const normalizedName = normalizeCategoryName(cat.name);
+         return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
+       }) &&
+        <Alert variant="default" className="mb-6 shadow-sm border-orange-400 bg-orange-50">
+          <AlertTriangle className="h-4 w-4 text-orange-500" />
+          <AlertDescription>
+            <strong className="text-orange-700">
+                Aún no hay "<UnderlineKeywords text="Instructor de Planeador" />" confirmado para esta fecha.
             </strong>
           </AlertDescription>
         </Alert>
