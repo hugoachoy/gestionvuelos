@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { buttonVariants } from "@/components/ui/button"; // Changed from Button to buttonVariants
+import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 
 interface DeleteDialogProps {
@@ -32,12 +32,11 @@ export function DeleteDialog({ open, onOpenChange, onConfirm, itemName = "este e
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            className={buttonVariants({ variant: "destructive" })} // Correctly use buttonVariants
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Eliminar
+          <AlertDialogAction asChild>
+            <Button variant="destructive" onClick={onConfirm}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Eliminar
+            </Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
