@@ -41,6 +41,6 @@ export function DeleteDialog({ open, onOpenChange, onConfirm, itemName = "este e
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
-    </AlertDialog> // Corrected closing tag
+    </AlertDialog>
   );
 }
