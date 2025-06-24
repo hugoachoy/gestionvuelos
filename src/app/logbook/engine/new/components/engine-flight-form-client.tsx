@@ -384,8 +384,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const instructorAvionCategoryId = useMemo(() => {
     const category = categories.find(cat => {
-        const normalized = normalizeCategoryName(cat.name);
-        return INSTRUCTOR_AVION_KEYWORDS.every(kw => normalized.includes(kw));
+      const normalized = normalizeCategoryName(cat.name);
+      return INSTRUCTOR_AVION_KEYWORDS.every(kw => normalized.includes(kw));
     });
     return category?.id;
   }, [categories]);
@@ -682,7 +682,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fecha del Vuelo</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha del Vuelo</FormLabel>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -717,7 +717,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Piloto a Cargo (PIC)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto a Cargo (PIC)</FormLabel>
                   <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -772,7 +772,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="flight_purpose"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Propósito del Vuelo</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Propósito del Vuelo</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
@@ -798,7 +798,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 name="instructor_id"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Instructor</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Instructor</FormLabel>
                     <Popover open={instructorPopoverOpen} onOpenChange={setInstructorPopoverOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -864,7 +864,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="engine_aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Aeronave de Motor</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aeronave de Motor</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
@@ -890,7 +890,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 name="departure_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Hora de Salida (HH:MM)</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} disabled={isLoading} />
                     </FormControl>
@@ -906,7 +906,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 name="arrival_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Hora de Llegada (HH:MM)</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} disabled={isLoading} />
                     </FormControl>
@@ -932,7 +932,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 name="route_from_to"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Ruta (Desde - Hasta) (Opcional)</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Ruta (Desde - Hasta) (Opcional)</FormLabel>
                     <FormControl>
                       <Input placeholder="Ej: Aeroclub - Chivilcoy - Aeroclub" {...field} value={field.value ?? ""} disabled={isLoading}/>
                     </FormControl>
@@ -947,7 +947,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     name="landings_count"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Aterrizajes (Opcional)</FormLabel>
+                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aterrizajes (Opcional)</FormLabel>
                         <FormControl>
                         <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
@@ -960,7 +960,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     name="tows_count"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Remolques Realizados (Opcional)</FormLabel>
+                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
                         <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
@@ -976,7 +976,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     name="fuel_added_liters"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Nafta Cargada (Lts) (Opcional)</FormLabel>
+                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Nafta Cargada (Lts) (Opcional)</FormLabel>
                         <FormControl>
                         <Input type="number" step="0.1" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
@@ -989,7 +989,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     name="oil_added_liters"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Aceite Cargado (Lts) (Opcional)</FormLabel>
+                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aceite Cargado (Lts) (Opcional)</FormLabel>
                         <FormControl>
                         <Input type="number" step="0.01" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
@@ -1004,7 +1004,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notas (Opcional)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Notas (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""}  disabled={isLoading}/>
                   </FormControl>

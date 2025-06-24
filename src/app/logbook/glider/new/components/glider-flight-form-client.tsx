@@ -335,8 +335,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const instructorPlaneadorCategoryId = useMemo(() => {
     const category = categories.find(cat => {
-        const normalized = normalizeCategoryName(cat.name);
-        return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalized.includes(kw));
+      const normalized = normalizeCategoryName(cat.name);
+      return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalized.includes(kw));
     });
     return category?.id;
   }, [categories]);
@@ -678,7 +678,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fecha del Vuelo</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha del Vuelo</FormLabel>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -713,7 +713,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Piloto a Cargo (PIC)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto a Cargo (PIC)</FormLabel>
                    <Popover open={picPilotPopoverOpen} onOpenChange={setPicPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -771,7 +771,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="flight_purpose"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Propósito del Vuelo</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Propósito del Vuelo</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
@@ -797,7 +797,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 name="instructor_id"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Instructor</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Instructor</FormLabel>
                     <Popover open={instructorPopoverOpen} onOpenChange={setInstructorPopoverOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -864,7 +864,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="tow_pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Piloto Remolcador</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto Remolcador</FormLabel>
                    <Popover open={towPilotPopoverOpen} onOpenChange={setTowPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -914,7 +914,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="glider_aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Planeador</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Planeador</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
@@ -939,7 +939,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="tow_aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Avión Remolcador</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Avión Remolcador</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
@@ -965,7 +965,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 name="departure_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Hora de Salida (HH:MM)</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
@@ -981,7 +981,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 name="arrival_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Hora de Llegada (HH:MM)</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
@@ -1008,7 +1008,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notas (Opcional)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Notas (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""} disabled={areFieldsDisabled}/>
                   </FormControl>
