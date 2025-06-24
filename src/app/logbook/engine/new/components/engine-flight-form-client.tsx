@@ -213,7 +213,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             let prefilledFlightPurpose: EngineFlightPurpose | undefined = undefined;
             const typeId = entry.flight_type_id;
             if (typeId === 'towage') {
-                prefilledFlightPurpose = 'remolque_planeador';
+                prefilledFlightPurpose = 'towage';
             } else if (ENGINE_FLIGHT_PURPOSES.includes(typeId as EngineFlightPurpose)) {
                 prefilledFlightPurpose = typeId as EngineFlightPurpose;
             }
@@ -463,7 +463,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'remolque_planeador' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'towage' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
 
