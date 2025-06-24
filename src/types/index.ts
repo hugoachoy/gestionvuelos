@@ -32,8 +32,8 @@ export interface Aircraft {
 }
 
 export const FLIGHT_TYPES = [
-  { id: 'instruction_taken', name: 'Instrucción (Alumno)' },
-  { id: 'instruction_given', name: 'Instrucción (Instructor)' },
+  { id: 'instruction_taken', name: 'Instrucción (Recibida)' },
+  { id: 'instruction_given', name: 'Instrucción (Impartida)' },
   { id: 'local', name: 'Local' },
   { id: 'sport', name: 'Deportivo' },
   { id: 'towage', name: 'Remolque' },
