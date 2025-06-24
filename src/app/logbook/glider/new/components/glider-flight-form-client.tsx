@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, GliderFlightPurpose } from '@/types';
+import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, GliderFlightPurpose, FlightTypeId } from '@/types';
 import { GLIDER_FLIGHT_PURPOSES, FLIGHT_TYPES, FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,6 +37,18 @@ const normalizeCategoryName = (name?: string): string => {
 
 const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
 const REMOLCADOR_KEYWORDS = ["remolcador"];
+
+const mapScheduleTypeToGliderPurpose = (scheduleTypeId: FlightTypeId): GliderFlightPurpose | undefined => {
+  switch (scheduleTypeId) {
+    case 'instruction_taken': return 'instruccion_recibida';
+    case 'instruction_given': return 'instruccion_impartida';
+    default:
+        if ((GLIDER_FLIGHT_PURPOSES as readonly string[]).includes(scheduleTypeId)) {
+            return scheduleTypeId as GliderFlightPurpose;
+        }
+        return undefined;
+  }
+};
 
 
 const gliderFlightSchema = z.object({
@@ -71,7 +83,7 @@ const gliderFlightSchema = z.object({
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
 }).refine(data => { 
-  if (data.flight_purpose === 'instruction_taken' && !data.instructor_id) {
+  if (data.flight_purpose === 'instruccion_recibida' && !data.instructor_id) {
     return false;
   }
   return true;
@@ -203,10 +215,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
         if (entry) {
-            let prefilledFlightPurpose: GliderFlightPurpose | undefined = undefined;
-            if (GLIDER_FLIGHT_PURPOSES.includes(entry.flight_type_id as GliderFlightPurpose)) {
-                prefilledFlightPurpose = entry.flight_type_id as GliderFlightPurpose;
-            }
+            const prefilledFlightPurpose = mapScheduleTypeToGliderPurpose(entry.flight_type_id);
 
             form.reset({
               date: entry.date ? parseISO(entry.date) : new Date(),
@@ -249,7 +258,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'instruction_taken' || watchedFlightPurpose === 'readaptacion';
+    return watchedFlightPurpose === 'instruccion_recibida' || watchedFlightPurpose === 'readaptacion';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -475,11 +484,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const currentPurpose = formData.flight_purpose;
             const conflictingPurpose = conflictingAircraftFlight.flight_purpose;
 
-            const isInstructionScenario = 
-                (currentPurpose === 'instruction_taken' && conflictingPurpose === 'instruction_given') ||
-                (currentPurpose === 'instruction_given' && conflictingPurpose === 'instruction_taken');
+            const isPairedInstructionFlight =
+              (currentPurpose === 'instruccion_recibida' && conflictingPurpose === 'instruccion_impartida') ||
+              (currentPurpose === 'instruccion_impartida' && conflictingPurpose === 'instruccion_recibida');
 
-            if (!isInstructionScenario) {
+            if (!isPairedInstructionFlight) {
                 const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
                 toast({
                     title: "Conflicto de Horario (Aeronave)",
@@ -504,7 +513,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
         
         let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'instruction_given') {
+        if (formData.flight_purpose === 'instruccion_impartida') {
             instructorIdToSave = null; 
         }
 
@@ -675,7 +684,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha del Vuelo</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Fecha del Vuelo</FormLabel>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -710,7 +719,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto a Cargo (PIC)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Piloto a Cargo (PIC)</FormLabel>
                    <Popover open={picPilotPopoverOpen} onOpenChange={setPicPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -768,7 +777,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="flight_purpose"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Propósito del Vuelo</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Propósito del Vuelo</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
@@ -794,7 +803,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 name="instructor_id"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Instructor</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Instructor</FormLabel>
                     <Popover open={instructorPopoverOpen} onOpenChange={setInstructorPopoverOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -861,7 +870,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="tow_pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto Remolcador</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Piloto Remolcador</FormLabel>
                    <Popover open={towPilotPopoverOpen} onOpenChange={setTowPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -911,7 +920,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="glider_aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Planeador</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Planeador</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
@@ -936,7 +945,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="tow_aircraft_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Avión Remolcador</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Avión Remolcador</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={areFieldsDisabled}>
                     <FormControl>
                       <SelectTrigger>
@@ -962,7 +971,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 name="departure_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Salida (HH:MM)</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
@@ -978,7 +987,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 name="arrival_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Llegada (HH:MM)</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
@@ -1005,7 +1014,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Notas (Opcional)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Notas (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""} disabled={areFieldsDisabled}/>
                   </FormControl>

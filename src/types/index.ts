@@ -32,11 +32,12 @@ export interface Aircraft {
 }
 
 export const FLIGHT_TYPES = [
-  { id: 'instruction_taken', name: 'Instrucción (Recibida)' },
-  { id: 'instruction_given', name: 'Instrucción (Impartida)' },
+  { id: 'instruction_taken', name: 'Instrucción Recibida' },
+  { id: 'instruction_given', name: 'Instrucción Impartida' },
   { id: 'local', name: 'Local' },
   { id: 'sport', name: 'Deportivo' },
   { id: 'towage', name: 'Remolque' },
+  { id: 'trip', name: 'Viaje'},
 ] as const;
 
 export type FlightType = typeof FLIGHT_TYPES[number];
@@ -90,7 +91,7 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'deportivo', 'instruction_taken', 'instruction_given'
+  'entrenamiento', 'readaptacion', 'deportivo', 'instruccion_recibida', 'instruccion_impartida'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
@@ -109,15 +110,15 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'viaje': 'Viaje',
   'deportivo': 'Deportivo',
   'remolque': 'Remolque planeador',
-  'towage': 'Remolque planeador', // Legacy/Schedule mapping
   
   // Instruction - unified display text
-  'instruction_taken': 'Instrucción (Recibida)',
   'instruccion_recibida': 'Instrucción (Recibida)',
-  'instruction_given': 'Instrucción (Impartida)',
   'instruccion_impartida': 'Instrucción (Impartida)',
   
-  // Legacy
+  // Mappings from schedule IDs to display names if they differ
+  'instruction_taken': 'Instrucción (Recibida)',
+  'instruction_given': 'Instrucción (Impartida)',
+  'towage': 'Remolque planeador',
   'trip': 'Viaje',
 };
 
