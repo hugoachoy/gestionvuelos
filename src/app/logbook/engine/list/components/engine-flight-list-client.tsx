@@ -148,7 +148,7 @@ export function EngineFlightListClient() {
                       <TableCell>{flight.arrival_time}</TableCell>
                       <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                       <TableCell>
-                        {flight.flight_purpose !== 'towage' && typeof flight.billable_minutes === 'number'
+                        {flight.flight_purpose !== 'remolque' && typeof flight.billable_minutes === 'number'
                           ? `${flight.billable_minutes} min`
                           : '-'}
                       </TableCell>

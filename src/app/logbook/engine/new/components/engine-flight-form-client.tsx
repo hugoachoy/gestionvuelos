@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, EngineFlightPurpose } from '@/types';
+import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, EngineFlightPurpose, FlightTypeId } from '@/types';
 import { ENGINE_FLIGHT_PURPOSES, FLIGHT_TYPES, FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -67,7 +67,7 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => { 
-  if (data.flight_purpose === 'instruction_taken' && !data.instructor_id) {
+  if (data.flight_purpose === 'instruccion_recibida' && !data.instructor_id) {
     return false;
   }
   return true;
@@ -88,6 +88,20 @@ const normalizeText = (text?: string | null): string => {
 
 const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador", "instructor de avión"];
 
+const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): EngineFlightPurpose | undefined => {
+  switch (scheduleTypeId) {
+    case 'instruction_taken': return 'instruccion_recibida';
+    case 'instruction_given': return 'instruccion_impartida';
+    case 'towage': return 'remolque';
+    case 'trip': return 'viaje';
+    case 'local': return 'local';
+    default:
+        if ((ENGINE_FLIGHT_PURPOSES as readonly string[]).includes(scheduleTypeId)) {
+            return scheduleTypeId as EngineFlightPurpose;
+        }
+        return undefined;
+  }
+};
 
 interface EngineFlightFormClientProps {
   flightIdToLoad?: string;
@@ -210,12 +224,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
           const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
           if (entry) {
-            let prefilledFlightPurpose: EngineFlightPurpose | undefined = undefined;
-            const typeId = entry.flight_type_id;
-            
-            if (ENGINE_FLIGHT_PURPOSES.includes(typeId as EngineFlightPurpose)) {
-                prefilledFlightPurpose = typeId as EngineFlightPurpose;
-            }
+            const prefilledFlightPurpose = mapScheduleTypeToEnginePurpose(entry.flight_type_id);
 
             form.reset({
               date: entry.date ? parseISO(entry.date) : new Date(),
@@ -264,7 +273,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'instruction_taken' || watchedFlightPurpose === 'readaptacion';
+    return watchedFlightPurpose === 'instruccion_recibida' || watchedFlightPurpose === 'readaptacion';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -462,12 +471,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'towage' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'remolque' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
 
         let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'instruction_given') {
+        if (formData.flight_purpose === 'instruccion_impartida') {
             instructorIdToSave = null; 
         }
 

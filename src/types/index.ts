@@ -95,7 +95,7 @@ export const GLIDER_FLIGHT_PURPOSES = [
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
 export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'towage', 'instruction_taken', 'instruction_given', 'local', 'trip'
+  'entrenamiento', 'readaptacion', 'remolque', 'instruccion_recibida', 'instruccion_impartida', 'local', 'viaje'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
@@ -106,12 +106,19 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'entrenamiento': 'Entrenamiento',
   'readaptacion': 'Readaptación',
   'local': 'Local',
-  'trip': 'Viaje',
+  'viaje': 'Viaje',
   'deportivo': 'Deportivo',
-  'towage': 'Remolque planeador',
-  // Unified
+  'remolque': 'Remolque planeador',
+  'towage': 'Remolque planeador', // Legacy/Schedule mapping
+  
+  // Instruction - unified display text
   'instruction_taken': 'Instrucción (Recibida)',
+  'instruccion_recibida': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
+  'instruccion_impartida': 'Instrucción (Impartida)',
+  
+  // Legacy
+  'trip': 'Viaje',
 };
 
 export interface CompletedGliderFlight extends BaseCompletedFlight {
