@@ -32,9 +32,12 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
 const normalizeCategoryName = (name?: string): string => {
-  return name?.trim().toLowerCase() || '';
+  return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
-const NORMALIZED_INSTRUCTOR_PLANEADOR = "instructor de planeador";
+
+const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
+const REMOLCADOR_KEYWORDS = ["remolcador"];
+
 
 const gliderFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -331,11 +334,19 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [pilots]);
 
   const instructorPlaneadorCategoryId = useMemo(() => {
-    return categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR)?.id;
+    const category = categories.find(cat => {
+        const normalized = normalizeCategoryName(cat.name);
+        return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalized.includes(kw));
+    });
+    return category?.id;
   }, [categories]);
 
   const towPilotCategoryId = useMemo(() => {
-    return categories.find(cat => normalizeCategoryName(cat.name) === 'remolcador')?.id;
+    const category = categories.find(cat => {
+        const normalized = normalizeCategoryName(cat.name);
+        return REMOLCADOR_KEYWORDS.every(kw => normalized.includes(kw));
+    });
+    return category?.id;
   }, [categories]);
 
   const sortedInstructors = useMemo(() => {
@@ -830,7 +841,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                         </Command>
                       </PopoverContent>
                     </Popover>
-                    {!instructorPlaneadorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "{NORMALIZED_INSTRUCTOR_PLANEADOR}". Por favor, créela.</FormDescription>}
+                    {!instructorPlaneadorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró una categoría que contenga "Instructor" y "Planeador". Por favor, créela.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1010,4 +1021,3 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
-

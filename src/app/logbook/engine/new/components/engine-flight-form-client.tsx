@@ -32,9 +32,11 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
 const normalizeCategoryName = (name?: string): string => {
-  return name?.trim().toLowerCase() || '';
+  return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
-const NORMALIZED_INSTRUCTOR_AVION = "instructor de avión";
+
+// Use keywords for robust matching
+const INSTRUCTOR_AVION_KEYWORDS = ["instructor", "avion"];
 
 const engineFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -381,7 +383,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
 
   const instructorAvionCategoryId = useMemo(() => {
-    return categories.find(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION)?.id;
+    const category = categories.find(cat => {
+        const normalized = normalizeCategoryName(cat.name);
+        return INSTRUCTOR_AVION_KEYWORDS.every(kw => normalized.includes(kw));
+    });
+    return category?.id;
   }, [categories]);
 
   const sortedInstructors = useMemo(() => {
@@ -846,7 +852,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                         </Command>
                       </PopoverContent>
                     </Popover>
-                    {!instructorAvionCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "{NORMALIZED_INSTRUCTOR_AVION}". Por favor, créela.</FormDescription>}
+                    {!instructorAvionCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró una categoría que contenga "Instructor" y "Avión". Por favor, créela.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1021,4 +1027,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
