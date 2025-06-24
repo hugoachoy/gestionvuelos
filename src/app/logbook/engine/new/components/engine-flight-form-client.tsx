@@ -212,7 +212,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           if (entry) {
             let prefilledFlightPurpose: EngineFlightPurpose | undefined = undefined;
             const typeId = entry.flight_type_id;
-            // Simplified logic to be identical to glider form
+            
             if (ENGINE_FLIGHT_PURPOSES.includes(typeId as EngineFlightPurpose)) {
                 prefilledFlightPurpose = typeId as EngineFlightPurpose;
             }

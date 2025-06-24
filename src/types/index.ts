@@ -108,7 +108,7 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'local': 'Local',
   'trip': 'Viaje',
   'deportivo': 'Deportivo',
-  'towage': 'Remolque',
+  'towage': 'Remolque planeador',
   // Unified
   'instruction_taken': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
