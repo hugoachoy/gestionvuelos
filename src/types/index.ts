@@ -101,7 +101,7 @@ export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
 export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 
-export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<AnyFlightPurpose, string> = {
+export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   // Common
   'entrenamiento': 'Entrenamiento',
   'readaptacion': 'Readaptación',

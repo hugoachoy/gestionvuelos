@@ -212,9 +212,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           if (entry) {
             let prefilledFlightPurpose: EngineFlightPurpose | undefined = undefined;
             const typeId = entry.flight_type_id;
-            if (typeId === 'towage') {
-                prefilledFlightPurpose = 'towage';
-            } else if (ENGINE_FLIGHT_PURPOSES.includes(typeId as EngineFlightPurpose)) {
+            // Simplified logic to be identical to glider form
+            if (ENGINE_FLIGHT_PURPOSES.includes(typeId as EngineFlightPurpose)) {
                 prefilledFlightPurpose = typeId as EngineFlightPurpose;
             }
 
@@ -781,7 +780,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <SelectContent>
                       {ENGINE_FLIGHT_PURPOSES.map((purpose) => (
                         <SelectItem key={purpose} value={purpose}>
-                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as EngineFlightPurpose] || purpose}
+                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose] || purpose}
                         </SelectItem>
                       ))}
                     </SelectContent>
