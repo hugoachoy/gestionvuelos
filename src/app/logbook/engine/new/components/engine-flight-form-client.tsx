@@ -11,7 +11,7 @@ import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBe
 import { es } from 'date-fns/locale';
 
 import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, EngineFlightPurpose } from '@/types';
-import { ENGINE_FLIGHT_PURPOSES, FLIGHT_TYPES } from '@/types';
+import { ENGINE_FLIGHT_PURPOSES, FLIGHT_TYPES, FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -67,12 +67,12 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => { 
-  if (data.flight_purpose === 'Instruccion (Recibida)' && !data.instructor_id) {
+  if (data.flight_purpose === 'instruccion (recibida)' && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instruccion (Recibida)'.",
+  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
   path: ["instructor_id"],
 });
 
@@ -212,9 +212,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           if (entry) {
             let prefilledFlightPurpose: EngineFlightPurpose | undefined = undefined;
             if (entry.flight_type_id === 'instruction_taken') {
-                prefilledFlightPurpose = 'Instruccion (Recibida)';
+                prefilledFlightPurpose = 'instruccion (recibida)';
             } else if (entry.flight_type_id === 'instruction_given') {
-                prefilledFlightPurpose = 'Instruccion (Impartida)';
+                prefilledFlightPurpose = 'instruccion (impartida)';
             } else if (ENGINE_FLIGHT_PURPOSES.includes(entry.flight_type_id as EngineFlightPurpose)) {
                  prefilledFlightPurpose = entry.flight_type_id as EngineFlightPurpose;
             }
@@ -267,7 +267,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'Instruccion (Recibida)' || watchedFlightPurpose === 'readaptacion';
+    return watchedFlightPurpose === 'instruccion (recibida)' || watchedFlightPurpose === 'readaptacion';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -464,12 +464,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'remolque planeador' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
 
         let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'Instruccion (Impartida)') {
+        if (formData.flight_purpose === 'instruccion (impartida)') {
             instructorIdToSave = null; 
         }
 
@@ -782,7 +782,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <SelectContent>
                       {ENGINE_FLIGHT_PURPOSES.map((purpose) => (
                         <SelectItem key={purpose} value={purpose}>
-                          {purpose}
+                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as EngineFlightPurpose] || purpose}
                         </SelectItem>
                       ))}
                     </SelectContent>

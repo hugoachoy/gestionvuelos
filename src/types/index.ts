@@ -90,9 +90,27 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'deportivo', 'Instruccion (Recibida)', 'Instruccion (Impartida)'
+  'entrenamiento', 'readaptacion', 'deportivo', 'instruccion (recibida)', 'instruccion (impartida)'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
+
+export const ENGINE_FLIGHT_PURPOSES = [
+  'entrenamiento', 'readaptacion', 'remolque planeador', 'instruccion (recibida)', 'instruccion (impartida)', 'local', 'viaje'
+] as const;
+export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
+
+export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
+
+export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<AnyFlightPurpose, string> = {
+  'entrenamiento': 'Entrenamiento',
+  'readaptacion': 'Readaptación',
+  'deportivo': 'Deportivo',
+  'instruccion (recibida)': 'Instrucción (Recibida)',
+  'instruccion (impartida)': 'Instrucción (Impartida)',
+  'remolque planeador': 'Remolque Planeador',
+  'local': 'Local',
+  'viaje': 'Viaje',
+};
 
 export interface CompletedGliderFlight extends BaseCompletedFlight {
   logbook_type: 'glider';
@@ -101,11 +119,6 @@ export interface CompletedGliderFlight extends BaseCompletedFlight {
   tow_aircraft_id?: string | null; // Tow plane used, if applicable
   flight_purpose: GliderFlightPurpose;
 }
-
-export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'Remolque planeador', 'Instruccion (Recibida)', 'Instruccion (Impartida)', 'local', 'viaje'
-] as const;
-export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
 export interface CompletedEngineFlight extends BaseCompletedFlight {
   logbook_type: 'engine';

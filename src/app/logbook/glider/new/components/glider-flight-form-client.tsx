@@ -11,7 +11,7 @@ import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBe
 import { es } from 'date-fns/locale';
 
 import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, GliderFlightPurpose } from '@/types';
-import { GLIDER_FLIGHT_PURPOSES, FLIGHT_TYPES } from '@/types';
+import { GLIDER_FLIGHT_PURPOSES, FLIGHT_TYPES, FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient'; // Import supabase client for direct calls
@@ -71,12 +71,12 @@ const gliderFlightSchema = z.object({
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
 }).refine(data => { 
-  if (data.flight_purpose === 'Instruccion (Recibida)' && !data.instructor_id) {
+  if (data.flight_purpose === 'instruccion (recibida)' && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instruccion (Recibida)'.",
+  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
   path: ["instructor_id"],
 });
 
@@ -205,9 +205,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         if (entry) {
             let prefilledFlightPurpose: GliderFlightPurpose | undefined = undefined;
             if (entry.flight_type_id === 'instruction_taken') {
-                prefilledFlightPurpose = 'Instruccion (Recibida)';
+                prefilledFlightPurpose = 'instruccion (recibida)';
             } else if (entry.flight_type_id === 'instruction_given') {
-                prefilledFlightPurpose = 'Instruccion (Impartida)';
+                prefilledFlightPurpose = 'instruccion (impartida)';
             } else if (GLIDER_FLIGHT_PURPOSES.includes(entry.flight_type_id as GliderFlightPurpose)) {
                 prefilledFlightPurpose = entry.flight_type_id as GliderFlightPurpose;
             }
@@ -253,7 +253,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'Instruccion (Recibida)' || watchedFlightPurpose === 'readaptacion';
+    return watchedFlightPurpose === 'instruccion (recibida)' || watchedFlightPurpose === 'readaptacion';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -478,8 +478,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const conflictingPurpose = conflictingAircraftFlight.flight_purpose;
 
             const isInstructionScenario = 
-                (currentPurpose === 'Instruccion (Recibida)' && conflictingPurpose === 'Instruccion (Impartida)') ||
-                (currentPurpose === 'Instruccion (Impartida)' && conflictingPurpose === 'Instruccion (Recibida)');
+                (currentPurpose === 'instruccion (recibida)' && conflictingPurpose === 'instruccion (impartida)') ||
+                (currentPurpose === 'instruccion (impartida)' && conflictingPurpose === 'instruccion (recibida)');
 
             if (!isInstructionScenario) {
                 const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
@@ -506,7 +506,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
         
         let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'Instruccion (Impartida)') {
+        if (formData.flight_purpose === 'instruccion (impartida)') {
             instructorIdToSave = null; 
         }
 
@@ -589,8 +589,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
           <Skeleton className="h-10 w-1/2" />
         </CardContent>
         <CardFooter className="flex justify-end gap-2 pt-6">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-32" />
         </CardFooter>
       </Card>
     );
@@ -781,7 +780,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     <SelectContent>
                       {GLIDER_FLIGHT_PURPOSES.map((purpose) => (
                         <SelectItem key={purpose} value={purpose}>
-                          {purpose}
+                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as GliderFlightPurpose] || purpose}
                         </SelectItem>
                       ))}
                     </SelectContent>
