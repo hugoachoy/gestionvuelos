@@ -474,16 +474,26 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
 
         if (conflictingAircraftFlight) {
-            const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
-            toast({
-                title: "Conflicto de Horario (Aeronave)",
-                description: `El planeador ${aircraftName} ya tiene un vuelo registrado (${conflictingAircraftFlight.departure_time} - ${conflictingAircraftFlight.arrival_time}) que se superpone con este horario.`,
-                variant: "destructive",
-                duration: 7000,
-            });
-            setIsSubmittingForm(false);
-            return;
+            const currentPurpose = formData.flight_purpose;
+            const conflictingPurpose = conflictingAircraftFlight.flight_purpose;
+
+            const isInstructionScenario = 
+                (currentPurpose === 'Instrucción (Recibida)' && conflictingPurpose === 'Instrucción (Impartida)') ||
+                (currentPurpose === 'Instrucción (Impartida)' && conflictingPurpose === 'Instrucción (Recibida)');
+
+            if (!isInstructionScenario) {
+                const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
+                toast({
+                    title: "Conflicto de Horario (Aeronave)",
+                    description: `El planeador ${aircraftName} ya tiene un vuelo registrado (${conflictingAircraftFlight.departure_time} - ${conflictingAircraftFlight.arrival_time}) que se superpone con este horario.`,
+                    variant: "destructive",
+                    duration: 7000,
+                });
+                setIsSubmittingForm(false);
+                return;
+            }
         }
+
 
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
         const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
