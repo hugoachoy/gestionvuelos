@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Share2, FileSpreadsheet, FileText, Download, CalendarIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { ScheduleEntry, PilotCategory, DailyObservation, Pilot, DailyNews } from "@/types";
+import type { ScheduleEntry, PilotCategory, DailyObservation, Pilot, DailyNews, Aircraft } from "@/types";
 import { 
     usePilotsStore, 
     usePilotCategoriesStore, 
@@ -59,21 +59,46 @@ const getEntryGroupDetails = (
   const pilotCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
   const normalizedCategoryName = normalizeCategoryNameForGrouping(pilotCategoryDetails?.name);
 
-  if (normalizedCategoryName === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING || normalizedCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING) {
-    return { id: 'instructor', name: 'Instructores', order: 1 };
-  }
   if (normalizedCategoryName === NORMALIZED_REMOLCADOR_FOR_GROUPING) {
-    return { id: 'remolcadores', name: 'Remolcador/es', order: 2 };
+    return { id: 'remolcadores', name: 'Remolcador/es', order: 1 };
+  }
+  if (normalizedCategoryName === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING || normalizedCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING) {
+    return { id: 'instructor', name: 'Instructores', order: 2 };
   }
   return { id: 'pilotos', name: 'Pilotos', order: 3 };
 };
+
+const getSortSubPriorityForExport = (
+  entry: ScheduleEntry,
+  allAircraft: Aircraft[]
+): number => {
+  const flightTypeId = entry.flight_type_id;
+  const aircraftDetails = allAircraft.find(a => a.id === entry.aircraft_id);
+  const aircraftType = aircraftDetails?.type;
+
+  // These numbers are sub-priorities *within the "Piloto" group*
+  if (flightTypeId === 'instruction_taken') {
+      if (aircraftType === 'Glider') return 1; // Piloto Planeador - Instrucción
+      if (aircraftType === 'Tow Plane' || aircraftType === 'Avión') return 2; // Piloto Avión - Instrucción
+      return 2; // Default
+  }
+  if (aircraftType === 'Glider') {
+      if (flightTypeId === 'sport') return 3; // Piloto Planeador - Deportivo
+      if (flightTypeId === 'local') return 4; // Piloto Planeador - Local
+  }
+  if (aircraftType === 'Tow Plane' || aircraftType === 'Avión') {
+      if (flightTypeId === 'sport') return 5; // Piloto Avión - Travesía (as sport)
+      if (flightTypeId === 'local') return 6; // Piloto Avión - Local
+  }
+  return 99;
+}
 
 
 export function ShareButton({ scheduleDate }: ShareButtonProps) {
   const { toast } = useToast();
   const { pilots, getPilotName } = usePilotsStore();
   const { categories, getCategoryName } = usePilotCategoriesStore();
-  const { getAircraftName } = useAircraftStore();
+  const { aircraft, getAircraftName } = useAircraftStore();
   const { fetchScheduleEntriesForRange } = useScheduleStore();
   const { fetchObservationsForRange } = useDailyObservationsStore();
   const { fetchDailyNewsForRange } = useDailyNewsStore();
@@ -183,43 +208,29 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       }
       
       const sortedEntries = [...entriesData].sort((a, b) => {
-        const dateComparison = a.date.localeCompare(b.date);
-        if (dateComparison !== 0) return dateComparison;
-
         const aGroupDetails = getEntryGroupDetails(a, categories);
         const bGroupDetails = getEntryGroupDetails(b, categories);
-
+    
         if (aGroupDetails.order !== bGroupDetails.order) {
             return aGroupDetails.order - bGroupDetails.order;
         }
-        
-        // Specific sorting for Remolcadores if they are in the same group
-        if (aGroupDetails.id === 'remolcadores' && bGroupDetails.id === 'remolcadores') {
+    
+        // Sort within Remolcador group
+        if (aGroupDetails.id === 'remolcadores') {
             if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
             if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
         }
-
-        // For Pilotos group, sort by aircraft, then sport flight, then time
-        if (aGroupDetails.id === 'pilotos' && bGroupDetails.id === 'pilotos') {
-            const aHasAircraft = !!a.aircraft_id;
-            const bHasAircraft = !!b.aircraft_id;
-
-            if (aHasAircraft && !bHasAircraft) return -1;
-            if (!aHasAircraft && bHasAircraft) return 1;
-            
-            if (aHasAircraft && bHasAircraft && a.aircraft_id && b.aircraft_id) {
-                const aircraftComparison = (a.aircraft_id).localeCompare(b.aircraft_id);
-                if (aircraftComparison !== 0) return aircraftComparison;
+    
+        // Sort within Piloto group
+        if (aGroupDetails.id === 'pilotos') {
+            const subPriorityA = getSortSubPriorityForExport(a, aircraft);
+            const subPriorityB = getSortSubPriorityForExport(b, aircraft);
+            if (subPriorityA !== subPriorityB) {
+                return subPriorityA - subPriorityB;
             }
-            
-            const aIsSport = a.flight_type_id === 'sport';
-            const bIsSport = b.flight_type_id === 'sport';
-
-            if (aIsSport && !bIsSport) return -1; // Sport flights first
-            if (!aIsSport && bIsSport) return 1;
         }
-        
-        return a.start_time.localeCompare(b.start_time); 
+    
+        return a.start_time.localeCompare(b.start_time);
       });
       return { entries: sortedEntries, observations: observationsData, newsItems: newsData, allPilots: pilots };
 
@@ -230,7 +241,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     } finally {
       setIsExporting(false);
     }
-  }, [exportStartDate, exportEndDate, fetchScheduleEntriesForRange, fetchObservationsForRange, fetchDailyNewsForRange, toast, categories, pilots]);
+  }, [exportStartDate, exportEndDate, fetchScheduleEntriesForRange, fetchObservationsForRange, fetchDailyNewsForRange, toast, categories, pilots, aircraft]);
 
 
   const formatTextForExport = (text: string) => {
@@ -587,7 +598,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 doc.addPage(); currentY = 15;
                  if (exportStartDate.getTime() !== exportEndDate.getTime()) {
                     doc.setFontSize(14); doc.text(`Fecha: ${format(day, "PPP", { locale: es })} (cont.)`, 14, currentY); currentY +=7;
-                }
+                 }
             }
             doc.text("Novedades del Día:", 14, currentY);
             currentY += 6;
@@ -818,6 +829,3 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     </DropdownMenu>
   );
 }
-
-
-    

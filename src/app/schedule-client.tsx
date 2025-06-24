@@ -53,21 +53,45 @@ const NORMALIZED_REMOLCADOR_CATEGORY_NAME = "remolcador";
 
 function getSortPriority(
   entry: ScheduleEntry,
-  categories: PilotCategory[]
+  categories: PilotCategory[],
+  aircraftList: Aircraft[]
 ): number {
   const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
   const normalizedEntryCategoryName = normalizeCategoryName(entryCategoryDetails?.name);
+  const flightTypeId = entry.flight_type_id;
+  const aircraftDetails = aircraftList.find(a => a.id === entry.aircraft_id);
+  const aircraftType = aircraftDetails?.type;
 
-  const isAvionInstructor = INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedEntryCategoryName.includes(kw));
-  const isPlaneadorInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedEntryCategoryName.includes(kw));
-
-  if (isAvionInstructor || isPlaneadorInstructor) {
-    return 3; // Highest priority for instructors
-  }
+  // Prioridad 1: Remolcadores
   if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR_CATEGORY_NAME) {
-    return entry.is_tow_pilot_available === true ? 1 : 2; // Tow pilots next, available ones first
+    return entry.is_tow_pilot_available ? 1.1 : 1.2; // Disponibles primero
   }
-  return 4; // General pilots
+
+  // Prioridad 2: Instructores
+  const isInstructor = normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME ||
+                       normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME;
+  if (isInstructor) {
+    return 2;
+  }
+  
+  // Prioridades para Pilotos
+  if (flightTypeId === 'instruction_taken') {
+    if (aircraftType === 'Glider') return 3; // 3. Pilotos de planeador en instrucción
+    if (aircraftType === 'Tow Plane' || aircraftType === 'Avión') return 4; // 4. Pilotos de avión en instrucción
+    return 4; // Default para instrucción
+  }
+
+  if (aircraftType === 'Glider') {
+    if (flightTypeId === 'sport') return 5; // 5. Pilotos de planeador en vuelo deportivo
+    if (flightTypeId === 'local') return 6; // 6. Pilotos de planeador en vuelo local
+  }
+
+  if (aircraftType === 'Tow Plane' || aircraftType === 'Avión') {
+    if (flightTypeId === 'sport') return 7; // 7. Pilotos de avión en travesía (usando 'sport')
+    if (flightTypeId === 'local') return 8; // 8. Pilotos de avión en vuelo local
+  }
+
+  return 99; // Default para otros casos
 }
 
 
@@ -308,50 +332,22 @@ export function ScheduleClient() {
   };
 
   const filteredAndSortedEntries = useMemo(() => {
-    if (!selectedDate || !scheduleEntries || categoriesLoading || !categories || !categories.length) return [];
+    if (!selectedDate || !scheduleEntries || categoriesLoading || !categories.length || aircraftLoading || !aircraft.length) {
+      return [];
+    }
 
-    return [...scheduleEntries]
-      .sort((a, b) => {
-        const priorityA = getSortPriority(a, categories);
-        const priorityB = getSortPriority(b, categories);
+    return [...scheduleEntries].sort((a, b) => {
+      const priorityA = getSortPriority(a, categories, aircraft);
+      const priorityB = getSortPriority(b, categories, aircraft);
 
-        if (priorityA !== priorityB) {
-          return priorityA - priorityB;
-        }
-
-        const aCategoryDetails = categories.find(c => c.id === a.pilot_category_id);
-        const aNormalizedCategoryName = normalizeCategoryName(aCategoryDetails?.name);
-
-        if (aNormalizedCategoryName === NORMALIZED_REMOLCADOR_CATEGORY_NAME) {
-            if (a.is_tow_pilot_available && !b.is_tow_pilot_available) return -1;
-            if (!a.is_tow_pilot_available && b.is_tow_pilot_available) return 1;
-        }
-
-        if (priorityA <= 3) { // Instructores y Remolcadores
-          return a.start_time.localeCompare(b.start_time);
-        }
-
-        // Lógica para "Pilotos" (prioridad 4)
-        const aHasAircraft = !!a.aircraft_id;
-        const bHasAircraft = !!b.aircraft_id;
-
-        if (aHasAircraft && !bHasAircraft) return -1;
-        if (!aHasAircraft && bHasAircraft) return 1;
-
-        if (aHasAircraft && bHasAircraft && a.aircraft_id && b.aircraft_id) {
-            const aircraftComparison = (a.aircraft_id).localeCompare(b.aircraft_id);
-            if (aircraftComparison !== 0) return aircraftComparison;
-        }
-
-        const aIsSport = a.flight_type_id === 'sport';
-        const bIsSport = b.flight_type_id === 'sport';
-
-        if (aIsSport && !bIsSport) return -1;
-        if (!aIsSport && bIsSport) return 1;
-
-        return a.start_time.localeCompare(b.start_time);
-      });
-  }, [selectedDate, scheduleEntries, categories, categoriesLoading]);
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Secondary sort by time if priorities are equal
+      return a.start_time.localeCompare(b.start_time);
+    });
+  }, [selectedDate, scheduleEntries, categories, categoriesLoading, aircraft, aircraftLoading]);
 
 
   const handleRefreshAll = useCallback(() => {
@@ -723,4 +719,3 @@ export function ScheduleClient() {
     </>
   );
 }
-
