@@ -67,12 +67,12 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => { 
-  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
+  if (data.flight_purpose === 'Instruccion (Recibida)' && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
+  message: "Se requiere un instructor para 'Instruccion (Recibida)'.",
   path: ["instructor_id"],
 });
 
@@ -212,9 +212,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           if (entry) {
             let prefilledFlightPurpose: EngineFlightPurpose | undefined = undefined;
             if (entry.flight_type_id === 'instruction_taken') {
-                prefilledFlightPurpose = 'Instrucción (Recibida)';
+                prefilledFlightPurpose = 'Instruccion (Recibida)';
             } else if (entry.flight_type_id === 'instruction_given') {
-                prefilledFlightPurpose = 'Instrucción (Impartida)';
+                prefilledFlightPurpose = 'Instruccion (Impartida)';
             } else if (ENGINE_FLIGHT_PURPOSES.includes(entry.flight_type_id as EngineFlightPurpose)) {
                  prefilledFlightPurpose = entry.flight_type_id as EngineFlightPurpose;
             }
@@ -267,7 +267,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación';
+    return watchedFlightPurpose === 'Instruccion (Recibida)' || watchedFlightPurpose === 'readaptacion';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -469,7 +469,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'Instrucción (Impartida)') {
+        if (formData.flight_purpose === 'Instruccion (Impartida)') {
             instructorIdToSave = null; 
         }
 

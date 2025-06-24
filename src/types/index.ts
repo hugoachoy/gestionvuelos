@@ -90,7 +90,7 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptación', 'deportivo', 'Instrucción (Recibida)', 'Instrucción (Impartida)'
+  'entrenamiento', 'readaptacion', 'deportivo', 'Instruccion (Recibida)', 'Instruccion (Impartida)'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
@@ -103,7 +103,7 @@ export interface CompletedGliderFlight extends BaseCompletedFlight {
 }
 
 export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptación', 'Remolque planeador', 'Instrucción (Recibida)', 'Instrucción (Impartida)', 'local', 'viaje'
+  'entrenamiento', 'readaptacion', 'Remolque planeador', 'Instruccion (Recibida)', 'Instruccion (Impartida)', 'local', 'viaje'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
@@ -120,4 +120,3 @@ export interface CompletedEngineFlight extends BaseCompletedFlight {
 }
 
 export type CompletedFlight = CompletedGliderFlight | CompletedEngineFlight;
-

@@ -71,12 +71,12 @@ const gliderFlightSchema = z.object({
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
 }).refine(data => { 
-  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
+  if (data.flight_purpose === 'Instruccion (Recibida)' && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
+  message: "Se requiere un instructor para 'Instruccion (Recibida)'.",
   path: ["instructor_id"],
 });
 
@@ -205,9 +205,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         if (entry) {
             let prefilledFlightPurpose: GliderFlightPurpose | undefined = undefined;
             if (entry.flight_type_id === 'instruction_taken') {
-                prefilledFlightPurpose = 'Instrucción (Recibida)';
+                prefilledFlightPurpose = 'Instruccion (Recibida)';
             } else if (entry.flight_type_id === 'instruction_given') {
-                prefilledFlightPurpose = 'Instrucción (Impartida)';
+                prefilledFlightPurpose = 'Instruccion (Impartida)';
             } else if (GLIDER_FLIGHT_PURPOSES.includes(entry.flight_type_id as GliderFlightPurpose)) {
                 prefilledFlightPurpose = entry.flight_type_id as GliderFlightPurpose;
             }
@@ -253,7 +253,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación';
+    return watchedFlightPurpose === 'Instruccion (Recibida)' || watchedFlightPurpose === 'readaptacion';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -478,8 +478,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const conflictingPurpose = conflictingAircraftFlight.flight_purpose;
 
             const isInstructionScenario = 
-                (currentPurpose === 'Instrucción (Recibida)' && conflictingPurpose === 'Instrucción (Impartida)') ||
-                (currentPurpose === 'Instrucción (Impartida)' && conflictingPurpose === 'Instrucción (Recibida)');
+                (currentPurpose === 'Instruccion (Recibida)' && conflictingPurpose === 'Instruccion (Impartida)') ||
+                (currentPurpose === 'Instruccion (Impartida)' && conflictingPurpose === 'Instruccion (Recibida)');
 
             if (!isInstructionScenario) {
                 const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
@@ -506,7 +506,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
         
         let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'Instrucción (Impartida)') {
+        if (formData.flight_purpose === 'Instruccion (Impartida)') {
             instructorIdToSave = null; 
         }
 
