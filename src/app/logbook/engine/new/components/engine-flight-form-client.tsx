@@ -211,10 +211,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
           if (entry) {
             let prefilledFlightPurpose: EngineFlightPurpose | undefined = undefined;
-            if (ENGINE_FLIGHT_PURPOSES.includes(entry.flight_type_id as EngineFlightPurpose)) {
-                prefilledFlightPurpose = entry.flight_type_id as EngineFlightPurpose;
+            const typeId = entry.flight_type_id;
+            if (typeId === 'towage') {
+                prefilledFlightPurpose = 'remolque_planeador';
+            } else if (ENGINE_FLIGHT_PURPOSES.includes(typeId as EngineFlightPurpose)) {
+                prefilledFlightPurpose = typeId as EngineFlightPurpose;
             }
-
 
             form.reset({
               date: entry.date ? parseISO(entry.date) : new Date(),
@@ -379,12 +381,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
 
   const instructorAvionCategoryId = useMemo(() => {
+    if (categoriesLoading) return undefined;
     const category = categories.find(cat => {
       const normalized = normalizeCategoryName(cat.name);
       return INSTRUCTOR_AVION_KEYWORDS.every(kw => normalized.includes(kw));
     });
     return category?.id;
-  }, [categories]);
+  }, [categories, categoriesLoading]);
 
   const sortedInstructors = useMemo(() => {
     if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];

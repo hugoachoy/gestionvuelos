@@ -90,7 +90,7 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'deportivo', 'instruccion (recibida)', 'instruccion (impartida)'
+  'entrenamiento', 'readaptacion', 'deportivo', 'instruction_taken', 'instruction_given'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
@@ -107,12 +107,9 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<AnyFlightPurpose, string> = {
   'readaptacion': 'Readaptación',
   'local': 'Local',
   'viaje': 'Viaje',
-  // Glider specific
   'deportivo': 'Deportivo',
-  'instruccion (recibida)': 'Instrucción (Recibida)',
-  'instruccion (impartida)': 'Instrucción (Impartida)',
-  // Engine specific (using new snake_case keys)
   'remolque_planeador': 'Remolque Planeador',
+  // Unified
   'instruction_taken': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
 };
