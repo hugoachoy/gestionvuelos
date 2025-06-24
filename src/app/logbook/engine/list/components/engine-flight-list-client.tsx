@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useCompletedEngineFlightsStore } from '@/store/data-hooks';
 import type { CompletedEngineFlight } from '@/types';
+import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -142,12 +143,12 @@ export function EngineFlightListClient() {
                       <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
                       <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
-                      <TableCell>{flight.flight_purpose}</TableCell>
+                      <TableCell>{FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}</TableCell>
                       <TableCell>{flight.departure_time}</TableCell>
                       <TableCell>{flight.arrival_time}</TableCell>
                       <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                       <TableCell>
-                        {flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'
+                        {flight.flight_purpose !== 'towage' && typeof flight.billable_minutes === 'number'
                           ? `${flight.billable_minutes} min`
                           : '-'}
                       </TableCell>
