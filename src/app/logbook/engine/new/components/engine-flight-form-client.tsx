@@ -89,18 +89,18 @@ const normalizeText = (text?: string | null): string => {
 const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador", "instructor de avión"];
 
 const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): EngineFlightPurpose | undefined => {
-  switch (scheduleTypeId) {
-    case 'instruction_taken': return 'instruccion_recibida';
-    case 'instruction_given': return 'instruccion_impartida';
-    case 'towage': return 'remolque';
-    case 'trip': return 'viaje';
-    case 'local': return 'local';
-    default:
-        if ((ENGINE_FLIGHT_PURPOSES as readonly string[]).includes(scheduleTypeId)) {
-            return scheduleTypeId as EngineFlightPurpose;
-        }
-        return undefined;
-  }
+    switch (scheduleTypeId) {
+        case 'instruction_taken': return 'instruccion_recibida';
+        case 'instruction_given': return 'instruccion_impartida';
+        case 'towage': return 'remolque_planeador';
+        case 'trip': return 'viaje';
+        case 'local': return 'local';
+        default:
+            if ((ENGINE_FLIGHT_PURPOSES as readonly string[]).includes(scheduleTypeId)) {
+                return scheduleTypeId as EngineFlightPurpose;
+            }
+            return undefined;
+    }
 };
 
 interface EngineFlightFormClientProps {
@@ -471,7 +471,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'remolque' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'remolque_planeador' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
 
@@ -732,7 +732,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || !sortedPilotsForEngineFlights || sortedPilotsForEngineFlights.length === 0 || (isEditMode && initialFlightData?.auth_user_id !== user?.id && !user?.is_admin) }
+                          disabled={isLoading || !user?.is_admin}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -757,7 +757,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
                                   setPilotPopoverOpen(false);
                                 }}
-                                disabled={(isEditMode && initialFlightData?.auth_user_id !== user?.id && !user?.is_admin) }
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
                                 {pilot.last_name}, {pilot.first_name}
