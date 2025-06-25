@@ -848,7 +848,7 @@ export function useDailyNewsStore() {
 // --- Completed Glider Flights Store ---
 export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
   const fetchingListRef = useRef(false);
 
