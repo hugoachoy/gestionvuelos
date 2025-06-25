@@ -91,12 +91,12 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'deportivo', 'instruction_taken', 'instruction_given'
+  'entrenamiento', 'readaptacion', 'deportivo', 'instruccion_recibida', 'instruccion_impartida'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
 export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'remolque', 'instruccion_recibida', 'instruccion_impartida', 'local', 'viaje'
+  'entrenamiento', 'readaptacion', 'remolque_planeador', 'instruccion_recibida', 'instruccion_impartida', 'local', 'viaje'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
@@ -109,7 +109,7 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'local': 'Local',
   'viaje': 'Viaje',
   'deportivo': 'Deportivo',
-  'remolque': 'Remolque planeador',
+  'remolque_planeador': 'Remolque planeador',
   
   // Instruction - unified display text
   'instruccion_recibida': 'Instrucción (Recibida)',
