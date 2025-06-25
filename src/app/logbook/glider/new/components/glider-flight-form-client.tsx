@@ -40,8 +40,8 @@ const REMOLCADOR_KEYWORDS = ["remolcador"];
 
 const mapScheduleTypeToGliderPurpose = (scheduleTypeId: FlightTypeId): GliderFlightPurpose | undefined => {
   switch (scheduleTypeId) {
-    case 'instruction_taken': return 'instruccion_recibida';
-    case 'instruction_given': return 'instruccion_impartida';
+    case 'instruction_taken': return 'instruction_taken';
+    case 'instruction_given': return 'instruction_given';
     default:
         if ((GLIDER_FLIGHT_PURPOSES as readonly string[]).includes(scheduleTypeId)) {
             return scheduleTypeId as GliderFlightPurpose;
@@ -83,7 +83,7 @@ const gliderFlightSchema = z.object({
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
 }).refine(data => { 
-  if (data.flight_purpose === 'instruccion_recibida' && !data.instructor_id) {
+  if (data.flight_purpose === 'instruction_taken' && !data.instructor_id) {
     return false;
   }
   return true;
@@ -148,6 +148,15 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   });
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
+  
+  const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user && pilots && pilots.length > 0) {
+      const userPilot = pilots.find(p => p.auth_user_id === user.id);
+      setCurrentUserLinkedPilotId(userPilot?.id || null);
+    }
+  }, [user, pilots]);
 
   useEffect(() => {
     fetchPilots();
@@ -258,7 +267,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'instruccion_recibida' || watchedFlightPurpose === 'readaptacion';
+    return watchedFlightPurpose === 'instruction_taken' || watchedFlightPurpose === 'readaptacion';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -485,8 +494,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const conflictingPurpose = conflictingAircraftFlight.flight_purpose;
 
             const isPairedInstructionFlight =
-              (currentPurpose === 'instruccion_recibida' && conflictingPurpose === 'instruccion_impartida') ||
-              (currentPurpose === 'instruccion_impartida' && conflictingPurpose === 'instruccion_recibida');
+              (currentPurpose === 'instruction_taken' && conflictingPurpose === 'instruction_given') ||
+              (currentPurpose === 'instruction_given' && conflictingPurpose === 'instruction_taken');
 
             if (!isPairedInstructionFlight) {
                 const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
@@ -513,7 +522,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
         
         let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'instruccion_impartida') {
+        if (formData.flight_purpose === 'instruction_given') {
             instructorIdToSave = null; 
         }
 
@@ -582,6 +591,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
   const isSubmitDisabled = isLoading || isPilotInvalidForFlight;
   const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
+
+  const disablePilotSelection = !isEditMode && !!currentUserLinkedPilotId && !user?.is_admin;
 
 
   if (authLoading && !user) { 
@@ -727,7 +738,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || !user?.is_admin}
+                          disabled={isLoading || disablePilotSelection}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -748,7 +759,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
                                   setPicPilotPopoverOpen(false);
                                 }}
-                                disabled={!user?.is_admin}
+                                disabled={disablePilotSelection}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
                                 {pilot.last_name}, {pilot.first_name}
@@ -787,7 +798,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     <SelectContent>
                       {GLIDER_FLIGHT_PURPOSES.map((purpose) => (
                         <SelectItem key={purpose} value={purpose}>
-                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as GliderFlightPurpose] || purpose}
+                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || purpose}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1037,7 +1048,3 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
-
-    
-
-    

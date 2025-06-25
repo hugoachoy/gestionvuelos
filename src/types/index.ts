@@ -91,7 +91,7 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'deportivo', 'instruccion_recibida', 'instruccion_impartida'
+  'entrenamiento', 'readaptacion', 'deportivo', 'instruction_taken', 'instruction_given'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
@@ -114,10 +114,10 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   // Instruction - unified display text
   'instruccion_recibida': 'Instrucción (Recibida)',
   'instruccion_impartida': 'Instrucción (Impartida)',
-  
-  // Mappings from schedule IDs to display names if they differ
   'instruction_taken': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
+  
+  // Mappings from schedule IDs to display names if they differ
   'towage': 'Remolque planeador',
   'trip': 'Viaje',
 };
