@@ -247,7 +247,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries, pilots, aircraft]); 
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]); 
 
 
   const watchedPicPilotId = form.watch("pilot_id");
@@ -1037,3 +1037,5 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
+    
