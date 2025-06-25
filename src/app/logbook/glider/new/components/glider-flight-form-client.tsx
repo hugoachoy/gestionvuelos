@@ -727,7 +727,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || (isEditMode && initialFlightData?.auth_user_id !== user?.id && !user?.is_admin) }
+                          disabled={isLoading || !user?.is_admin}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -748,7 +748,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
                                   setPicPilotPopoverOpen(false);
                                 }}
-                                disabled={(isEditMode && initialFlightData?.auth_user_id !== user?.id && !user?.is_admin) }
+                                disabled={!user?.is_admin}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
                                 {pilot.last_name}, {pilot.first_name}
@@ -1037,5 +1037,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
+    
 
     
