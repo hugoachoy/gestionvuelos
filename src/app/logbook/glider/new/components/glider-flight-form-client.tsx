@@ -38,18 +38,6 @@ const normalizeCategoryName = (name?: string): string => {
 const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
 const REMOLCADOR_KEYWORDS = ["remolcador"];
 
-const mapScheduleTypeToGliderPurpose = (scheduleTypeId: FlightTypeId): GliderFlightPurpose | undefined => {
-  switch (scheduleTypeId) {
-    case 'instruction_taken': return 'Instrucción (Recibida)';
-    case 'instruction_given': return 'Instrucción (Impartida)';
-    default:
-        if ((GLIDER_FLIGHT_PURPOSES as readonly string[]).includes(scheduleTypeId)) {
-            return scheduleTypeId as GliderFlightPurpose;
-        }
-        return undefined;
-  }
-};
-
 
 const gliderFlightSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -224,7 +212,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
         if (entry) {
-            const prefilledFlightPurpose = mapScheduleTypeToGliderPurpose(entry.flight_type_id);
+            const prefilledFlightPurpose = (GLIDER_FLIGHT_PURPOSES as readonly string[]).includes(entry.flight_type_id) ? entry.flight_type_id as GliderFlightPurpose : undefined;
 
             form.reset({
               date: entry.date ? parseISO(entry.date) : new Date(),
@@ -347,6 +335,22 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots]);
 
+  const GLIDER_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de planeador", "instructor de planeador"];
+
+  const gliderPilotCategoryIds = useMemo(() => {
+      if (categoriesLoading || !categories.length) return [];
+      return categories
+      .filter(cat => GLIDER_FLIGHT_REQUIRED_CATEGORY_KEYWORDS.some(keyword => normalizeCategoryName(cat.name).includes(keyword)))
+      .map(cat => cat.id);
+  }, [categories, categoriesLoading]);
+
+  const sortedPilotsForPic = useMemo(() => {
+      if (pilotsLoading || !pilots.length || !gliderPilotCategoryIds.length) return [];
+      return [...pilots]
+      .filter(pilot => pilot.category_ids.some(catId => gliderPilotCategoryIds.includes(catId)))
+      .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  }, [pilots, pilotsLoading, gliderPilotCategoryIds]);
+
   const instructorPlaneadorCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
     const category = categories.find(cat => {
@@ -466,10 +470,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
 
             if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
-                return false; // No hay superposición de tiempo, no hay conflicto.
+                return false; 
             }
-
-            // En este punto, hay una superposición de tiempo en el mismo día. Ahora revisamos conflicto de recursos.
+            
             const aircraftConflict = existingFlight.glider_aircraft_id === formData.glider_aircraft_id;
             
             const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
@@ -477,11 +480,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p));
 
             if (!aircraftConflict && !personConflict) {
-                return false; // No hay conflicto de recursos.
+                return false; 
             }
             
-            // Hay conflicto de recursos (persona o aeronave) con superposición de tiempo.
-            // La única excepción es un vuelo de instrucción pareado.
             const currentPurpose = formData.flight_purpose;
             const conflictingPurpose = existingFlight.flight_purpose;
 
@@ -489,7 +490,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 (currentPurpose === 'Instrucción (Recibida)' && conflictingPurpose === 'Instrucción (Impartida)') ||
                 (currentPurpose === 'Instrucción (Impartida)' && conflictingPurpose === 'Instrucción (Recibida)');
 
-            // Es un conflicto si NO es un vuelo de instrucción pareado en la misma aeronave.
+            
             return !(isPairedInstruction && aircraftConflict);
         });
 
@@ -742,9 +743,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                       <Command>
                         <CommandInput placeholder="Buscar piloto..." value={picPilotSearchTerm} onValueChange={setPicPilotSearchTerm}/>
                         <CommandList>
-                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          {(!sortedPilotsForPic || sortedPilotsForPic.length === 0) && !pilotsLoading && !categoriesLoading ? (
+                            <CommandEmpty>No hay pilotos con categoría para vuelo en planeador.</CommandEmpty>
+                          ) : (
+                            <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          )}
                           <CommandGroup>
-                            {sortedPilots.map((pilot) => (
+                            {sortedPilotsForPic.map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -763,6 +768,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                       </Command>
                     </PopoverContent>
                   </Popover>
+                  {(!sortedPilotsForPic || sortedPilotsForPic.length === 0) && !pilotsLoading && !categoriesLoading && (
+                    <FormDescription className="text-xs text-destructive">
+                        No hay pilotos habilitados para vuelos en planeador. Verifique las categorías de los pilotos.
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
