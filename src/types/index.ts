@@ -113,17 +113,20 @@ export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 
 export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
-  // Logbook values -> Display Name
+  // Logbook DB values -> Display Name
   'entrenamiento': 'Entrenamiento',
   'readaptación': 'Readaptación',
   'deportivo': 'Deportivo',
+  'instrucción': 'Instrucción',
+  'viaje': 'Travesía',
+  'local': 'Local',
+  'Remolque planeador': 'Remolque Planeador',
+
+  // UI values for Glider (which match its DB values) -> Display Name
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
   'Instrucción (Impartida)': 'Instrucción (Impartida)',
-  'local': 'Local',
-  'Remolque': 'Remolque',
-  'Travesía': 'Travesía',
 
-  // Schedule IDs -> Display Name (for mapping)
+  // Schedule IDs -> Display Name (for mapping in forms)
   'instruction_taken': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
   'towage': 'Remolque',
@@ -142,7 +145,7 @@ export interface CompletedGliderFlight extends BaseCompletedFlight {
 export interface CompletedEngineFlight extends BaseCompletedFlight {
   logbook_type: 'engine';
   engine_aircraft_id: string;
-  flight_purpose: EngineFlightPurpose;
+  flight_purpose: string; // Use string type to allow for mapping to specific DB values
   billable_minutes?: number | null; // Typically for engine flights
   route_from_to?: string | null;
   landings_count?: number | null;

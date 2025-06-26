@@ -190,8 +190,25 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           } else if (data) {
             if (data.auth_user_id === user.id || user.is_admin) {
                 setInitialFlightData(data);
+                
+                // Map DB purpose back to UI purpose for the form
+                const dbPurpose = data.flight_purpose;
+                let uiPurpose: EngineFlightPurpose | undefined = undefined;
+                if (dbPurpose === 'instrucción') {
+                    // This is ambiguous, but we must choose one for the form.
+                    // 'Instrucción (Recibida)' is a safer default as it shows the instructor field.
+                    uiPurpose = 'Instrucción (Recibida)';
+                } else if (dbPurpose === 'viaje') {
+                    uiPurpose = 'Travesía';
+                } else if (dbPurpose === 'Remolque planeador') {
+                    uiPurpose = 'Remolque';
+                } else if ((ENGINE_FLIGHT_PURPOSES as readonly string[]).includes(dbPurpose)) {
+                    uiPurpose = dbPurpose as EngineFlightPurpose;
+                }
+
                 form.reset({
                     ...data,
+                    flight_purpose: uiPurpose,
                     date: data.date ? parseISO(data.date) : new Date(),
                     instructor_id: data.instructor_id || null,
                     route_from_to: data.route_from_to || null,
@@ -411,6 +428,16 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                    .sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
+  const mapUiPurposeToDbPurpose = (uiPurpose: EngineFlightPurpose): string => {
+      switch (uiPurpose) {
+          case 'Instrucción (Recibida)': return 'instrucción';
+          case 'Instrucción (Impartida)': return 'instrucción';
+          case 'Remolque': return 'Remolque planeador';
+          case 'Travesía': return 'viaje';
+          default: return uiPurpose;
+      }
+  };
+
   const onSubmit = async (formData: EngineFlightFormData) => {
     setIsSubmittingForm(true);
     try {
@@ -480,6 +507,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             instructorIdToSave = null; 
         }
 
+        const dbFlightPurpose = mapUiPurposeToDbPurpose(formData.flight_purpose);
 
         const submissionData = {
             ...formData,
@@ -487,6 +515,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             departure_time: depTimeCleaned, 
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
+            flight_purpose: dbFlightPurpose,
             billable_minutes: billableMins,
             schedule_entry_id: formData.schedule_entry_id || null,
             instructor_id: instructorIdToSave,
@@ -788,7 +817,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <SelectContent>
                       {ENGINE_FLIGHT_PURPOSES.map((purpose) => (
                         <SelectItem key={purpose} value={purpose}>
-                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose] || purpose}
+                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || purpose}
                         </SelectItem>
                       ))}
                     </SelectContent>
