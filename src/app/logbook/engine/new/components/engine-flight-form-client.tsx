@@ -92,7 +92,7 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): EngineFli
     switch (scheduleTypeId) {
         case 'instruction_taken': return 'Instrucción (Recibida)';
         case 'instruction_given': return 'Instrucción (Impartida)';
-        case 'towage': return 'remolque_planeador';
+        case 'towage': return 'remolque';
         case 'trip': return 'viaje';
         case 'local': return 'local';
         default:
@@ -471,7 +471,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'remolque_planeador' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'remolque' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
 
