@@ -36,6 +36,7 @@ const normalizeCategoryName = (name?: string): string => {
 };
 
 const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
+const PILOTO_PLANEADOR_KEYWORDS = ["piloto", "planeador"];
 const REMOLCADOR_KEYWORDS = ["remolcador"];
 
 
@@ -335,18 +336,22 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots]);
 
-  const GLIDER_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de planeador", "instructor de planeador"];
-
   const gliderPilotCategoryIds = useMemo(() => {
-      if (categoriesLoading || !categories.length) return [];
-      return categories
-      .filter(cat => GLIDER_FLIGHT_REQUIRED_CATEGORY_KEYWORDS.some(keyword => normalizeCategoryName(cat.name).includes(keyword)))
+    if (categoriesLoading || !categories.length) return [];
+    return categories
+      .filter(cat => {
+        const normalizedName = normalizeCategoryName(cat.name);
+        // A pilot is qualified for a glider PIC role if they are a "Piloto de Planeador" OR an "Instructor de Planeador"
+        const isPiloto = PILOTO_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
+        const isInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
+        return isPiloto || isInstructor;
+      })
       .map(cat => cat.id);
   }, [categories, categoriesLoading]);
 
   const sortedPilotsForPic = useMemo(() => {
-      if (pilotsLoading || !pilots.length || !gliderPilotCategoryIds.length) return [];
-      return [...pilots]
+    if (pilotsLoading || !pilots.length || !gliderPilotCategoryIds.length) return [];
+    return [...pilots]
       .filter(pilot => pilot.category_ids.some(catId => gliderPilotCategoryIds.includes(catId)))
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots, pilotsLoading, gliderPilotCategoryIds]);
@@ -477,7 +482,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             
             const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
-            const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p));
+            const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
 
             if (!aircraftConflict && !personConflict) {
                 return false; 
@@ -586,7 +591,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const isSubmitDisabled = isLoading || isPilotInvalidForFlight;
   const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
 
-  const disablePilotSelection = !isEditMode && !!currentUserLinkedPilotId && !user?.is_admin;
+  const disablePilotSelection = !entry && !!currentUserLinkedPilotId && !user?.is_admin;
 
 
   if (authLoading && !user) { 
