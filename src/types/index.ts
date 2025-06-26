@@ -96,7 +96,7 @@ export const GLIDER_FLIGHT_PURPOSES = [
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
 export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'remolque_planeador', 'instruccion_recibida', 'instruccion_impartida', 'local', 'viaje'
+  'entrenamiento', 'readaptación', 'remolque_planeador', 'Instrucción (Recibida)', 'Instrucción (Impartida)', 'local', 'viaje'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
@@ -105,23 +105,20 @@ export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   // Common
   'entrenamiento': 'Entrenamiento',
-  'readaptacion': 'Readaptación', // For Engine
-  'readaptación': 'Readaptación', // For Glider
+  'readaptación': 'Readaptación', // Unified
   'local': 'Local',
   'viaje': 'Viaje',
   'deportivo': 'Deportivo',
-  'remolque_planeador': 'Remolque planeador',
+  'remolque_planeador': 'Remolque Planeador',
   
-  // Instruction - unified display text
-  'instruccion_recibida': 'Instrucción (Recibida)', // For Engine
-  'instruccion_impartida': 'Instrucción (Impartida)', // For Engine
-  'Instrucción (Recibida)': 'Instrucción (Recibida)', // For Glider
-  'Instrucción (Impartida)': 'Instrucción (Impartida)', // For Glider
+  // Instruction - unified display text. Keys are the values from the const arrays above.
+  'Instrucción (Recibida)': 'Instrucción (Recibida)',
+  'Instrucción (Impartida)': 'Instrucción (Impartida)',
   
   // Mappings from schedule IDs to display names if they differ
   'instruction_taken': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
-  'towage': 'Remolque planeador',
+  'towage': 'Remolque Planeador',
   'trip': 'Viaje',
 };
 
