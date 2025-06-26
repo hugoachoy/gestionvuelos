@@ -456,60 +456,53 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
         const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
 
-        const conflictingPilotFlight = flightsToCheckForConflict.find(existingFlight => {
-            if (existingFlight.pilot_id !== formData.pilot_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
-                return false;
-            }
+        const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
+            const isOnSameDay = format(parseISO(existingFlight.date), 'yyyy-MM-dd') === format(flightDate, 'yyyy-MM-dd');
+            if (!isOnSameDay) return false;
+
             const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
             const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
             const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
             const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
-            return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
+
+            if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
+                return false; // No hay superposición de tiempo, no hay conflicto.
+            }
+
+            // En este punto, hay una superposición de tiempo en el mismo día. Ahora revisamos conflicto de recursos.
+            const aircraftConflict = existingFlight.glider_aircraft_id === formData.glider_aircraft_id;
+            
+            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
+            const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p));
+
+            if (!aircraftConflict && !personConflict) {
+                return false; // No hay conflicto de recursos.
+            }
+            
+            // Hay conflicto de recursos (persona o aeronave) con superposición de tiempo.
+            // La única excepción es un vuelo de instrucción pareado.
+            const currentPurpose = formData.flight_purpose;
+            const conflictingPurpose = existingFlight.flight_purpose;
+
+            const isPairedInstruction = 
+                (currentPurpose === 'Instrucción (Recibida)' && conflictingPurpose === 'Instrucción (Impartida)') ||
+                (currentPurpose === 'Instrucción (Impartida)' && conflictingPurpose === 'Instrucción (Recibida)');
+
+            // Es un conflicto si NO es un vuelo de instrucción pareado en la misma aeronave.
+            return !(isPairedInstruction && aircraftConflict);
         });
 
-        if (conflictingPilotFlight) {
-            toast({
-                title: "Conflicto de Horario (Piloto)",
-                description: `El piloto ${getPilotName(formData.pilot_id)} ya tiene un vuelo registrado (${conflictingPilotFlight.departure_time} - ${conflictingPilotFlight.arrival_time}) que se superpone con este horario.`,
+        if (conflictingFlight) {
+             toast({
+                title: "Conflicto de Horario",
+                description: `La aeronave o una de las personas involucradas ya tiene un vuelo registrado que se superpone con este horario.`,
                 variant: "destructive",
-                duration: 7000,
+                duration: 8000,
             });
             setIsSubmittingForm(false);
             return;
         }
-
-        const conflictingAircraftFlight = flightsToCheckForConflict.find(existingFlight => {
-            if (existingFlight.glider_aircraft_id !== formData.glider_aircraft_id || format(parseISO(existingFlight.date), 'yyyy-MM-dd') !== format(flightDate, 'yyyy-MM-dd')) {
-                return false;
-            }
-            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
-            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
-            const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
-            const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
-            return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
-        });
-
-        if (conflictingAircraftFlight) {
-            const currentPurpose = formData.flight_purpose;
-            const conflictingPurpose = conflictingAircraftFlight.flight_purpose;
-
-            const isPairedInstructionFlight =
-              (currentPurpose === 'Instrucción (Recibida)' && conflictingPurpose === 'Instrucción (Impartida)') ||
-              (currentPurpose === 'Instrucción (Impartida)' && conflictingPurpose === 'Instrucción (Recibida)');
-
-            if (!isPairedInstructionFlight) {
-                const aircraftName = getAircraftFullName(formData.glider_aircraft_id);
-                toast({
-                    title: "Conflicto de Horario (Aeronave)",
-                    description: `El planeador ${aircraftName} ya tiene un vuelo registrado (${conflictingAircraftFlight.departure_time} - ${conflictingAircraftFlight.arrival_time}) que se superpone con este horario.`,
-                    variant: "destructive",
-                    duration: 7000,
-                });
-                setIsSubmittingForm(false);
-                return;
-            }
-        }
-
 
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
         const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
