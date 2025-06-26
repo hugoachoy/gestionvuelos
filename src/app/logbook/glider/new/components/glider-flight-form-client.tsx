@@ -73,13 +73,13 @@ const gliderFlightSchema = z.object({
 }).refine(data => !data.instructor_id || data.instructor_id !== data.tow_pilot_id, {
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
-}).refine(data => { 
-  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
+}).refine(data => {
+  if ((data.flight_purpose === 'Instrucción (Recibida)' || data.flight_purpose === 'readaptación') && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
+  message: "Se requiere un instructor para 'Instrucción (Recibida)' o 'Readaptación'.",
   path: ["instructor_id"],
 });
 
@@ -344,8 +344,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       .filter(cat => {
         const normalizedName = normalizeCategoryName(cat.name);
         // A pilot is qualified for a glider PIC role if they are a "Piloto de Planeador" OR an "Instructor de Planeador"
-        const isPiloto = PILOTO_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
-        const isInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
+        const isPiloto = PILOTO_PLANEADOR_KEYWORDS.some(kw => normalizedName.includes(kw));
+        const isInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.some(kw => normalizedName.includes(kw));
         return isPiloto || isInstructor;
       })
       .map(cat => cat.id);
@@ -493,9 +493,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const currentPurpose = formData.flight_purpose;
             const conflictingPurpose = existingFlight.flight_purpose;
 
-            const isPairedInstruction = 
-                (currentPurpose === 'Instrucción (Recibida)' && conflictingPurpose === 'Instrucción (Impartida)') ||
-                (currentPurpose === 'Instrucción (Impartida)' && conflictingPurpose === 'Instrucción (Recibida)');
+            const isPairedInstruction =
+              ((currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') && conflictingPurpose === 'Instrucción (Impartida)') ||
+              (currentPurpose === 'Instrucción (Impartida)' && (conflictingPurpose === 'Instrucción (Recibida)' || conflictingPurpose === 'readaptación'));
 
             
             return !(isPairedInstruction && aircraftConflict);
@@ -593,7 +593,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const isSubmitDisabled = isLoading || isPilotInvalidForFlight;
   const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
 
-  const disablePilotSelection = !user?.is_admin;
+  const disablePilotSelection = !user?.is_admin && !isEditMode;
 
 
   if (authLoading && !user) { 
