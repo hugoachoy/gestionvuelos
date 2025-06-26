@@ -43,7 +43,7 @@ const engineFlightSchema = z.object({
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   instructor_id: z.string().optional().nullable(),
   engine_aircraft_id: z.string().min(1, "Seleccione una aeronave."),
-  flight_purpose: z.enum(ENGINE_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
+  flight_purpose: z.string({ required_error: "El propósito del vuelo es obligatorio." }),
   departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de salida inválido (HH:MM)."),
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de llegada inválido (HH:MM)."),
   route_from_to: z.string().optional().nullable(),
@@ -66,13 +66,13 @@ const engineFlightSchema = z.object({
 }).refine(data => data.pilot_id !== data.instructor_id, {
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
-}).refine(data => { 
-  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
+}).refine(data => {
+  if (data.flight_purpose === 'instrucción' && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
+  message: "Se requiere un instructor para 'Instrucción'.",
   path: ["instructor_id"],
 });
 
@@ -88,19 +88,20 @@ const normalizeText = (text?: string | null): string => {
 
 const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador", "instructor de avión"];
 
-const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): EngineFlightPurpose | undefined => {
+const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | undefined => {
     switch (scheduleTypeId) {
-        case 'instruction_taken': return 'Instrucción (Recibida)';
-        case 'instruction_given': return 'Instrucción (Impartida)';
-        case 'towage': return 'Remolque';
-        case 'trip': return 'Travesía';
+        case 'instruction_taken': return 'instrucción';
+        case 'instruction_given': return 'instrucción';
+        case 'towage': return 'Remolque planeador';
+        case 'trip': return 'viaje';
         case 'local': return 'local';
         default:
-            if ((ENGINE_FLIGHT_PURPOSES as readonly string[]).includes(scheduleTypeId)) {
-                return scheduleTypeId as EngineFlightPurpose;
-            }
             return undefined;
     }
+};
+
+const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    return start1 < end2 && start2 < end1;
 };
 
 interface EngineFlightFormClientProps {
@@ -114,11 +115,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const aircraftStore = useAircraftStore(); 
+  const aircraftStore = useAircraftStore();
   const { aircraft, loading: aircraftLoading, fetchAircraft } = aircraftStore;
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate } = useCompletedEngineFlightsStore();
+  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate, completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -162,11 +163,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     fetchPilots();
     fetchAircraft();
     fetchPilotCategories();
+    if (!isEditMode) {
+      fetchCompletedEngineFlights();
+    }
     if (scheduleEntryIdParam && !isEditMode) {
         const dateParam = searchParams.get('date');
         if (dateParam) fetchScheduleEntries(dateParam);
     }
-  }, [fetchPilots, fetchAircraft, fetchPilotCategories, scheduleEntryIdParam, searchParams, fetchScheduleEntries, isEditMode]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchCompletedEngineFlights, scheduleEntryIdParam, fetchScheduleEntries, isEditMode]);
 
   useEffect(() => {
     const loadFlightDetails = async () => {
@@ -190,25 +194,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           } else if (data) {
             if (data.auth_user_id === user.id || user.is_admin) {
                 setInitialFlightData(data);
-                
-                // Map DB purpose back to UI purpose for the form
-                const dbPurpose = data.flight_purpose;
-                let uiPurpose: EngineFlightPurpose | undefined = undefined;
-                if (dbPurpose === 'instrucción') {
-                    // This is ambiguous, but we must choose one for the form.
-                    // 'Instrucción (Recibida)' is a safer default as it shows the instructor field.
-                    uiPurpose = 'Instrucción (Recibida)';
-                } else if (dbPurpose === 'viaje') {
-                    uiPurpose = 'Travesía';
-                } else if (dbPurpose === 'Remolque planeador') {
-                    uiPurpose = 'Remolque';
-                } else if ((ENGINE_FLIGHT_PURPOSES as readonly string[]).includes(dbPurpose)) {
-                    uiPurpose = dbPurpose as EngineFlightPurpose;
-                }
 
                 form.reset({
                     ...data,
-                    flight_purpose: uiPurpose,
                     date: data.date ? parseISO(data.date) : new Date(),
                     instructor_id: data.instructor_id || null,
                     route_from_to: data.route_from_to || null,
@@ -234,8 +222,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
       }
     };
-    
-    if (user) { 
+
+    if (user) {
         if (isEditMode) {
             loadFlightDetails();
         } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
@@ -248,7 +236,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               pilot_id: entry.pilot_id || '',
               engine_aircraft_id: entry.aircraft_id || '',
               departure_time: entry.start_time ? entry.start_time.substring(0,5) : '',
-              arrival_time: '', 
+              arrival_time: '',
               schedule_entry_id: entry.id,
               instructor_id: null,
               flight_purpose: prefilledFlightPurpose,
@@ -280,7 +268,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]); 
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]);
 
 
   const watchedPilotId = form.watch("pilot_id");
@@ -290,7 +278,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación';
+    return watchedFlightPurpose === 'instrucción' || watchedFlightPurpose === 'readaptación';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -428,16 +416,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                    .sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
-  const mapUiPurposeToDbPurpose = (uiPurpose: EngineFlightPurpose): string => {
-      switch (uiPurpose) {
-          case 'Instrucción (Recibida)': return 'instrucción';
-          case 'Instrucción (Impartida)': return 'instrucción';
-          case 'Remolque': return 'Remolque planeador';
-          case 'Travesía': return 'viaje';
-          default: return uiPurpose;
-      }
-  };
-
   const onSubmit = async (formData: EngineFlightFormData) => {
     setIsSubmittingForm(true);
     try {
@@ -447,8 +425,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
 
-        checkPilotValidity(); 
-        await new Promise(resolve => setTimeout(resolve, 10)); 
+        checkPilotValidity();
+        await new Promise(resolve => setTimeout(resolve, 10));
 
         if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
             toast({
@@ -461,7 +439,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
 
-        if (categoryWarning && !user.is_admin) { 
+        if (categoryWarning && !user.is_admin) {
             toast({
                 title: "Error de Categoría",
                 description: categoryWarning,
@@ -471,7 +449,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             setIsSubmittingForm(false);
             return;
         }
-        
+
         const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === formData.engine_aircraft_id);
         if (!selectedAircraft || (selectedAircraft.type !== 'Tow Plane' && selectedAircraft.type !== 'Avión')) {
           toast({
@@ -484,9 +462,58 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
 
+        // --- Conflict Check ---
+        const flightDate = formData.date;
+        const depTimeCleanedCheck = formData.departure_time.substring(0,5);
+        const arrTimeCleanedCheck = formData.arrival_time.substring(0,5);
+        const newFlightStart = parse(depTimeCleanedCheck, 'HH:mm', flightDate);
+        const newFlightEnd = parse(arrTimeCleanedCheck, 'HH:mm', flightDate);
+
+        if (!isEditMode) {
+            await fetchCompletedEngineFlights();
+        }
+        const flightsToCheckForConflict = completedEngineFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
+
+        const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
+            const isOnSameDay = format(parseISO(existingFlight.date), 'yyyy-MM-dd') === format(flightDate, 'yyyy-MM-dd');
+            if (!isOnSameDay) return false;
+
+            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
+            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
+            const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
+            const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
+
+            if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
+                return false; // No time overlap
+            }
+
+            // Time overlaps, check for resource conflict
+            const aircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
+
+            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
+            const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
+
+            return aircraftConflict || personConflict;
+        });
+
+        if (conflictingFlight) {
+            const conflictingPilotName = getPilotName(conflictingFlight.pilot_id);
+            toast({
+                title: "Conflicto de Horario",
+                description: `La aeronave o una de las personas involucradas ya tiene un vuelo registrado que se superpone con este horario (Vuelo de ${conflictingPilotName} a las ${conflictingFlight.departure_time.substring(0,5)}).`,
+                variant: "destructive",
+                duration: 8000,
+            });
+            setIsSubmittingForm(false);
+            return;
+        }
+        // --- End Conflict Check ---
+
+
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
-        
+
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
         const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
         const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
@@ -498,27 +525,19 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'Remolque' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
-
-        let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'Instrucción (Impartida)') {
-            instructorIdToSave = null; 
-        }
-
-        const dbFlightPurpose = mapUiPurposeToDbPurpose(formData.flight_purpose);
 
         const submissionData = {
             ...formData,
             date: format(formData.date, 'yyyy-MM-dd'),
-            departure_time: depTimeCleaned, 
+            departure_time: depTimeCleaned,
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
-            flight_purpose: dbFlightPurpose,
             billable_minutes: billableMins,
             schedule_entry_id: formData.schedule_entry_id || null,
-            instructor_id: instructorIdToSave,
+            instructor_id: formData.instructor_id || null,
             route_from_to: formData.route_from_to || null,
             landings_count: formData.landings_count ?? 0,
             tows_count: formData.tows_count ?? 0,
@@ -542,7 +561,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
             result = await updateCompletedEngineFlight(flightIdToLoad, updatePayload);
         } else if (!isEditMode) {
-             if (!flightIdToLoad || flightIdToLoad.trim() === '') { 
+             if (!flightIdToLoad || flightIdToLoad.trim() === '') {
                 result = await addCompletedEngineFlight({
                     ...submissionData,
                     logbook_type: 'engine',
@@ -577,10 +596,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isLoadingInitialData = pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || (isEditMode && isFetchingFlightDetails);
   const isLoading = authLoading || isLoadingInitialData || submittingAddUpdate || isSubmittingForm;
-  
-  const isSubmitDisabled = 
-    isLoading || 
-    (medicalWarning != null && medicalWarning.includes("VENCIDO!")) || 
+
+  const isSubmitDisabled =
+    isLoading ||
+    (medicalWarning != null && medicalWarning.includes("VENCIDO!")) ||
     (categoryWarning != null && !user?.is_admin);
 
 
@@ -659,8 +678,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         </Card>
     );
   }
-  
-  if (isLoadingInitialData && !isEditMode) { 
+
+  if (isLoadingInitialData && !isEditMode) {
     return (
       <Card className="max-w-3xl mx-auto">
         <CardHeader><CardTitle>Cargando Formulario...</CardTitle></CardHeader>
@@ -702,7 +721,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 <AlertDescription>{medicalWarning}</AlertDescription>
               </Alert>
             )}
-            {categoryWarning && ( 
+            {categoryWarning && (
               <Alert variant={user?.is_admin ? "default" : "destructive"} className={user?.is_admin ? "border-blue-500 bg-blue-50" : ""}>
                 <AlertTriangle className={cn("h-4 w-4", user?.is_admin && "text-blue-600" )} />
                 <AlertTitle className={cn(user?.is_admin && "text-blue-700")}>{user?.is_admin ? "Aviso de Categoría (Admin)" : "Categoría No Válida"}</AlertTitle>
@@ -801,7 +820,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="flight_purpose"
@@ -815,11 +834,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {ENGINE_FLIGHT_PURPOSES.map((purpose) => (
-                        <SelectItem key={purpose} value={purpose}>
-                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || purpose}
-                        </SelectItem>
-                      ))}
+                      {Object.entries(FLIGHT_PURPOSE_DISPLAY_MAP)
+                        .filter(([key]) => ['entrenamiento', 'readaptación', 'Remolque planeador', 'instrucción', 'local', 'viaje'].includes(key))
+                        .map(([key, displayName]) => (
+                          <SelectItem key={key} value={key}>
+                            {displayName}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
