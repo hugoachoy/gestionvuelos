@@ -37,7 +37,7 @@ export const FLIGHT_TYPES = [
   { id: 'local', name: 'Local' },
   { id: 'sport', name: 'Deportivo' },
   { id: 'towage', name: 'Remolque' },
-  { id: 'trip', name: 'Viaje'},
+  { id: 'trip', name: 'Travesía'}, // Changed from Viaje
 ] as const;
 
 export type FlightType = typeof FLIGHT_TYPES[number];
@@ -100,35 +100,35 @@ export const GLIDER_FLIGHT_PURPOSES = [
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
 export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptacion', 'remolque', 'instruccion_recibida', 'instruccion_impartida', 'local', 'viaje'
+  'entrenamiento',
+  'readaptación',
+  'Remolque',
+  'Instrucción (Recibida)',
+  'Instrucción (Impartida)',
+  'local',
+  'Travesía'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
 export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 
 export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
-  // Common
+  // Logbook values -> Display Name
   'entrenamiento': 'Entrenamiento',
-  'readaptacion': 'Readaptación', // For engine
-  'readaptación': 'Readaptación', // For glider
-  'local': 'Local',
-  'viaje': 'Viaje',
+  'readaptación': 'Readaptación',
   'deportivo': 'Deportivo',
-  'remolque': 'Remolque',
-  
-  // Glider values (from its CHECK constraint)
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
   'Instrucción (Impartida)': 'Instrucción (Impartida)',
-  
-  // New Engine values (snake_case)
-  'instruccion_recibida': 'Instrucción (Recibida)',
-  'instruccion_impartida': 'Instrucción (Impartida)',
-  
-  // Mappings from schedule IDs to display names if they differ
+  'local': 'Local',
+  'Remolque': 'Remolque',
+  'Travesía': 'Travesía',
+
+  // Schedule IDs -> Display Name (for mapping)
   'instruction_taken': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
   'towage': 'Remolque',
-  'trip': 'Viaje',
+  'trip': 'Travesía',
+  'sport': 'Deportivo',
 };
 
 export interface CompletedGliderFlight extends BaseCompletedFlight {
