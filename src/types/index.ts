@@ -91,12 +91,16 @@ export interface BaseCompletedFlight {
 }
 
 export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptación', 'deportivo', 'Instrucción (Recibida)', 'Instrucción (Impartida)'
+  'entrenamiento',
+  'readaptación',
+  'deportivo',
+  'Instrucción (Recibida)',
+  'Instrucción (Impartida)'
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
 export const ENGINE_FLIGHT_PURPOSES = [
-  'entrenamiento', 'readaptación', 'remolque', 'Instrucción (Recibida)', 'Instrucción (Impartida)', 'local', 'viaje'
+  'entrenamiento', 'readaptacion', 'remolque', 'instruccion_recibida', 'instruccion_impartida', 'local', 'viaje'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
@@ -105,15 +109,20 @@ export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   // Common
   'entrenamiento': 'Entrenamiento',
-  'readaptación': 'Readaptación', // Unified
+  'readaptacion': 'Readaptación', // For engine
+  'readaptación': 'Readaptación', // For glider
   'local': 'Local',
   'viaje': 'Viaje',
   'deportivo': 'Deportivo',
   'remolque': 'Remolque',
   
-  // Instruction - unified display text. Keys are the values from the const arrays above.
+  // Glider values (from its CHECK constraint)
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
   'Instrucción (Impartida)': 'Instrucción (Impartida)',
+  
+  // New Engine values (snake_case)
+  'instruccion_recibida': 'Instrucción (Recibida)',
+  'instruccion_impartida': 'Instrucción (Impartida)',
   
   // Mappings from schedule IDs to display names if they differ
   'instruction_taken': 'Instrucción (Recibida)',
