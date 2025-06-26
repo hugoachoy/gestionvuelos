@@ -32,9 +32,11 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
 const normalizeCategoryName = (name?: string): string => {
+  // More robust normalization: handle undefined, trim, lowercase, and remove diacritics
   return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
 
+// Use keywords for more flexible matching
 const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
 const PILOTO_PLANEADOR_KEYWORDS = ["piloto", "planeador"];
 const REMOLCADOR_KEYWORDS = ["remolcador"];
@@ -591,7 +593,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const isSubmitDisabled = isLoading || isPilotInvalidForFlight;
   const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
 
-  const disablePilotSelection = !entry && !!currentUserLinkedPilotId && !user?.is_admin;
+  const disablePilotSelection = !user?.is_admin;
 
 
   if (authLoading && !user) { 
