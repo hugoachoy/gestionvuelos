@@ -343,9 +343,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return categories
       .filter(cat => {
         const normalizedName = normalizeCategoryName(cat.name);
-        // A pilot is qualified for a glider PIC role if they are a "Piloto de Planeador" OR an "Instructor de Planeador"
-        const isPiloto = PILOTO_PLANEADOR_KEYWORDS.some(kw => normalizedName.includes(kw));
-        const isInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.some(kw => normalizedName.includes(kw));
+        const isPiloto = PILOTO_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
+        const isInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedName.includes(kw));
         return isPiloto || isInstructor;
       })
       .map(cat => cat.id);
@@ -593,7 +592,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const isSubmitDisabled = isLoading || isPilotInvalidForFlight;
   const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
 
-  const disablePilotSelection = !user?.is_admin && !isEditMode;
+  const disablePilotSelection = !user?.is_admin;
 
 
   if (authLoading && !user) { 
