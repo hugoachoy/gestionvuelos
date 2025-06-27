@@ -4,10 +4,10 @@
 import React from 'react'; 
 import { useState, useEffect, useMemo } from 'react'; 
 import type { Aircraft } from '@/types';
-import { useAircraftStore } from '@/store/data-hooks';
+import { useAircraftStore, useCompletedEngineFlightsStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext'; 
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { AircraftForm } from './aircraft-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
@@ -21,6 +21,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAfter } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
@@ -29,21 +32,54 @@ const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Avión': 'Avión',
 };
 
-// Define el orden de los tipos de aeronave
 const aircraftTypeOrder: Record<Aircraft['type'], number> = {
   'Tow Plane': 1,
   'Glider': 2,
   'Avión': 3,
 };
 
+type AircraftWithCalculatedData = Aircraft & {
+  hours_since_oil_change?: number | null;
+};
+
 export function AircraftClient() {
   const { user: currentUser, loading: authLoading } = useAuth(); 
   const { aircraft, addAircraft, updateAircraft, deleteAircraft: removeAircraft, loading, error, fetchAircraft } = useAircraftStore();
+  const { completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingAircraft, setEditingAircraft] = useState<Aircraft | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
+
+  useEffect(() => {
+    fetchCompletedEngineFlights();
+  }, [fetchCompletedEngineFlights]);
+
+  const aircraftWithCalculatedData: AircraftWithCalculatedData[] = useMemo(() => {
+    if (!aircraft.length) {
+      return [];
+    }
+  
+    return aircraft.map(ac => {
+      if (ac.type === 'Glider' || !ac.last_oil_change_date || !isValid(parseISO(ac.last_oil_change_date))) {
+        return { ...ac, hours_since_oil_change: null };
+      }
+  
+      const lastOilChangeDate = parseISO(ac.last_oil_change_date);
+      
+      const relevantFlights = completedEngineFlights.filter(flight =>
+        flight.engine_aircraft_id === ac.id &&
+        isValid(parseISO(flight.date)) &&
+        isAfter(parseISO(flight.date), lastOilChangeDate)
+      );
+      
+      const totalHours = relevantFlights.reduce((sum, flight) => sum + (flight.flight_duration_decimal || 0), 0);
+      
+      return { ...ac, hours_since_oil_change: totalHours };
+    });
+  }, [aircraft, completedEngineFlights]);
+
 
   const handleAddAircraft = () => {
     setEditingAircraft(undefined);
@@ -69,21 +105,24 @@ export function AircraftClient() {
   };
 
   const handleSubmitForm = async (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => {
+    const dataWithDefaults = {
+      is_out_of_service: data.is_out_of_service ?? false,
+      out_of_service_reason: data.out_of_service_reason ?? null,
+      annual_review_date: data.annual_review_date ?? null,
+      last_oil_change_date: data.last_oil_change_date ?? null,
+      ...data,
+    };
+
     if (aircraftId) {
-      await updateAircraft({ ...data, id: aircraftId } as Aircraft); // Cast to Aircraft
+      await updateAircraft({ ...dataWithDefaults, id: aircraftId } as Aircraft);
     } else {
-      await addAircraft(data);
+      await addAircraft(dataWithDefaults);
     }
     setIsFormOpen(false);
   };
 
-  // El store (useAircraftStore) se encarga de la carga inicial de datos a través de su propio useEffect.
-  // No es necesario un useEffect aquí para llamar a fetchAircraft en el montaje inicial.
-  // Se podría añadir lógica aquí para reintentar la carga si hay un error y aircraft.length es 0,
-  // pero el botón de refresco manual ya cumple esa función.
-
   const sortedAircraft = useMemo(() => {
-    return [...aircraft].sort((a, b) => {
+    return [...aircraftWithCalculatedData].sort((a, b) => {
       const typeOrderA = aircraftTypeOrder[a.type];
       const typeOrderB = aircraftTypeOrder[b.type];
 
@@ -92,7 +131,7 @@ export function AircraftClient() {
       }
       return a.name.localeCompare(b.name);
     });
-  }, [aircraft]);
+  }, [aircraftWithCalculatedData]);
 
   if (error) {
     return (
@@ -105,26 +144,13 @@ export function AircraftClient() {
 
   const isLoadingUI = loading || authLoading || !currentUser;
 
-  const getBadgeVariant = (type: Aircraft['type']): "default" | "secondary" | "outline" => {
-    switch (type) {
-      case 'Tow Plane':
-        return 'default';
-      case 'Glider':
-        return 'secondary';
-      case 'Avión':
-        return 'outline';
-      default:
-        return 'outline';
-    }
-  };
-
   return (
-    <>
+    <TooltipProvider>
       <PageHeader 
         title="Aeronaves"
         action={
           <div className="flex gap-2">
-            <Button onClick={() => fetchAircraft()} variant="outline" size="icon" disabled={isLoadingUI}>
+            <Button onClick={() => { fetchAircraft(); fetchCompletedEngineFlights(); }} variant="outline" size="icon" disabled={isLoadingUI}>
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
             {currentUser?.is_admin && ( 
@@ -149,39 +175,90 @@ export function AircraftClient() {
               <TableRow>
                 <TableHead>Nombre/Matrícula</TableHead>
                 <TableHead>Tipo</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Venc. Anual</TableHead>
+                <TableHead>Hs. Aceite</TableHead>
                 {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedAircraft.length === 0 && !isLoadingUI ? ( // Añadido !isLoadingUI para mostrar el mensaje solo si no está cargando
+              {sortedAircraft.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={currentUser?.is_admin ? 3 : 2} className="text-center h-24">
+                  <TableCell colSpan={currentUser?.is_admin ? 6 : 5} className="text-center h-24">
                     No hay aeronaves registradas.
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedAircraft.map((ac) => (
-                  <TableRow key={ac.id}>
-                    <TableCell>{ac.name}</TableCell>
-                    <TableCell>
-                      <Badge variant={getBadgeVariant(ac.type)}>
-                        {aircraftTypeTranslations[ac.type] || ac.type}
-                      </Badge>
-                    </TableCell>
-                    {currentUser?.is_admin && ( 
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditAircraft(ac)} className="mr-2 hover:text-primary">
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Editar</span>
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteAircraft(ac)} className="hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Eliminar</span>
-                        </Button>
+                sortedAircraft.map((ac) => {
+                  let annualReviewDisplay: React.ReactNode = 'N/A';
+                  if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
+                    const reviewDate = parseISO(ac.annual_review_date);
+                    const formattedDate = format(reviewDate, "dd/MM/yyyy", { locale: es });
+                    const daysDiff = differenceInDays(reviewDate, startOfDay(new Date()));
+
+                    if (isBefore(reviewDate, startOfDay(new Date()))) {
+                        annualReviewDisplay = <Badge variant="destructive">VENCIDA {formattedDate}</Badge>;
+                    } else if (daysDiff <= 30) {
+                        annualReviewDisplay = <Badge variant="destructive">Vence en {daysDiff} días</Badge>;
+                    } else if (daysDiff <= 60) {
+                        annualReviewDisplay = <Badge className="bg-yellow-400 text-black hover:bg-yellow-500">Vence en {daysDiff} días</Badge>;
+                    } else {
+                        annualReviewDisplay = formattedDate;
+                    }
+                  }
+
+                  return (
+                    <TableRow key={ac.id}>
+                      <TableCell>{ac.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={ac.type === 'Tow Plane' ? 'default' : ac.type === 'Glider' ? 'secondary' : 'outline'}>
+                          {aircraftTypeTranslations[ac.type] || ac.type}
+                        </Badge>
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))
+                      <TableCell>
+                        {ac.is_out_of_service ? (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Badge variant="destructive" className="cursor-help">
+                                <XCircle className="mr-1 h-3 w-3" /> Fuera de Servicio
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Motivo: {ac.out_of_service_reason || 'No especificado'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                             <CheckCircle className="mr-1 h-3 w-3" /> En Servicio
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{annualReviewDisplay}</TableCell>
+                      <TableCell>
+                        {ac.hours_since_oil_change !== null && ac.hours_since_oil_change !== undefined ? (
+                           <div className="flex items-center gap-2">
+                            <span>{ac.hours_since_oil_change.toFixed(1)} hs</span>
+                            {ac.hours_since_oil_change >= 20 && (
+                                <Badge variant="destructive" className="text-xs"><AlertTriangle className="h-3 w-3 mr-1" />Revisar</Badge>
+                            )}
+                           </div>
+                        ) : '-'}
+                      </TableCell>
+                      {currentUser?.is_admin && ( 
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditAircraft(ac)} className="mr-2 hover:text-primary">
+                            <Edit className="h-4 w-4" />
+                            <span className="sr-only">Editar</span>
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteAircraft(ac)} className="hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Eliminar</span>
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -202,6 +279,6 @@ export function AircraftClient() {
         onConfirm={confirmDelete}
         itemName={aircraftToDelete?.name || 'esta aeronave'}
       />
-    </>
+    </TooltipProvider>
   );
 }

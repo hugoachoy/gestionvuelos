@@ -28,6 +28,10 @@ export interface Aircraft {
   id: string;
   name: string; // Registration or common name
   type: 'Tow Plane' | 'Glider' | 'Avión';
+  is_out_of_service: boolean;
+  out_of_service_reason: string | null;
+  annual_review_date: string | null;
+  last_oil_change_date: string | null;
   created_at?: string;
 }
 
@@ -102,11 +106,10 @@ export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
-  'Remolque',
-  'Instrucción (Recibida)',
-  'Instrucción (Impartida)',
+  'Remolque planeador',
+  'instrucción',
   'local',
-  'Travesía'
+  'viaje'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
@@ -120,14 +123,14 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'instrucción': 'Instrucción',
   'viaje': 'Travesía',
   'local': 'Local',
-  'Remolque planeador': 'Remolque Planeador',
+  'Remolque planeador': 'Remolque',
 
   // UI values for Glider (which match its DB values) -> Display Name
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
   'Instrucción (Impartida)': 'Instrucción (Impartida)',
 
   // Schedule IDs -> Display Name (for mapping in forms)
-  'instruction_taken': 'Instrucción (Recibida)',
+  'instruction_taken': 'Instrucción',
   'instruction_given': 'Instrucción (Impartida)',
   'towage': 'Remolque',
   'trip': 'Travesía',
