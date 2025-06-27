@@ -159,9 +159,9 @@ export function PilotClient() {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border shadow-sm">
+        <div className="w-full overflow-auto rounded-lg border shadow-sm max-h-[calc(100vh-15rem)]">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm">
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Apellido</TableHead>
@@ -298,4 +298,5 @@ export function PilotClient() {
     </>
   );
 }
+
 
