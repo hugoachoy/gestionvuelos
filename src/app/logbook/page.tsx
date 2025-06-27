@@ -55,7 +55,7 @@ export default function LogbookPage() {
             <CardDescription>Genera informes y visualiza estadísticas de vuelos.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="secondary" className="w-full" asChild>
+            <Button className="w-full" asChild>
               <Link href="/logbook/reports">Acceder a Informes</Link>
             </Button>
             <p className="mt-2 text-xs text-muted-foreground text-center">
