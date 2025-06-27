@@ -1014,6 +1014,33 @@ export function useCompletedEngineFlightsStore() {
     }
   }, []);
 
+  const fetchCompletedEngineFlightsForRange = useCallback(async (startDate: string, endDate: string): Promise<CompletedEngineFlight[] | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('completed_engine_flights')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+        .order('departure_time', { ascending: true });
+
+      if (fetchError) {
+        logSupabaseError('Error fetching completed engine flights for range', fetchError);
+        setError(fetchError);
+        return null;
+      }
+      return data || [];
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchCompletedEngineFlightsForRange', e);
+      setError(e);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const addCompletedEngineFlight = useCallback(async (flightData: Omit<CompletedEngineFlight, 'id' | 'created_at'>) => {
     let result = null;
     setError(null);
@@ -1087,5 +1114,5 @@ export function useCompletedEngineFlightsStore() {
     }
   }, [fetchCompletedEngineFlights]);
 
-  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight };
+  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange };
 }

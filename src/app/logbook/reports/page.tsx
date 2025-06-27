@@ -35,16 +35,13 @@ export default function LogbookReportsPage() {
               Informe de Vuelos a Motor
             </CardTitle>
             <CardDescription>
-              (Próximamente) Genera un informe detallado de los vuelos realizados en aviones a motor.
+              Genera un informe detallado de los vuelos realizados en aviones a motor dentro de un rango de fechas específico.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full" disabled>
-              <Link href="#">Generar Informe de Motor</Link>
+            <Button asChild className="w-full">
+              <Link href="/logbook/reports/engine">Generar Informe de Motor</Link>
             </Button>
-            <p className="mt-2 text-xs text-center text-muted-foreground">
-              Esta funcionalidad estará disponible pronto.
-            </p>
           </CardContent>
         </Card>
 
