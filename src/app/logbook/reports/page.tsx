@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Feather, Plane, BarChart3 } from 'lucide-react';
+import { Feather, Plane, BarChart3, Receipt } from 'lucide-react';
 
 export default function LogbookReportsPage() {
   return (
@@ -62,6 +62,23 @@ export default function LogbookReportsPage() {
              <p className="mt-2 text-xs text-center text-muted-foreground">
               Desglose de horas por tipo de vuelo.
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Receipt className="mr-2 h-6 w-6 text-primary" />
+              Informe de Facturación
+            </CardTitle>
+            <CardDescription>
+              Genera informes de vuelos a facturar por piloto y rango de fechas. (Solo Admins)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/logbook/reports/billing">Generar Informe de Facturación</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
