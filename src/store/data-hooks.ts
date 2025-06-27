@@ -1033,7 +1033,7 @@ export function useCompletedEngineFlightsStore() {
         .order('departure_time', { ascending: true });
         
       if (pilotId) {
-        query = query.eq('pilot_id', pilotId);
+        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
       }
 
       const { data, error: fetchError } = await query;
