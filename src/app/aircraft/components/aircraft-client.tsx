@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -217,16 +217,16 @@ export function AircraftClient() {
                       </TableCell>
                       <TableCell>
                         {ac.is_out_of_service ? (
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Badge variant="destructive" className="cursor-help">
-                                <XCircle className="mr-1 h-3 w-3" /> Fuera de Servicio
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Motivo: {ac.out_of_service_reason || 'No especificado'}</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <div className="flex flex-col items-start">
+                            <Badge variant="destructive">
+                              <XCircle className="mr-1 h-3 w-3" /> Fuera de Servicio
+                            </Badge>
+                            {ac.out_of_service_reason && (
+                                <p className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate" title={ac.out_of_service_reason}>
+                                    {ac.out_of_service_reason}
+                                </p>
+                            )}
+                          </div>
                         ) : (
                           <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
                              <CheckCircle className="mr-1 h-3 w-3" /> En Servicio
