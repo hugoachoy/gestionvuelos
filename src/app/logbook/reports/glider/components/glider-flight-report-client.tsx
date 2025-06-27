@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { CalendarIcon, Download, FileText, Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { CalendarIcon, Download, FileText, Loader2, Check, ChevronsUpDown, FileSpreadsheet } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -166,6 +166,61 @@ export function GliderFlightReportClient() {
     }
   };
 
+  const handleExportCsv = useCallback(() => {
+    if (reportData.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+      return;
+    }
+    setIsGenerating(true);
+    try {
+        const headers = ["Fecha", "Piloto (PIC)", "Planeador", "Instructor", "Piloto Remolcador", "Avion Remolcador", "Salida", "Llegada", "Duracion (hs)", "Proposito"];
+        const csvRows = [headers.join(',')];
+
+        reportData.forEach(flight => {
+            const row = [
+                format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
+                `"${getPilotName(flight.pilot_id)?.replace(/"/g, '""')}"`,
+                `"${getAircraftName(flight.glider_aircraft_id)?.replace(/"/g, '""')}"`,
+                `"${flight.instructor_id ? getPilotName(flight.instructor_id)?.replace(/"/g, '""') : '-'}"`,
+                `"${flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id)?.replace(/"/g, '""') : '-'}"`,
+                `"${flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id)?.replace(/"/g, '""') : '-'}"`,
+                flight.departure_time,
+                flight.arrival_time,
+                flight.flight_duration_decimal.toFixed(1),
+                `"${flight.flight_purpose}"`,
+            ];
+            csvRows.push(row.join(','));
+        });
+
+        const csvContent = "\uFEFF" + csvRows.join('\n'); // Add UTF-8 BOM
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+
+        const pilotIdForTitle = currentUser?.is_admin ? selectedPilotId : currentUserPilotId;
+        const selectedPilot = pilots.find(p => p.id === pilotIdForTitle);
+        const pilotFileNamePart = selectedPilot ? `${selectedPilot.last_name}_${selectedPilot.first_name}`.toLowerCase() : 'todos';
+        const fileName = `informe_planeador_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.csv`;
+        
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast({ title: "CSV Exportado", description: `El informe se ha guardado como ${fileName}.` });
+        } else {
+             toast({ title: "Error de Exportación", description: "Tu navegador no soporta la descarga de archivos.", variant: "destructive"});
+        }
+    } catch (error) {
+      console.error("Error generating CSV:", error);
+      toast({ title: "Error de Exportación", description: "No se pudo generar el CSV.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [reportData, toast, getPilotName, getAircraftName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate]);
+
   const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || categoriesLoading || isGenerating;
 
   if (flightsError) {
@@ -247,11 +302,17 @@ export function GliderFlightReportClient() {
           {isLoadingUI && isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
           Generar Informe
         </Button>
-         {reportData.length > 0 && (
+        {reportData.length > 0 && (
+          <>
             <Button onClick={handleExportPdf} variant="outline" disabled={isLoadingUI} className="w-full sm:w-auto">
                 {isLoadingUI && isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                 Exportar a PDF
             </Button>
+            <Button onClick={handleExportCsv} variant="outline" disabled={isLoadingUI} className="w-full sm:w-auto">
+                {isLoadingUI && isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+                Exportar a CSV
+            </Button>
+          </>
         )}
       </div>
 
