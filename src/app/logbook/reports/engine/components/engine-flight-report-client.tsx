@@ -17,11 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { CalendarIcon, Download, FileText, Loader2 } from 'lucide-react';
+import { CalendarIcon, Download, FileText, Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/contexts/AuthContext';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -35,19 +37,30 @@ export function EngineFlightReportClient() {
   const { fetchCompletedEngineFlightsForRange, loading: flightsLoading, error: flightsError } = useCompletedEngineFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [selectedPilotId, setSelectedPilotId] = useState<string>('all');
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+  const [isPilotPickerOpen, setIsPilotPickerOpen] = useState(false);
   const [reportData, setReportData] = useState<CompletedEngineFlight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentUserPilotId, setCurrentUserPilotId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
   }, [fetchPilots, fetchAircraft]);
+
+  useEffect(() => {
+    if (currentUser && !currentUser.is_admin && pilots.length > 0) {
+      const foundPilot = pilots.find(p => p.auth_user_id === currentUser.id);
+      setCurrentUserPilotId(foundPilot?.id || null);
+    }
+  }, [currentUser, pilots]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!startDate || !endDate) {
@@ -59,19 +72,26 @@ export function EngineFlightReportClient() {
         return;
     }
 
+    const pilotIdToFetch = currentUser?.is_admin ? (selectedPilotId === 'all' ? undefined : selectedPilotId) : currentUserPilotId;
+    
+    if (!currentUser?.is_admin && !pilotIdToFetch) {
+        toast({ title: "Perfil no encontrado", description: "No se encontró un perfil de piloto asociado a tu usuario.", variant: "destructive" });
+        return;
+    }
+
     setIsGenerating(true);
     setReportData([]);
-    const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"));
+    const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     if (data) {
       setReportData(data);
       if (data.length === 0) {
-        toast({ title: "Sin Resultados", description: "No se encontraron vuelos a motor para el rango seleccionado." });
+        toast({ title: "Sin Resultados", description: "No se encontraron vuelos a motor para los filtros seleccionados." });
       }
     } else {
       toast({ title: "Error al Generar", description: "No se pudo obtener el informe.", variant: "destructive" });
     }
     setIsGenerating(false);
-  }, [startDate, endDate, fetchCompletedEngineFlightsForRange, toast]);
+  }, [startDate, endDate, fetchCompletedEngineFlightsForRange, toast, currentUser?.is_admin, selectedPilotId, currentUserPilotId]);
   
   const handleExportPdf = () => {
     if (reportData.length === 0) {
@@ -81,7 +101,12 @@ export function EngineFlightReportClient() {
     setIsGenerating(true);
     try {
       const doc = new jsPDF({ orientation: 'landscape' });
-      const pageTitle = `Informe de Vuelos a Motor (${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''})`;
+      
+      const pilotIdForTitle = currentUser?.is_admin ? selectedPilotId : currentUserPilotId;
+      const selectedPilot = pilots.find(p => p.id === pilotIdForTitle);
+      const pilotNameForTitle = selectedPilot ? `de ${selectedPilot.first_name} ${selectedPilot.last_name}` : 'de Todos los Pilotos';
+
+      const pageTitle = `Informe de Vuelos a Motor ${pilotNameForTitle} (${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''})`;
       let currentY = 15;
 
       doc.setFontSize(16);
@@ -135,7 +160,8 @@ export function EngineFlightReportClient() {
         },
       });
       
-      const fileName = `informe_vuelos_motor_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
+      const pilotFileNamePart = selectedPilot ? `${selectedPilot.last_name}_${selectedPilot.first_name}`.toLowerCase() : 'todos';
+      const fileName = `informe_motor_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
       doc.save(fileName);
       toast({ title: "PDF Exportado", description: `El informe se ha guardado como ${fileName}.` });
 
@@ -148,7 +174,7 @@ export function EngineFlightReportClient() {
   };
 
 
-  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || isGenerating;
+  const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || isGenerating;
 
   if (flightsError) {
     return <div className="text-destructive">Error al cargar datos para el informe: {flightsError.message}</div>;
@@ -156,12 +182,12 @@ export function EngineFlightReportClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-center p-4 border rounded-lg bg-card">
+      <div className="flex flex-col sm:flex-row gap-4 items-center p-4 border rounded-lg bg-card flex-wrap">
         <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
           <PopoverTrigger asChild>
             <Button
               variant={"outline"}
-              className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}
+              className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}
               disabled={isLoadingUI}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
@@ -177,7 +203,7 @@ export function EngineFlightReportClient() {
           <PopoverTrigger asChild>
             <Button
               variant={"outline"}
-              className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}
+              className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}
               disabled={isLoadingUI}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
@@ -188,6 +214,42 @@ export function EngineFlightReportClient() {
             <Calendar mode="single" selected={endDate} onSelect={(d) => { setEndDate(d); setIsEndDatePickerOpen(false); }} disabled={(date) => startDate && date < startDate} initialFocus locale={es} />
           </PopoverContent>
         </Popover>
+        
+        {currentUser?.is_admin && (
+           <Popover open={isPilotPickerOpen} onOpenChange={setIsPilotPickerOpen}>
+              <PopoverTrigger asChild>
+                  <Button
+                  variant="outline"
+                  role="combobox"
+                  className={cn("w-full sm:w-auto md:w-[240px] justify-between", !selectedPilotId && "text-muted-foreground")}
+                  disabled={isLoadingUI}
+                  >
+                  {selectedPilotId === 'all' ? 'Todos los Pilotos' : getPilotName(selectedPilotId)}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                      <CommandInput placeholder="Buscar piloto..." />
+                      <CommandList>
+                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandGroup>
+                              <CommandItem value="all" onSelect={() => { setSelectedPilotId('all'); setIsPilotPickerOpen(false); }}>
+                                  <Check className={cn("mr-2 h-4 w-4", selectedPilotId === 'all' ? "opacity-100" : "opacity-0")} />
+                                  Todos los Pilotos
+                              </CommandItem>
+                              {pilots.map(pilot => (
+                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
+                                      <Check className={cn("mr-2 h-4 w-4", selectedPilotId === pilot.id ? "opacity-100" : "opacity-0")} />
+                                      {pilot.last_name}, {pilot.first_name}
+                                  </CommandItem>
+                              ))}
+                          </CommandGroup>
+                      </CommandList>
+                  </Command>
+              </PopoverContent>
+           </Popover>
+        )}
 
         <Button onClick={handleGenerateReport} disabled={isLoadingUI || !startDate || !endDate} className="w-full sm:w-auto">
           {isLoadingUI && isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
@@ -203,7 +265,7 @@ export function EngineFlightReportClient() {
 
       {isLoadingUI && !reportData.length && (
          <div className="space-y-2 mt-4">
-          <Skeleton className="h-12 w-full" /> {/* Header row */}
+          <Skeleton className="h-12 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
@@ -259,7 +321,7 @@ export function EngineFlightReportClient() {
       )}
       {!isLoadingUI && !isGenerating && reportData.length === 0 && startDate && endDate && (
         <div className="text-center text-muted-foreground mt-4 p-4 border rounded-lg">
-          No se encontraron vuelos a motor para el rango de fechas seleccionado.
+          No se encontraron vuelos a motor para los filtros seleccionados.
         </div>
       )}
     </div>

@@ -878,17 +878,23 @@ export function useCompletedGliderFlightsStore() {
     }
   }, []);
 
-  const fetchCompletedGliderFlightsForRange = useCallback(async (startDate: string, endDate: string): Promise<CompletedGliderFlight[] | null> => {
+  const fetchCompletedGliderFlightsForRange = useCallback(async (startDate: string, endDate: string, pilotId?: string): Promise<CompletedGliderFlight[] | null> => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase
+      let query = supabase
         .from('completed_glider_flights')
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: true })
         .order('departure_time', { ascending: true });
+      
+      if (pilotId) {
+        query = query.eq('pilot_id', pilotId);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) {
         logSupabaseError('Error fetching completed glider flights for range', fetchError);
@@ -1014,17 +1020,23 @@ export function useCompletedEngineFlightsStore() {
     }
   }, []);
 
-  const fetchCompletedEngineFlightsForRange = useCallback(async (startDate: string, endDate: string): Promise<CompletedEngineFlight[] | null> => {
+  const fetchCompletedEngineFlightsForRange = useCallback(async (startDate: string, endDate: string, pilotId?: string): Promise<CompletedEngineFlight[] | null> => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase
+      let query = supabase
         .from('completed_engine_flights')
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: true })
         .order('departure_time', { ascending: true });
+        
+      if (pilotId) {
+        query = query.eq('pilot_id', pilotId);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) {
         logSupabaseError('Error fetching completed engine flights for range', fetchError);

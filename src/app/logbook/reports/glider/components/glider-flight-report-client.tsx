@@ -16,11 +16,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { CalendarIcon, Download, FileText, Loader2 } from 'lucide-react';
+import { CalendarIcon, Download, FileText, Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/contexts/AuthContext';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -34,21 +36,32 @@ export function GliderFlightReportClient() {
   const { fetchCompletedGliderFlightsForRange, loading: flightsLoading, error: flightsError } = useCompletedGliderFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
-  const { getCategoryName, categories, loading: categoriesLoading, fetchCategories } = usePilotCategoriesStore(); // Added categories store
+  const { getCategoryName, categories, loading: categoriesLoading, fetchCategories } = usePilotCategoriesStore();
+  const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [selectedPilotId, setSelectedPilotId] = useState<string>('all');
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+  const [isPilotPickerOpen, setIsPilotPickerOpen] = useState(false);
   const [reportData, setReportData] = useState<CompletedGliderFlight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentUserPilotId, setCurrentUserPilotId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
     fetchCategories();
   }, [fetchPilots, fetchAircraft, fetchCategories]);
+
+  useEffect(() => {
+    if (currentUser && !currentUser.is_admin && pilots.length > 0) {
+      const foundPilot = pilots.find(p => p.auth_user_id === currentUser.id);
+      setCurrentUserPilotId(foundPilot?.id || null);
+    }
+  }, [currentUser, pilots]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!startDate || !endDate) {
@@ -59,30 +72,42 @@ export function GliderFlightReportClient() {
         toast({ title: "Rango Inválido", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
         return;
     }
+    
+    const pilotIdToFetch = currentUser?.is_admin ? (selectedPilotId === 'all' ? undefined : selectedPilotId) : currentUserPilotId;
+
+    if (!currentUser?.is_admin && !pilotIdToFetch) {
+        toast({ title: "Perfil no encontrado", description: "No se encontró un perfil de piloto asociado a tu usuario.", variant: "destructive" });
+        return;
+    }
 
     setIsGenerating(true);
     setReportData([]);
-    const data = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"));
+    const data = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     if (data) {
       setReportData(data);
       if (data.length === 0) {
-        toast({ title: "Sin Resultados", description: "No se encontraron vuelos de planeador para el rango seleccionado." });
+        toast({ title: "Sin Resultados", description: "No se encontraron vuelos de planeador para los filtros seleccionados." });
       }
     } else {
       toast({ title: "Error al Generar", description: "No se pudo obtener el informe.", variant: "destructive" });
     }
     setIsGenerating(false);
-  }, [startDate, endDate, fetchCompletedGliderFlightsForRange, toast]);
+  }, [startDate, endDate, fetchCompletedGliderFlightsForRange, toast, currentUser?.is_admin, selectedPilotId, currentUserPilotId]);
   
   const handleExportPdf = () => {
     if (reportData.length === 0) {
       toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
       return;
     }
-    setIsGenerating(true); // Reuse for PDF generation loading state
+    setIsGenerating(true);
     try {
       const doc = new jsPDF({ orientation: 'landscape' });
-      const pageTitle = `Informe de Vuelos en Planeador (${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''})`;
+      
+      const pilotIdForTitle = currentUser?.is_admin ? selectedPilotId : currentUserPilotId;
+      const selectedPilot = pilots.find(p => p.id === pilotIdForTitle);
+      const pilotNameForTitle = selectedPilot ? `de ${selectedPilot.first_name} ${selectedPilot.last_name}` : 'de Todos los Pilotos';
+
+      const pageTitle = `Informe de Vuelos en Planeador ${pilotNameForTitle} (${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''})`;
       let currentY = 15;
 
       doc.setFontSize(16);
@@ -115,20 +140,21 @@ export function GliderFlightReportClient() {
         headStyles: { fillColor: [30, 100, 160], textColor: 255 },
         styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
-            0: { cellWidth: 20 }, // Fecha
-            1: { cellWidth: 'auto' }, // Piloto
-            2: { cellWidth: 'auto' }, // Planeador
-            3: { cellWidth: 'auto' }, // Instructor
-            4: { cellWidth: 'auto' }, // Piloto Rem.
-            5: { cellWidth: 'auto' }, // Avión Rem.
-            6: { cellWidth: 15 }, // Salida
-            7: { cellWidth: 15 }, // Llegada
-            8: { cellWidth: 18 }, // Duración
-            9: { cellWidth: 25 }, // Propósito
+            0: { cellWidth: 20 },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 'auto' },
+            4: { cellWidth: 'auto' },
+            5: { cellWidth: 'auto' },
+            6: { cellWidth: 15 },
+            7: { cellWidth: 15 },
+            8: { cellWidth: 18 },
+            9: { cellWidth: 25 },
         },
       });
       
-      const fileName = `informe_vuelos_planeador_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
+      const pilotFileNamePart = selectedPilot ? `${selectedPilot.last_name}_${selectedPilot.first_name}`.toLowerCase() : 'todos';
+      const fileName = `informe_planeador_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
       doc.save(fileName);
       toast({ title: "PDF Exportado", description: `El informe se ha guardado como ${fileName}.` });
 
@@ -140,8 +166,7 @@ export function GliderFlightReportClient() {
     }
   };
 
-
-  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || categoriesLoading || isGenerating;
+  const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || categoriesLoading || isGenerating;
 
   if (flightsError) {
     return <div className="text-destructive">Error al cargar datos para el informe: {flightsError.message}</div>;
@@ -149,12 +174,12 @@ export function GliderFlightReportClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-center p-4 border rounded-lg bg-card">
+      <div className="flex flex-col sm:flex-row gap-4 items-center p-4 border rounded-lg bg-card flex-wrap">
         <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
           <PopoverTrigger asChild>
             <Button
               variant={"outline"}
-              className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}
+              className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}
               disabled={isLoadingUI}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
@@ -170,7 +195,7 @@ export function GliderFlightReportClient() {
           <PopoverTrigger asChild>
             <Button
               variant={"outline"}
-              className={cn("w-full sm:w-[240px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}
+              className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}
               disabled={isLoadingUI}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
@@ -181,6 +206,42 @@ export function GliderFlightReportClient() {
             <Calendar mode="single" selected={endDate} onSelect={(d) => { setEndDate(d); setIsEndDatePickerOpen(false); }} disabled={(date) => startDate && date < startDate} initialFocus locale={es} />
           </PopoverContent>
         </Popover>
+        
+        {currentUser?.is_admin && (
+           <Popover open={isPilotPickerOpen} onOpenChange={setIsPilotPickerOpen}>
+              <PopoverTrigger asChild>
+                  <Button
+                  variant="outline"
+                  role="combobox"
+                  className={cn("w-full sm:w-auto md:w-[240px] justify-between", !selectedPilotId && "text-muted-foreground")}
+                  disabled={isLoadingUI}
+                  >
+                  {selectedPilotId === 'all' ? 'Todos los Pilotos' : getPilotName(selectedPilotId)}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                      <CommandInput placeholder="Buscar piloto..." />
+                      <CommandList>
+                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandGroup>
+                              <CommandItem value="all" onSelect={() => { setSelectedPilotId('all'); setIsPilotPickerOpen(false); }}>
+                                  <Check className={cn("mr-2 h-4 w-4", selectedPilotId === 'all' ? "opacity-100" : "opacity-0")} />
+                                  Todos los Pilotos
+                              </CommandItem>
+                              {pilots.map(pilot => (
+                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
+                                      <Check className={cn("mr-2 h-4 w-4", selectedPilotId === pilot.id ? "opacity-100" : "opacity-0")} />
+                                      {pilot.last_name}, {pilot.first_name}
+                                  </CommandItem>
+                              ))}
+                          </CommandGroup>
+                      </CommandList>
+                  </Command>
+              </PopoverContent>
+           </Popover>
+        )}
 
         <Button onClick={handleGenerateReport} disabled={isLoadingUI || !startDate || !endDate} className="w-full sm:w-auto">
           {isLoadingUI && isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
@@ -196,7 +257,7 @@ export function GliderFlightReportClient() {
 
       {isLoadingUI && !reportData.length && (
          <div className="space-y-2 mt-4">
-          <Skeleton className="h-12 w-full" /> {/* Header row */}
+          <Skeleton className="h-12 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
@@ -240,7 +301,7 @@ export function GliderFlightReportClient() {
       )}
       {!isLoadingUI && !isGenerating && reportData.length === 0 && startDate && endDate && (
         <div className="text-center text-muted-foreground mt-4 p-4 border rounded-lg">
-          No se encontraron vuelos de planeador para el rango de fechas seleccionado.
+          No se encontraron vuelos de planeador para los filtros seleccionados.
         </div>
       )}
     </div>
