@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react'; 
@@ -169,7 +168,7 @@ export function AircraftClient() {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : (
-        <div className="overflow-auto rounded-lg border shadow-sm max-h-[calc(100vh-15rem)]">
+        <div className="w-full overflow-auto rounded-lg border shadow-sm max-h-[calc(100vh-15rem)]">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm">
               <TableRow>
