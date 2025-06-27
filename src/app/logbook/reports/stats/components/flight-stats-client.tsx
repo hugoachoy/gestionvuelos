@@ -27,6 +27,7 @@ interface FlightStats {
   engineTotalHours: number;
   engineInstructionTakenHours: number;
   engineInstructionGivenHours: number;
+  engineInstructionTotalHours: number;
   engineTowHours: number;
   engineOtherHours: number;
 }
@@ -103,6 +104,7 @@ export function FlightStatsClient() {
       engineTotalHours: 0,
       engineInstructionTakenHours: 0,
       engineInstructionGivenHours: 0,
+      engineInstructionTotalHours: 0,
       engineTowHours: 0,
       engineOtherHours: 0,
     };
@@ -143,7 +145,7 @@ export function FlightStatsClient() {
         engineData.forEach(flight => {
             newStats.engineTotalHours += flight.flight_duration_decimal;
             if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
-                newStats.engineInstructionTakenHours += flight.flight_duration_decimal;
+                newStats.engineInstructionTotalHours += flight.flight_duration_decimal;
             } else if (flight.flight_purpose === 'Remolque planeador') {
                 newStats.engineTowHours += flight.flight_duration_decimal;
             } else {
@@ -175,7 +177,7 @@ export function FlightStatsClient() {
       ].filter(item => item.value > 0);
     } else {
       return [
-        { name: 'Instrucción', value: statsData.engineInstructionTakenHours, fill: 'hsl(var(--chart-1))' },
+        { name: 'Instrucción', value: statsData.engineInstructionTotalHours, fill: 'hsl(var(--chart-1))' },
         { name: 'Remolque', value: statsData.engineTowHours, fill: 'hsl(var(--chart-4))' },
         { name: 'Otros', value: statsData.engineOtherHours, fill: 'hsl(var(--chart-5))' },
       ].filter(item => item.value > 0);
@@ -294,7 +296,7 @@ export function FlightStatsClient() {
                           <p>Instrucción Impartida: <span className="font-semibold">{statsData.engineInstructionGivenHours.toFixed(1)} hs</span></p>
                       </>
                   ) : (
-                      <p>Instrucción (Total): <span className="font-semibold">{statsData.engineInstructionTakenHours.toFixed(1)} hs</span></p>
+                      <p>Instrucción (Total): <span className="font-semibold">{statsData.engineInstructionTotalHours.toFixed(1)} hs</span></p>
                   )}
                   <p>Remolque: <span className="font-semibold">{statsData.engineTowHours.toFixed(1)} hs</span></p>
                   <p>Otros Vuelos (Local, Travesía): <span className="font-semibold">{statsData.engineOtherHours.toFixed(1)} hs</span></p>
