@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -850,33 +849,6 @@ export function useCompletedGliderFlightsStore() {
   const [completedGliderFlights, setCompletedGliderFlights] = useState<CompletedGliderFlight[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
-  const fetchingListRef = useRef(false);
-
-  const fetchCompletedGliderFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingListRef.current && !filters) return;
-    fetchingListRef.current = true;
-    setLoading(true);
-    setError(null);
-    try {
-      let query = supabase.from('completed_glider_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
-      if (filters?.date) query = query.eq('date', filters.date);
-      if (filters?.pilotId) query = query.eq('pilot_id', filters.pilotId);
-
-      const { data, error: fetchError } = await query;
-      if (fetchError) {
-        logSupabaseError('Error fetching completed glider flights', fetchError);
-        setError(fetchError);
-      } else {
-        setCompletedGliderFlights(data || []);
-      }
-    } catch (e) {
-      logSupabaseError('Unexpected error fetching completed glider flights', e);
-      setError(e);
-    } finally {
-      setLoading(false);
-      fetchingListRef.current = false;
-    }
-  }, []);
 
   const fetchCompletedGliderFlightsForRange = useCallback(async (startDate: string, endDate: string, pilotId?: string): Promise<CompletedGliderFlight[] | null> => {
     setLoading(true);
@@ -972,7 +944,6 @@ export function useCompletedGliderFlightsStore() {
         setError(deleteError);
         return false;
       }
-      await fetchCompletedGliderFlights();
       return true;
     } catch (e) {
       logSupabaseError('Unexpected error deleting completed glider flight', e);
@@ -981,10 +952,10 @@ export function useCompletedGliderFlightsStore() {
     } finally {
       setLoading(false);
     }
-  }, [fetchCompletedGliderFlights]);
+  }, []);
 
 
-  return { completedGliderFlights, loading, error, fetchCompletedGliderFlights, addCompletedGliderFlight, updateCompletedGliderFlight, fetchCompletedGliderFlightsForRange, deleteCompletedGliderFlight };
+  return { completedGliderFlights, loading, error, addCompletedGliderFlight, updateCompletedGliderFlight, fetchCompletedGliderFlightsForRange, deleteCompletedGliderFlight };
 }
 
 // --- Completed Engine Flights Store ---
@@ -992,33 +963,6 @@ export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
   const [loading, setLoading] = useState(false);  // Changed initial state to false
   const [error, setError] = useState<any>(null);
-  const fetchingListRef = useRef(false);
-
-  const fetchCompletedEngineFlights = useCallback(async (filters?: { date?: string; pilotId?: string }) => {
-    if (fetchingListRef.current && !filters) return;
-    fetchingListRef.current = true;
-    setLoading(true);
-    setError(null);
-    try {
-      let query = supabase.from('completed_engine_flights').select('*').order('date', { ascending: false }).order('departure_time', { ascending: false });
-      if (filters?.date) query = query.eq('date', filters.date);
-      if (filters?.pilotId) query = query.eq('pilot_id', filters.pilotId);
-
-      const { data, error: fetchError } = await query;
-      if (fetchError) {
-        logSupabaseError('Error fetching completed engine flights', fetchError);
-        setError(fetchError);
-      } else {
-        setCompletedEngineFlights(data || []);
-      }
-    } catch (e) {
-      logSupabaseError('Unexpected error fetching completed engine flights', e);
-      setError(e);
-    } finally {
-      setLoading(false);
-      fetchingListRef.current = false;
-    }
-  }, []);
 
   const fetchCompletedEngineFlightsForRange = useCallback(async (startDate: string, endDate: string, pilotId?: string): Promise<CompletedEngineFlight[] | null> => {
     setLoading(true);
@@ -1115,7 +1059,6 @@ export function useCompletedEngineFlightsStore() {
         setError(deleteError);
         return false;
       }
-      await fetchCompletedEngineFlights();
       return true;
     } catch (e) {
       logSupabaseError('Unexpected error deleting completed engine flight', e);
@@ -1124,7 +1067,7 @@ export function useCompletedEngineFlightsStore() {
     } finally {
       setLoading(false);
     }
-  }, [fetchCompletedEngineFlights]);
+  }, []);
 
-  return { completedEngineFlights, loading, error, fetchCompletedEngineFlights, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange };
+  return { completedEngineFlights, loading, error, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange };
 }
