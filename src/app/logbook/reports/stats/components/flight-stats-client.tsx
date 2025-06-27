@@ -23,6 +23,7 @@ interface FlightStats {
   gliderTotalHours: number;
   gliderInstructionTakenHours: number;
   gliderInstructionGivenHours: number;
+  gliderInstructionTotalHours: number;
   gliderOtherHours: number;
   engineTotalHours: number;
   engineInstructionTakenHours: number;
@@ -100,6 +101,7 @@ export function FlightStatsClient() {
       gliderTotalHours: 0,
       gliderInstructionTakenHours: 0,
       gliderInstructionGivenHours: 0,
+      gliderInstructionTotalHours: 0,
       gliderOtherHours: 0,
       engineTotalHours: 0,
       engineInstructionTakenHours: 0,
@@ -109,24 +111,42 @@ export function FlightStatsClient() {
       engineOtherHours: 0,
     };
 
-    gliderData.forEach(flight => {
-      newStats.gliderTotalHours += flight.flight_duration_decimal;
-      switch (flight.flight_purpose) {
-        case 'Instrucción (Recibida)':
-        case 'readaptación':
-        case 'entrenamiento':
-          newStats.gliderInstructionTakenHours += flight.flight_duration_decimal;
-          break;
-        case 'Instrucción (Impartida)':
-          newStats.gliderInstructionGivenHours += flight.flight_duration_decimal;
-          break;
-        default:
-          newStats.gliderOtherHours += flight.flight_duration_decimal;
-          break;
-      }
-    });
+    if (pilotIdToFetch) { // Logic for a specific pilot (Glider)
+        gliderData.forEach(flight => {
+            newStats.gliderTotalHours += flight.flight_duration_decimal;
+            switch (flight.flight_purpose) {
+                case 'Instrucción (Recibida)':
+                case 'readaptación':
+                case 'entrenamiento':
+                  newStats.gliderInstructionTakenHours += flight.flight_duration_decimal;
+                  break;
+                case 'Instrucción (Impartida)':
+                  newStats.gliderInstructionGivenHours += flight.flight_duration_decimal;
+                  break;
+                default:
+                  newStats.gliderOtherHours += flight.flight_duration_decimal;
+                  break;
+            }
+        });
+    } else { // Logic for "All Pilots" (Glider)
+        gliderData.forEach(flight => {
+            newStats.gliderTotalHours += flight.flight_duration_decimal;
+            switch (flight.flight_purpose) {
+                case 'Instrucción (Recibida)':
+                case 'Instrucción (Impartida)':
+                case 'readaptación':
+                case 'entrenamiento':
+                    newStats.gliderInstructionTotalHours += flight.flight_duration_decimal;
+                    break;
+                default:
+                    newStats.gliderOtherHours += flight.flight_duration_decimal;
+                    break;
+            }
+        });
+    }
 
-    if (pilotIdToFetch) { // Logic for a specific pilot
+
+    if (pilotIdToFetch) { // Logic for a specific pilot (Engine)
         engineData.forEach(flight => {
             if (flight.pilot_id === pilotIdToFetch) {
                 newStats.engineTotalHours += flight.flight_duration_decimal;
@@ -141,7 +161,7 @@ export function FlightStatsClient() {
                 newStats.engineInstructionGivenHours += flight.flight_duration_decimal;
             }
         });
-    } else { // Logic for "All Pilots"
+    } else { // Logic for "All Pilots" (Engine)
         engineData.forEach(flight => {
             newStats.engineTotalHours += flight.flight_duration_decimal;
             if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
@@ -160,11 +180,21 @@ export function FlightStatsClient() {
 
   const isLoadingUI = authLoading || gliderFlightsLoading || engineFlightsLoading || pilotsLoading || isGenerating;
   
-  const gliderChartData = useMemo(() => statsData ? [
-    { name: 'Inst. Recibida', value: statsData.gliderInstructionTakenHours, fill: 'hsl(var(--chart-1))' },
-    { name: 'Inst. Impartida', value: statsData.gliderInstructionGivenHours, fill: 'hsl(var(--chart-2))' },
-    { name: 'Otros', value: statsData.gliderOtherHours, fill: 'hsl(var(--chart-3))' },
-  ].filter(item => item.value > 0) : [], [statsData]);
+  const gliderChartData = useMemo(() => {
+    if (!statsData) return [];
+    if (selectedPilotId !== 'all') {
+      return [
+        { name: 'Inst. Recibida', value: statsData.gliderInstructionTakenHours, fill: 'hsl(var(--chart-1))' },
+        { name: 'Inst. Impartida', value: statsData.gliderInstructionGivenHours, fill: 'hsl(var(--chart-2))' },
+        { name: 'Otros', value: statsData.gliderOtherHours, fill: 'hsl(var(--chart-3))' },
+      ].filter(item => item.value > 0);
+    } else {
+      return [
+        { name: 'Instrucción', value: statsData.gliderInstructionTotalHours, fill: 'hsl(var(--chart-1))' },
+        { name: 'Otros', value: statsData.gliderOtherHours, fill: 'hsl(var(--chart-3))' },
+      ].filter(item => item.value > 0);
+    }
+  }, [statsData, selectedPilotId]);
 
   const engineChartData = useMemo(() => {
     if (!statsData) return [];
@@ -262,12 +292,21 @@ export function FlightStatsClient() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Feather />Vuelos en Planeador</CardTitle>
-              <CardDescription>Total PIC: <span className="font-bold text-primary">{statsData.gliderTotalHours.toFixed(1)} hs</span></CardDescription>
+              <CardDescription>
+                  {selectedPilotId !== 'all' ? `Total PIC: ` : `Total Club: `}
+                  <span className="font-bold text-primary">{statsData.gliderTotalHours.toFixed(1)} hs</span>
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-sm space-y-1 mb-4">
-                  <p>Instrucción Recibida/Práctica: <span className="font-semibold">{statsData.gliderInstructionTakenHours.toFixed(1)} hs</span></p>
-                  <p>Instrucción Impartida: <span className="font-semibold">{statsData.gliderInstructionGivenHours.toFixed(1)} hs</span></p>
+                  {selectedPilotId !== 'all' ? (
+                      <>
+                        <p>Instrucción Recibida/Práctica: <span className="font-semibold">{statsData.gliderInstructionTakenHours.toFixed(1)} hs</span></p>
+                        <p>Instrucción Impartida: <span className="font-semibold">{statsData.gliderInstructionGivenHours.toFixed(1)} hs</span></p>
+                      </>
+                  ) : (
+                      <p>Instrucción (Total): <span className="font-semibold">{statsData.gliderInstructionTotalHours.toFixed(1)} hs</span></p>
+                  )}
                   <p>Otros Vuelos (Deportivo, etc.): <span className="font-semibold">{statsData.gliderOtherHours.toFixed(1)} hs</span></p>
               </div>
                <ChartContainer config={chartConfig} className="h-[150px] w-full">
