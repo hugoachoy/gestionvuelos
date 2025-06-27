@@ -140,7 +140,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre/Matrícula</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Nombre/Matrícula</FormLabel>
                   <FormControl>
                     <Input placeholder="LV-ABC" {...field} />
                   </FormControl>
@@ -153,7 +153,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipo de Aeronave</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Tipo de Aeronave</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -175,7 +175,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
               name="annual_review_date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fecha de Revisión Anual</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha de Revisión Anual</FormLabel>
                   <Popover open={isAnnualPickerOpen} onOpenChange={setAnnualPickerOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -207,7 +207,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
               name="last_oil_change_date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fecha de Último Cambio de Aceite</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha de Último Cambio de Aceite</FormLabel>
                   <Popover open={isOilPickerOpen} onOpenChange={setOilPickerOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -262,7 +262,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
                 name="out_of_service_reason"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Motivo de Fuera de Servicio</FormLabel>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Motivo de Fuera de Servicio</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Describa el motivo por el cual la aeronave está fuera de servicio..."

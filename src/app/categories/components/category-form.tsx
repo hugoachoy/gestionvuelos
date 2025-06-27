@@ -76,7 +76,7 @@ export function CategoryForm({ open, onOpenChange, onSubmit, category }: Categor
               name="name" // Corresponds to 'name' in categorySchema
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre de la Categoría</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Nombre de la Categoría</FormLabel>
                   <FormControl>
                     <Input placeholder="Ej: Piloto Instructor" {...field} />
                   </FormControl>

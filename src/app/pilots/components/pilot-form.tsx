@@ -195,7 +195,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
               name="first_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Nombre</FormLabel>
                   <FormControl>
                     <Input placeholder="Juan" {...field} />
                   </FormControl>
@@ -208,7 +208,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
               name="last_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Apellido</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Apellido</FormLabel>
                   <FormControl>
                     <Input placeholder="Perez" {...field} />
                   </FormControl>
@@ -221,7 +221,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
               name="category_ids"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Categorías</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Categorías</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -285,7 +285,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
               name="medical_expiry"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Vencimiento Psicofísico (dd/MM/yyyy)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Vencimiento Psicofísico (dd/MM/yyyy)</FormLabel>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <div className="flex items-center gap-2">
                        <FormControl>
@@ -368,4 +368,3 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
     </Dialog>
   );
 }
-
