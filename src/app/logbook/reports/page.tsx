@@ -52,16 +52,15 @@ export default function LogbookReportsPage() {
               Estadísticas Generales
             </CardTitle>
             <CardDescription>
-              (Próximamente) Visualiza estadísticas globales sobre horas de vuelo,
-              tipos de vuelo, etc.
+              Visualiza estadísticas sobre horas de vuelo por piloto y rango de fechas.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full" disabled>
-              <Link href="#">Ver Estadísticas</Link>
+            <Button asChild className="w-full">
+              <Link href="/logbook/reports/stats">Ver Estadísticas</Link>
             </Button>
              <p className="mt-2 text-xs text-center text-muted-foreground">
-              Esta funcionalidad estará disponible pronto.
+              Desglose de horas por tipo de vuelo.
             </p>
           </CardContent>
         </Card>
