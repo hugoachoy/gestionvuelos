@@ -27,18 +27,10 @@ import {
 import { FLIGHT_TYPES } from '@/types';
 import { format, eachDayOfInterval, parseISO, isValid as isValidDate, isBefore, differenceInDays, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import { cn } from '@/lib/utils';
 
 interface ShareButtonProps {
   scheduleDate: Date; 
-}
-
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
 }
 
 // Helper for normalization within this component's scope for grouping
@@ -512,7 +504,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     }
   };
   
-  const addPdfWarning = (doc: jsPDF, text: string, currentY: number, isBold: boolean = false): number => {
+  const addPdfWarning = (doc: any, text: string, currentY: number, isBold: boolean = false): number => {
     let newY = currentY;
     if (newY > doc.internal.pageSize.getHeight() - 15) { 
         doc.addPage(); newY = 20; 
@@ -530,6 +522,9 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
   const handleExportPdf = async () => {
     const data = await fetchDataForRange();
     if (!data || !exportStartDate || !exportEndDate) return;
+
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageTitle = `Agenda de Vuelo: ${format(exportStartDate, "PPP", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' - ' + format(exportEndDate, "PPP", { locale: es }) : ''}`;
@@ -707,7 +702,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
               ]);
             });
             
-            doc.autoTable({
+            autoTable(doc, {
                 head: [tableColumn],
                 body: tableRows,
                 startY: currentY,

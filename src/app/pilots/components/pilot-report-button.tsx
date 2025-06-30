@@ -16,14 +16,6 @@ import { Download, FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
 
 interface PilotReportButtonProps {
   pilots: Pilot[];
@@ -35,7 +27,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
 
-  const generateTotalPilotsPdf = () => {
+  const generateTotalPilotsPdf = async () => {
     if (!pilots.length) {
       toast({ title: "Sin Datos", description: "No hay pilotos para exportar.", variant: "default" });
       return;
@@ -43,6 +35,9 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
     setIsExporting(true);
 
     try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
       const doc = new jsPDF({ orientation: 'portrait' });
       const pageTitle = "Listado Total de Pilotos";
       let currentY = 15;
@@ -77,7 +72,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
         ]);
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
         startY: currentY,
@@ -103,9 +98,12 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
     }
   };
 
-  const generateUpcomingExpiriesPdf = () => {
+  const generateUpcomingExpiriesPdf = async () => {
     setIsExporting(true);
     try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
       const todayNormalized = startOfDay(new Date());
       const sixtyDaysFromToday = new Date(todayNormalized);
       sixtyDaysFromToday.setDate(todayNormalized.getDate() + 60);
@@ -171,7 +169,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
         ]);
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
         startY: currentY,

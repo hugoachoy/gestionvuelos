@@ -28,14 +28,6 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
 
 // Local helper for logging errors
 function logSupabaseError(context: string, error: any) {
@@ -186,13 +178,16 @@ export function BillingReportClient() {
     }
   }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast, fetchCompletedEngineFlightsForRange, fetchCompletedGliderFlightsForRange]);
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (reportData.length === 0) {
       toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
       return;
     }
     setIsGenerating(true);
     try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      
       const doc = new jsPDF({ orientation: 'landscape' });
       
       const pilotNameForTitle = getPilotName(selectedPilotId) || 'Piloto no encontrado';
@@ -223,7 +218,7 @@ export function BillingReportClient() {
         ]);
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
         startY: currentY,
@@ -387,7 +382,7 @@ export function BillingReportClient() {
           {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
           Generar Informe
         </Button>
-         {reportData.length > 0 && (
+         {reportData.length > 0 && !isGenerating && (
             <>
                 <Button onClick={handleExportPdf} variant="outline" disabled={isGenerating || isLoadingUI} className="w-full sm:w-auto">
                     {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}

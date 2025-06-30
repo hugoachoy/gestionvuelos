@@ -24,14 +24,6 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
 
 export function EngineFlightReportClient() {
   const { fetchCompletedEngineFlightsForRange, loading: flightsLoading, error: flightsError } = useCompletedEngineFlightsStore();
@@ -93,13 +85,16 @@ export function EngineFlightReportClient() {
     setIsGenerating(false);
   }, [startDate, endDate, fetchCompletedEngineFlightsForRange, toast, currentUser?.is_admin, selectedPilotId, currentUserPilotId]);
   
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (reportData.length === 0) {
       toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
       return;
     }
     setIsGenerating(true);
     try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      
       const doc = new jsPDF({ orientation: 'landscape' });
       
       const pilotIdForTitle = currentUser?.is_admin ? selectedPilotId : currentUserPilotId;
@@ -135,7 +130,7 @@ export function EngineFlightReportClient() {
         ]);
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
         startY: currentY,
