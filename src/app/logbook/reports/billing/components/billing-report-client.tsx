@@ -57,8 +57,8 @@ export function BillingReportClient() {
   const { toast } = useToast();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
-  const { fetchEngineFlightsForBilling, loading: engineLoading } = useCompletedEngineFlightsStore();
-  const { fetchCompletedGliderFlightsForRange, loading: gliderLoading } = useCompletedGliderFlightsStore();
+  const { fetchEngineFlightsForBilling } = useCompletedEngineFlightsStore();
+  const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
 
 
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
@@ -107,6 +107,7 @@ export function BillingReportClient() {
       
       if (engineFlights === null || gliderFlights === null) {
           toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
+          setIsGenerating(false); // Failsafe state reset
           return;
       }
 
@@ -287,7 +288,7 @@ export function BillingReportClient() {
   }, [reportData, pilots, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows, toast]);
 
 
-  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || engineLoading || gliderLoading || isGenerating;
+  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || isGenerating;
   
   if (isLoadingUI && !currentUser) {
     return <Skeleton className="h-48 w-full" />;
