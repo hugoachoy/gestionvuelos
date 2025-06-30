@@ -164,6 +164,135 @@ export function BillingReportClient() {
     }
   }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast]);
 
+  const handleExportPdf = () => {
+    if (reportData.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const pilotNameForTitle = getPilotName(selectedPilotId);
+      const pageTitle = `Informe de Facturación para ${pilotNameForTitle}`;
+      const dateRangeText = `Período: ${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''}`;
+      
+      let currentY = 15;
+      doc.setFontSize(16);
+      doc.text(pageTitle, 14, currentY);
+      currentY += 7;
+      doc.setFontSize(10);
+      doc.text(dateRangeText, 14, currentY);
+      currentY += 10;
+
+      const tableColumn = ["Fecha", "Tipo", "Aeronave", "Notas / Propósito", "Minutos Facturables", "Cant. Remolques"];
+      const tableRows: (string | { content: string; colSpan?: number; styles?: any } | null)[][] = [];
+
+      reportData.forEach(item => {
+        tableRows.push([
+          format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
+          item.type,
+          item.aircraft,
+          item.notes,
+          item.billable_minutes?.toString() ?? '-',
+          item.type === 'Remolque de Planeador' ? '1' : '-',
+        ]);
+      });
+      
+      tableRows.push([
+          { content: 'TOTALES', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right' } },
+          { content: totalBillableMinutes.toString() + ' min', styles: { fontStyle: 'bold' } },
+          { content: totalTows.toString(), styles: { fontStyle: 'bold' } },
+      ]);
+
+
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 100, 160], textColor: 255 },
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        columnStyles: {
+            4: { halign: 'right' },
+            5: { halign: 'right' },
+        },
+        didParseCell: (data) => {
+            if (data.row.section === 'body' && data.row.index === reportData.length) { 
+                data.cell.styles.fillColor = '#f3f4f6';
+                data.cell.styles.fontStyle = 'bold';
+            }
+        }
+      });
+      
+      const selectedPilot = pilots.find(p => p.id === selectedPilotId);
+      const pilotFileNamePart = selectedPilot ? `${selectedPilot.last_name}_${selectedPilot.first_name}`.toLowerCase() : 'facturacion';
+      const fileName = `facturacion_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
+      doc.save(fileName);
+      toast({ title: "PDF Exportado", description: `El informe se ha guardado como ${fileName}.` });
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error de Exportación", description: "No se pudo generar el PDF.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleExportCsv = useCallback(() => {
+    if (reportData.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+      return;
+    }
+    setIsGenerating(true);
+    try {
+        const headers = ["Fecha", "Tipo", "Aeronave", "Notas / Proposito", "Minutos Facturables", "Cantidad Remolques"];
+        const csvRows = [headers.join(',')];
+
+        reportData.forEach(item => {
+            const row = [
+                format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
+                `"${item.type.replace(/"/g, '""')}"`,
+                `"${item.aircraft.replace(/"/g, '""')}"`,
+                `"${item.notes.replace(/"/g, '""')}"`,
+                item.billable_minutes?.toString() ?? '',
+                item.type === 'Remolque de Planeador' ? '1' : '',
+            ];
+            csvRows.push(row.join(','));
+        });
+        
+        csvRows.push('');
+        csvRows.push([`"TOTALES"`,,,,,`${totalBillableMinutes} min`, `${totalTows}`].join(','));
+
+
+        const csvContent = "\uFEFF" + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        
+        const selectedPilot = pilots.find(p => p.id === selectedPilotId);
+        const pilotFileNamePart = selectedPilot ? `${selectedPilot.last_name}_${selectedPilot.first_name}`.toLowerCase() : 'facturacion';
+        const fileName = `facturacion_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.csv`;
+
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast({ title: "CSV Exportado", description: `El informe se ha guardado como ${fileName}.` });
+        } else {
+            toast({ title: "Error de Exportación", description: "Tu navegador no soporta la descarga de archivos.", variant: "destructive"});
+        }
+    } catch (error) {
+      console.error("Error generating CSV:", error);
+      toast({ title: "Error de Exportación", description: "No se pudo generar el CSV.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [reportData, pilots, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows]);
+
+
   const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || isGenerating;
   
   if (isLoadingUI && !currentUser) {
@@ -236,6 +365,18 @@ export function BillingReportClient() {
           {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
           Generar Informe
         </Button>
+        {reportData.length > 0 && (
+          <>
+            <Button onClick={handleExportPdf} variant="outline" disabled={isLoadingUI} className="w-full sm:w-auto">
+              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Exportar a PDF
+            </Button>
+            <Button onClick={handleExportCsv} variant="outline" disabled={isLoadingUI} className="w-full sm:w-auto">
+              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+              Exportar a CSV
+            </Button>
+          </>
+        )}
       </div>
 
       {isGenerating && !reportData.length && (
@@ -284,3 +425,5 @@ export function BillingReportClient() {
     </div>
   );
 }
+
+    
