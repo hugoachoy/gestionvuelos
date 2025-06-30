@@ -37,11 +37,12 @@ function logSupabaseError(context: string, error: any) {
 type BillableItem = {
   id: string;
   date: string;
-  type: 'Vuelo a Motor' | 'Remolque de Planeador';
+  type: 'Vuelo a Motor' | 'Remolque de Planeador' | 'Instrucción Impartida';
   aircraft: string;
   duration_hs: number;
   billable_minutes: number | null;
   notes: string;
+  is_non_billable_for_pilot?: boolean;
 };
 
 export function BillingReportClient() {
@@ -49,7 +50,7 @@ export function BillingReportClient() {
   const { toast } = useToast();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
-  const { fetchEngineFlightsForBilling } = useCompletedEngineFlightsStore();
+  const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
 
 
@@ -71,19 +72,15 @@ export function BillingReportClient() {
   }, [fetchPilots, fetchAircraft]);
 
   const handleGenerateReport = useCallback(async () => {
-    if (!startDate || !endDate) {
-      toast({ title: "Fechas Requeridas", description: "Por favor, seleccione un rango de fechas.", variant: "destructive" });
-      return;
+    if (!startDate || !endDate || !selectedPilotId) {
+        toast({ title: "Faltan datos", description: "Por favor, seleccione piloto y un rango de fechas.", variant: "destructive" });
+        return;
     }
     if (endDate < startDate) {
-      toast({ title: "Rango Inválido", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
-      return;
+        toast({ title: "Rango Inválido", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
+        return;
     }
-    if (!selectedPilotId) {
-      toast({ title: "Piloto Requerido", description: "Por favor, seleccione un piloto.", variant: "destructive" });
-      return;
-    }
-
+    
     setIsGenerating(true);
     setReportData([]);
     setTotalBillableMinutes(0);
@@ -94,7 +91,7 @@ export function BillingReportClient() {
       const endDateStr = format(endDate, "yyyy-MM-dd");
 
       const [engineFlights, gliderFlights] = await Promise.all([
-          fetchEngineFlightsForBilling(startDateStr, endDateStr, selectedPilotId),
+          fetchCompletedEngineFlightsForRange(startDateStr, endDateStr, selectedPilotId),
           fetchCompletedGliderFlightsForRange(startDateStr, endDateStr, selectedPilotId)
       ]);
       
@@ -108,30 +105,72 @@ export function BillingReportClient() {
       let totalMins = 0;
       let totalTowsCount = 0;
 
-      engineFlights.forEach((flight: CompletedEngineFlight) => {
-        billableItems.push({
-          id: `eng-${flight.id}`,
-          date: flight.date,
-          type: 'Vuelo a Motor',
-          aircraft: getAircraftName(flight.engine_aircraft_id),
-          duration_hs: flight.flight_duration_decimal,
-          billable_minutes: flight.billable_minutes ?? 0,
-          notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
-        });
-        totalMins += flight.billable_minutes ?? 0;
+      engineFlights.forEach((flight) => {
+        if (flight.instructor_id === selectedPilotId && flight.flight_purpose === 'instrucción') {
+          // Instructor's view of an engine instruction flight
+          billableItems.push({
+            id: `eng-${flight.id}`,
+            date: flight.date,
+            type: 'Instrucción Impartida',
+            aircraft: getAircraftName(flight.engine_aircraft_id),
+            duration_hs: flight.flight_duration_decimal,
+            billable_minutes: null,
+            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+            is_non_billable_for_pilot: true
+          });
+        } else if (flight.pilot_id === selectedPilotId && flight.flight_purpose !== 'Remolque planeador') {
+          // PIC's view of a billable flight (not a tow)
+          billableItems.push({
+            id: `eng-${flight.id}`,
+            date: flight.date,
+            type: 'Vuelo a Motor',
+            aircraft: getAircraftName(flight.engine_aircraft_id),
+            duration_hs: flight.flight_duration_decimal,
+            billable_minutes: flight.billable_minutes ?? 0,
+            notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
+          });
+          totalMins += flight.billable_minutes ?? 0;
+        }
       });
       
-      gliderFlights.forEach((flight: CompletedGliderFlight) => {
-        billableItems.push({
-          id: `gli-${flight.id}`,
-          date: flight.date,
-          type: 'Remolque de Planeador',
-          aircraft: getAircraftName(flight.glider_aircraft_id),
-          duration_hs: flight.flight_duration_decimal,
-          billable_minutes: null,
-          notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
-        });
-        totalTowsCount += 1;
+      gliderFlights.forEach((flight) => {
+        if (flight.flight_purpose === 'Instrucción (Impartida)' && flight.pilot_id === selectedPilotId) {
+            // Special case where instructor is logged as PIC
+            billableItems.push({
+                id: `gli-${flight.id}`,
+                date: flight.date,
+                type: 'Instrucción Impartida',
+                aircraft: getAircraftName(flight.glider_aircraft_id),
+                duration_hs: flight.flight_duration_decimal,
+                billable_minutes: null,
+                notes: `(Abona el alumno/a) - No facturable para ud.`,
+                is_non_billable_for_pilot: true
+            });
+        } else if (flight.instructor_id === selectedPilotId) {
+            // Standard case where instructor is in the instructor_id field
+             billableItems.push({
+                id: `gli-${flight.id}`,
+                date: flight.date,
+                type: 'Instrucción Impartida',
+                aircraft: getAircraftName(flight.glider_aircraft_id),
+                duration_hs: flight.flight_duration_decimal,
+                billable_minutes: null,
+                notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+                is_non_billable_for_pilot: true
+            });
+        } else if (flight.pilot_id === selectedPilotId) {
+            // Billable flight for the student/solo pilot
+            billableItems.push({
+                id: `gli-${flight.id}`,
+                date: flight.date,
+                type: 'Remolque de Planeador',
+                aircraft: getAircraftName(flight.glider_aircraft_id),
+                duration_hs: flight.flight_duration_decimal,
+                billable_minutes: null,
+                notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
+            });
+            totalTowsCount += 1;
+        }
       });
 
       const sortedData = billableItems.sort((a, b) => a.date.localeCompare(b.date));
@@ -150,7 +189,7 @@ export function BillingReportClient() {
     } finally {
         setIsGenerating(false);
     }
-  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast, fetchEngineFlightsForBilling, fetchCompletedGliderFlightsForRange]);
+  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast, fetchCompletedEngineFlightsForRange, fetchCompletedGliderFlightsForRange]);
 
   const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
   
@@ -252,19 +291,19 @@ export function BillingReportClient() {
             </TableHeader>
             <TableBody>
               {reportData.map((item) => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} className={cn(item.is_non_billable_for_pilot && "text-muted-foreground italic")}>
                   <TableCell>{format(parseISO(item.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                   <TableCell>{item.type}</TableCell>
                   <TableCell>{item.aircraft}</TableCell>
                   <TableCell>{item.notes}</TableCell>
                   <TableCell className="text-right">{item.billable_minutes ?? '-'}</TableCell>
-                  <TableCell className="text-right">{item.type === 'Remolque de Planeador' ? '1' : '-'}</TableCell>
+                  <TableCell className="text-right">{item.is_non_billable_for_pilot ? '-' : (item.type === 'Remolque de Planeador' ? '1' : '-')}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
             <TableFooter>
                 <TableRow className="bg-muted/50">
-                    <TableCell colSpan={4} className="font-bold text-right">TOTALES</TableCell>
+                    <TableCell colSpan={4} className="font-bold text-right">TOTALES A ABONAR</TableCell>
                     <TableCell className="text-right font-bold">{totalBillableMinutes} min</TableCell>
                     <TableCell className="text-right font-bold">{totalTows}</TableCell>
                 </TableRow>
