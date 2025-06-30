@@ -94,16 +94,19 @@ export function BillingReportClient() {
 
     setIsGenerating(true);
     setReportData([]);
+    setTotalBillableMinutes(0);
+    setTotalTows(0);
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
 
     try {
-      const engineFlights = await fetchEngineFlightsForBilling(startDateStr, endDateStr, selectedPilotId);
-      const gliderFlights = await fetchCompletedGliderFlightsForRange(startDateStr, endDateStr, selectedPilotId);
+      const [engineFlights, gliderFlights] = await Promise.all([
+          fetchEngineFlightsForBilling(startDateStr, endDateStr, selectedPilotId),
+          fetchCompletedGliderFlightsForRange(startDateStr, endDateStr, selectedPilotId)
+      ]);
       
       if (engineFlights === null || gliderFlights === null) {
           toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
-          setIsGenerating(false);
           return;
       }
 
@@ -111,22 +114,20 @@ export function BillingReportClient() {
       let totalMins = 0;
       let totalTowsCount = 0;
 
-      engineFlights?.forEach((flight: CompletedEngineFlight) => {
-        if (flight.flight_purpose !== 'Remolque planeador') {
-          billableItems.push({
-            id: flight.id,
-            date: flight.date,
-            type: 'Vuelo a Motor',
-            aircraft: getAircraftName(flight.engine_aircraft_id),
-            duration_hs: flight.flight_duration_decimal,
-            billable_minutes: flight.billable_minutes ?? 0,
-            notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
-          });
-          totalMins += flight.billable_minutes ?? 0;
-        }
+      engineFlights.forEach((flight: CompletedEngineFlight) => {
+        billableItems.push({
+          id: flight.id,
+          date: flight.date,
+          type: 'Vuelo a Motor',
+          aircraft: getAircraftName(flight.engine_aircraft_id),
+          duration_hs: flight.flight_duration_decimal,
+          billable_minutes: flight.billable_minutes ?? 0,
+          notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
+        });
+        totalMins += flight.billable_minutes ?? 0;
       });
       
-      gliderFlights?.forEach((flight: CompletedGliderFlight) => {
+      gliderFlights.forEach((flight: CompletedGliderFlight) => {
         billableItems.push({
           id: flight.id,
           date: flight.date,
