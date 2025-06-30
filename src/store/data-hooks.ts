@@ -876,8 +876,6 @@ export function useCompletedGliderFlightsStore() {
   }, []);
 
   const fetchCompletedGliderFlightsForRange = useCallback(async (startDate: string, endDate: string, pilotId?: string): Promise<CompletedGliderFlight[] | null> => {
-    setLoading(true);
-    setError(null);
     try {
       let query = supabase
         .from('completed_glider_flights')
@@ -895,16 +893,12 @@ export function useCompletedGliderFlightsStore() {
 
       if (fetchError) {
         logSupabaseError('Error fetching completed glider flights for range', fetchError);
-        setError(fetchError);
         return null;
       }
       return data || [];
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCompletedGliderFlightsForRange', e);
-      setError(e);
       return null;
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -1014,8 +1008,6 @@ export function useCompletedEngineFlightsStore() {
   }, []);
 
   const fetchCompletedEngineFlightsForRange = useCallback(async (startDate: string, endDate: string, pilotId?: string): Promise<CompletedEngineFlight[] | null> => {
-    setLoading(true);
-    setError(null);
     try {
       let query = supabase
         .from('completed_engine_flights')
@@ -1033,22 +1025,16 @@ export function useCompletedEngineFlightsStore() {
 
       if (fetchError) {
         logSupabaseError('Error fetching completed engine flights for range', fetchError);
-        setError(fetchError);
         return null;
       }
       return data || [];
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCompletedEngineFlightsForRange', e);
-      setError(e);
       return null;
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   const fetchEngineFlightsForBilling = useCallback(async (startDate: string, endDate: string, pilotId: string): Promise<CompletedEngineFlight[] | null> => {
-    setLoading(true);
-    setError(null);
     try {
       const { data, error: fetchError } = await supabase
         .from('completed_engine_flights')
@@ -1062,16 +1048,12 @@ export function useCompletedEngineFlightsStore() {
         
       if (fetchError) {
         logSupabaseError('Error fetching engine flights for billing', fetchError);
-        setError(fetchError);
         return null;
       }
       return data || [];
     } catch (e) {
       logSupabaseError('Unexpected error in fetchEngineFlightsForBilling', e);
-      setError(e);
       return null;
-    } finally {
-      setLoading(false);
     }
   }, []);
 

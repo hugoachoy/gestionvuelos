@@ -96,10 +96,11 @@ export function BillingReportClient() {
     setReportData([]);
     setTotalBillableMinutes(0);
     setTotalTows(0);
-    const startDateStr = format(startDate, "yyyy-MM-dd");
-    const endDateStr = format(endDate, "yyyy-MM-dd");
-
+    
     try {
+      const startDateStr = format(startDate, "yyyy-MM-dd");
+      const endDateStr = format(endDate, "yyyy-MM-dd");
+
       const [engineFlights, gliderFlights] = await Promise.all([
           fetchEngineFlightsForBilling(startDateStr, endDateStr, selectedPilotId),
           fetchCompletedGliderFlightsForRange(startDateStr, endDateStr, selectedPilotId)
@@ -107,7 +108,7 @@ export function BillingReportClient() {
       
       if (engineFlights === null || gliderFlights === null) {
           toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
-          setIsGenerating(false); // Failsafe state reset
+          setIsGenerating(false);
           return;
       }
 
@@ -117,7 +118,7 @@ export function BillingReportClient() {
 
       engineFlights.forEach((flight: CompletedEngineFlight) => {
         billableItems.push({
-          id: flight.id,
+          id: `eng-${flight.id}`,
           date: flight.date,
           type: 'Vuelo a Motor',
           aircraft: getAircraftName(flight.engine_aircraft_id),
@@ -130,7 +131,7 @@ export function BillingReportClient() {
       
       gliderFlights.forEach((flight: CompletedGliderFlight) => {
         billableItems.push({
-          id: flight.id,
+          id: `gli-${flight.id}`,
           date: flight.date,
           type: 'Remolque de Planeador',
           aircraft: getAircraftName(flight.glider_aircraft_id),
@@ -152,8 +153,8 @@ export function BillingReportClient() {
       }
 
     } catch (error: any) {
-        logSupabaseError('Error generating billing report', error);
-        toast({ title: "Error al Generar", description: "No se pudo obtener el informe.", variant: "destructive" });
+        logSupabaseError('Error generando informe de facturación', error);
+        toast({ title: "Error Inesperado", description: "Ocurrió un error al generar el informe.", variant: "destructive" });
     } finally {
         setIsGenerating(false);
     }
@@ -288,13 +289,9 @@ export function BillingReportClient() {
   }, [reportData, pilots, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows, toast]);
 
 
-  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || isGenerating;
+  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
   
-  if (isLoadingUI && !currentUser) {
-    return <Skeleton className="h-48 w-full" />;
-  }
-  
-  if (!currentUser?.is_admin) {
+  if (!currentUser?.is_admin && !authLoading) {
     return (
        <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -309,7 +306,7 @@ export function BillingReportClient() {
       <div className="flex flex-col sm:flex-row gap-4 items-center p-4 border rounded-lg bg-card flex-wrap">
         <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
           <PopoverTrigger asChild>
-            <Button variant={"outline"} className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !startDate && "text-muted-foreground")} disabled={isLoadingUI}>
+            <Button variant={"outline"} className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !startDate && "text-muted-foreground")} disabled={isLoadingUI || isGenerating}>
               <CalendarIcon className="mr-2 h-4 w-4" />
               {startDate ? format(startDate, "PPP", { locale: es }) : <span>Fecha de Inicio</span>}
             </Button>
@@ -321,7 +318,7 @@ export function BillingReportClient() {
 
         <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
           <PopoverTrigger asChild>
-            <Button variant={"outline"} className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !endDate && "text-muted-foreground")} disabled={isLoadingUI}>
+            <Button variant={"outline"} className={cn("w-full sm:w-auto md:w-[240px] justify-start text-left font-normal", !endDate && "text-muted-foreground")} disabled={isLoadingUI || isGenerating}>
               <CalendarIcon className="mr-2 h-4 w-4" />
               {endDate ? format(endDate, "PPP", { locale: es }) : <span>Fecha de Fin</span>}
             </Button>
@@ -333,7 +330,7 @@ export function BillingReportClient() {
         
         <Popover open={isPilotPickerOpen} onOpenChange={setIsPilotPickerOpen}>
           <PopoverTrigger asChild>
-              <Button variant="outline" role="combobox" className={cn("w-full sm:w-auto md:w-[240px] justify-between", !selectedPilotId && "text-muted-foreground")} disabled={isLoadingUI}>
+              <Button variant="outline" role="combobox" className={cn("w-full sm:w-auto md:w-[240px] justify-between", !selectedPilotId && "text-muted-foreground")} disabled={isLoadingUI || isGenerating}>
               {selectedPilotId ? getPilotName(selectedPilotId) : "Seleccionar Piloto"}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
@@ -356,17 +353,17 @@ export function BillingReportClient() {
           </PopoverContent>
         </Popover>
 
-        <Button onClick={handleGenerateReport} disabled={isLoadingUI || !startDate || !endDate || !selectedPilotId} className="w-full sm:w-auto">
+        <Button onClick={handleGenerateReport} disabled={isLoadingUI || isGenerating || !startDate || !endDate || !selectedPilotId} className="w-full sm:w-auto">
           {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
           Generar Informe
         </Button>
         {reportData.length > 0 && (
           <>
-            <Button onClick={handleExportPdf} variant="outline" disabled={isLoadingUI} className="w-full sm:w-auto">
+            <Button onClick={handleExportPdf} variant="outline" disabled={isGenerating} className="w-full sm:w-auto">
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Exportar a PDF
             </Button>
-            <Button onClick={handleExportCsv} variant="outline" disabled={isLoadingUI} className="w-full sm:w-auto">
+            <Button onClick={handleExportCsv} variant="outline" disabled={isGenerating} className="w-full sm:w-auto">
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
               Exportar a CSV
             </Button>
@@ -374,7 +371,14 @@ export function BillingReportClient() {
         )}
       </div>
 
-      {isGenerating && !reportData.length && (
+      {(isLoadingUI && !isGenerating) && (
+          <div className="space-y-2 mt-4">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-10 w-full" />
+          </div>
+      )}
+      
+      {isGenerating && (
          <div className="space-y-2 mt-4">
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-10 w-full" />
