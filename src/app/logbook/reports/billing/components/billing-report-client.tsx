@@ -23,11 +23,20 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarIcon, FileText, Loader2, Check, ChevronsUpDown, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, FileText, Loader2, Check, ChevronsUpDown, AlertTriangle, Download, FileSpreadsheet } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+  }
+}
+
 
 // Local helper for logging errors
 function logSupabaseError(context: string, error: any) {
@@ -107,9 +116,8 @@ export function BillingReportClient() {
 
       engineFlights.forEach((flight) => {
         if (flight.instructor_id === selectedPilotId && flight.flight_purpose === 'instrucción') {
-          // Instructor's view of an engine instruction flight
           billableItems.push({
-            id: `eng-${flight.id}`,
+            id: `eng-inst-${flight.id}`,
             date: flight.date,
             type: 'Instrucción Impartida',
             aircraft: getAircraftName(flight.engine_aircraft_id),
@@ -119,7 +127,6 @@ export function BillingReportClient() {
             is_non_billable_for_pilot: true
           });
         } else if (flight.pilot_id === selectedPilotId && flight.flight_purpose !== 'Remolque planeador') {
-          // PIC's view of a billable flight (not a tow)
           billableItems.push({
             id: `eng-${flight.id}`,
             date: flight.date,
@@ -134,42 +141,40 @@ export function BillingReportClient() {
       });
       
       gliderFlights.forEach((flight) => {
-        if (flight.flight_purpose === 'Instrucción (Impartida)' && flight.pilot_id === selectedPilotId) {
-            // Special case where instructor is logged as PIC
-            billableItems.push({
-                id: `gli-${flight.id}`,
-                date: flight.date,
-                type: 'Instrucción Impartida',
-                aircraft: getAircraftName(flight.glider_aircraft_id),
-                duration_hs: flight.flight_duration_decimal,
-                billable_minutes: null,
-                notes: `(Abona el alumno/a) - No facturable para ud.`,
-                is_non_billable_for_pilot: true
-            });
-        } else if (flight.instructor_id === selectedPilotId) {
-            // Standard case where instructor is in the instructor_id field
-             billableItems.push({
-                id: `gli-${flight.id}`,
-                date: flight.date,
-                type: 'Instrucción Impartida',
-                aircraft: getAircraftName(flight.glider_aircraft_id),
-                duration_hs: flight.flight_duration_decimal,
-                billable_minutes: null,
-                notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
-                is_non_billable_for_pilot: true
-            });
-        } else if (flight.pilot_id === selectedPilotId) {
-            // Billable flight for the student/solo pilot
-            billableItems.push({
-                id: `gli-${flight.id}`,
-                date: flight.date,
-                type: 'Remolque de Planeador',
-                aircraft: getAircraftName(flight.glider_aircraft_id),
-                duration_hs: flight.flight_duration_decimal,
-                billable_minutes: null,
-                notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
-            });
-            totalTowsCount += 1;
+        // Ignore the instructor's duplicate 'Instrucción (Impartida)' record to avoid double-counting.
+        // The instruction event is fully captured by the 'Instrucción (Recibida)' record.
+        if (flight.flight_purpose === 'Instrucción (Impartida)') {
+          return;
+        }
+
+        // If the selected pilot was the instructor for a flight...
+        if (flight.instructor_id === selectedPilotId) {
+          // This is an instruction flight where the selected pilot was the instructor.
+          // It's not billable to them, but should be listed for their reference.
+          billableItems.push({
+            id: `gli-inst-${flight.id}`,
+            date: flight.date,
+            type: 'Instrucción Impartida',
+            aircraft: getAircraftName(flight.glider_aircraft_id),
+            duration_hs: flight.flight_duration_decimal,
+            billable_minutes: null,
+            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+            is_non_billable_for_pilot: true
+          });
+        } 
+        // If the selected pilot was the main pilot for the flight...
+        else if (flight.pilot_id === selectedPilotId) {
+          // This is a billable flight for the student/solo pilot.
+          billableItems.push({
+            id: `gli-${flight.id}`,
+            date: flight.date,
+            type: 'Remolque de Planeador',
+            aircraft: getAircraftName(flight.glider_aircraft_id),
+            duration_hs: flight.flight_duration_decimal,
+            billable_minutes: null,
+            notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
+          });
+          totalTowsCount += 1;
         }
       });
 
@@ -190,6 +195,139 @@ export function BillingReportClient() {
         setIsGenerating(false);
     }
   }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast, fetchCompletedEngineFlightsForRange, fetchCompletedGliderFlightsForRange]);
+
+  const handleExportPdf = () => {
+    if (reportData.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const doc = new jsPDF({ orientation: 'landscape' });
+      
+      const pilotNameForTitle = getPilotName(selectedPilotId) || 'Piloto no encontrado';
+
+      const pageTitle = `Informe de Facturación para ${pilotNameForTitle} (${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''})`;
+      let currentY = 15;
+
+      doc.setFontSize(16);
+      doc.text(pageTitle, 14, currentY);
+      currentY += 10;
+
+      const tableColumn = ["Fecha", "Tipo", "Aeronave", "Notas / Propósito", "Minutos Facturables", "Cant. Remolques"];
+      const tableRows: (string | { content: string; styles?: any })[][] = [];
+
+      reportData.forEach(item => {
+        let styles: any = {};
+        if (item.is_non_billable_for_pilot) {
+            styles = { textColor: [150, 150, 150], fontStyle: 'italic' };
+        }
+        
+        tableRows.push([
+          { content: format(parseISO(item.date), "dd/MM/yyyy", { locale: es }), styles },
+          { content: item.type, styles },
+          { content: item.aircraft, styles },
+          { content: item.notes, styles },
+          { content: item.billable_minutes?.toString() ?? '-', styles },
+          { content: item.is_non_billable_for_pilot ? '-' : (item.type === 'Remolque de Planeador' ? '1' : '-'), styles },
+        ]);
+      });
+
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 100, 160], textColor: 255 },
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        columnStyles: {
+            0: { cellWidth: 20 }, 
+            1: { cellWidth: 'auto' }, 
+            2: { cellWidth: 'auto' }, 
+            3: { cellWidth: 100 }, 
+            4: { cellWidth: 25 }, 
+            5: { cellWidth: 25 }, 
+        },
+        didParseCell: function (data) {
+          if (data.cell.raw && typeof data.cell.raw === 'object' && data.cell.raw !== null && 'styles' in data.cell.raw) {
+            Object.assign(data.cell.styles, (data.cell.raw as any).styles);
+            data.cell.text = (data.cell.raw as any).content;
+          }
+        }
+      });
+      
+      const finalY = (doc as any).lastAutoTable.finalY || currentY;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text("TOTALES A ABONAR:", 14, finalY + 10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total Minutos Vuelo Motor: ${totalBillableMinutes} min`, 14, finalY + 15);
+      doc.text(`Total Remolques de Planeador: ${totalTows}`, 14, finalY + 20);
+      
+      const pilotFileNamePart = (getPilotName(selectedPilotId) || 'piloto').replace(/, /g, '_').replace(/ /g, '_').toLowerCase();
+      const fileName = `facturacion_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
+      doc.save(fileName);
+      toast({ title: "PDF Exportado", description: `El informe de facturación se ha guardado como ${fileName}.` });
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error de Exportación", description: "No se pudo generar el PDF.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleExportCsv = useCallback(() => {
+    if (reportData.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+      return;
+    }
+    setIsGenerating(true);
+    try {
+        const headers = ["Fecha", "Tipo", "Aeronave", "Notas_Proposito", "Minutos_Facturables", "Cantidad_Remolques"];
+        let csvContent = "\uFEFF" + headers.join(',') + "\n"; // Add UTF-8 BOM
+
+        reportData.forEach(item => {
+            const row = [
+                format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
+                `"${item.type.replace(/"/g, '""')}"`,
+                `"${item.aircraft.replace(/"/g, '""')}"`,
+                `"${item.notes.replace(/"/g, '""')}"`,
+                item.billable_minutes ?? '',
+                item.is_non_billable_for_pilot ? '' : (item.type === 'Remolque de Planeador' ? '1' : ''),
+            ];
+            csvContent += row.join(',') + "\n";
+        });
+
+        csvContent += "\n";
+        csvContent += `"TOTALES A ABONAR",,,,"${totalBillableMinutes} min","${totalTows}"\n`;
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+
+        const pilotFileNamePart = (getPilotName(selectedPilotId) || 'piloto').replace(/, /g, '_').replace(/ /g, '_').toLowerCase();
+        const fileName = `facturacion_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.csv`;
+        
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast({ title: "CSV Exportado", description: `El informe se ha guardado como ${fileName}.` });
+        } else {
+            toast({ title: "Error de Exportación", description: "Tu navegador no soporta la descarga de archivos.", variant: "destructive"});
+        }
+    } catch (error) {
+      console.error("Error generating CSV:", error);
+      toast({ title: "Error de Exportación", description: "No se pudo generar el CSV.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [reportData, toast, getPilotName, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows]);
+
 
   const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
   
@@ -255,10 +393,22 @@ export function BillingReportClient() {
           </PopoverContent>
         </Popover>
 
-        <Button onClick={handleGenerateReport} disabled={isGenerating || !startDate || !endDate || !selectedPilotId} className="w-full sm:w-auto">
+        <Button onClick={handleGenerateReport} disabled={isGenerating || isLoadingUI || !startDate || !endDate || !selectedPilotId} className="w-full sm:w-auto">
           {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
           Generar Informe
         </Button>
+         {reportData.length > 0 && (
+            <>
+                <Button onClick={handleExportPdf} variant="outline" disabled={isGenerating || isLoadingUI} className="w-full sm:w-auto">
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Exportar a PDF
+                </Button>
+                <Button onClick={handleExportCsv} variant="outline" disabled={isGenerating || isLoadingUI} className="w-full sm:w-auto">
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+                    Exportar a CSV
+                </Button>
+            </>
+        )}
       </div>
 
       {(isLoadingUI && !isGenerating) && (
