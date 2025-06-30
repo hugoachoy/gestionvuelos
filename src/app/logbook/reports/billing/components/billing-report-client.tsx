@@ -2,8 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { usePilotsStore, useAircraftStore } from '@/store/data-hooks';
+import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore } from '@/store/data-hooks';
 import type { CompletedEngineFlight, CompletedGliderFlight } from '@/types';
 import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,6 +57,9 @@ export function BillingReportClient() {
   const { toast } = useToast();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { fetchEngineFlightsForBilling, loading: engineLoading } = useCompletedEngineFlightsStore();
+  const { fetchCompletedGliderFlightsForRange, loading: gliderLoading } = useCompletedGliderFlightsStore();
+
 
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
@@ -96,23 +98,14 @@ export function BillingReportClient() {
     const endDateStr = format(endDate, "yyyy-MM-dd");
 
     try {
-      const { data: engineFlights, error: engineError } = await supabase
-        .from('completed_engine_flights')
-        .select('*')
-        .eq('pilot_id', selectedPilotId)
-        .gte('date', startDateStr)
-        .lte('date', endDateStr);
+      const engineFlights = await fetchEngineFlightsForBilling(startDateStr, endDateStr, selectedPilotId);
+      const gliderFlights = await fetchCompletedGliderFlightsForRange(startDateStr, endDateStr, selectedPilotId);
       
-      if (engineError) throw engineError;
-
-      const { data: gliderFlights, error: gliderError } = await supabase
-        .from('completed_glider_flights')
-        .select('*')
-        .eq('pilot_id', selectedPilotId)
-        .gte('date', startDateStr)
-        .lte('date', endDateStr);
-
-      if (gliderError) throw gliderError;
+      if (engineFlights === null || gliderFlights === null) {
+          toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
+          setIsGenerating(false);
+          return;
+      }
 
       const billableItems: BillableItem[] = [];
       let totalMins = 0;
@@ -162,7 +155,7 @@ export function BillingReportClient() {
     } finally {
         setIsGenerating(false);
     }
-  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast]);
+  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast, fetchEngineFlightsForBilling, fetchCompletedGliderFlightsForRange]);
 
   const handleExportPdf = () => {
     if (reportData.length === 0) {
@@ -290,10 +283,10 @@ export function BillingReportClient() {
     } finally {
       setIsGenerating(false);
     }
-  }, [reportData, pilots, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows]);
+  }, [reportData, pilots, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows, toast]);
 
 
-  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || isGenerating;
+  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || engineLoading || gliderLoading || isGenerating;
   
   if (isLoadingUI && !currentUser) {
     return <Skeleton className="h-48 w-full" />;
@@ -425,5 +418,3 @@ export function BillingReportClient() {
     </div>
   );
 }
-
-    
