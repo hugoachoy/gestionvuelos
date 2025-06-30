@@ -37,7 +37,6 @@ declare module 'jspdf' {
   }
 }
 
-
 // Local helper for logging errors
 function logSupabaseError(context: string, error: any) {
   console.error(`${context}:`, error);
@@ -140,43 +139,34 @@ export function BillingReportClient() {
         }
       });
       
-      gliderFlights.forEach((flight) => {
-        // Ignore the instructor's duplicate 'Instrucción (Impartida)' record to avoid double-counting.
-        // The instruction event is fully captured by the 'Instrucción (Recibida)' record.
-        if (flight.flight_purpose === 'Instrucción (Impartida)') {
-          return;
-        }
-
-        // If the selected pilot was the instructor for a flight...
-        if (flight.instructor_id === selectedPilotId) {
-          // This is an instruction flight where the selected pilot was the instructor.
-          // It's not billable to them, but should be listed for their reference.
-          billableItems.push({
-            id: `gli-inst-${flight.id}`,
-            date: flight.date,
-            type: 'Instrucción Impartida',
-            aircraft: getAircraftName(flight.glider_aircraft_id),
-            duration_hs: flight.flight_duration_decimal,
-            billable_minutes: null,
-            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
-            is_non_billable_for_pilot: true
-          });
-        } 
-        // If the selected pilot was the main pilot for the flight...
-        else if (flight.pilot_id === selectedPilotId) {
-          // This is a billable flight for the student/solo pilot.
-          billableItems.push({
-            id: `gli-${flight.id}`,
-            date: flight.date,
-            type: 'Remolque de Planeador',
-            aircraft: getAircraftName(flight.glider_aircraft_id),
-            duration_hs: flight.flight_duration_decimal,
-            billable_minutes: null,
-            notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
-          });
-          totalTowsCount += 1;
-        }
-      });
+      gliderFlights
+        .filter(flight => flight.flight_purpose !== 'Instrucción (Impartida)')
+        .forEach((flight) => {
+          if (flight.instructor_id === selectedPilotId) {
+            billableItems.push({
+              id: `gli-inst-${flight.id}`,
+              date: flight.date,
+              type: 'Instrucción Impartida',
+              aircraft: getAircraftName(flight.glider_aircraft_id),
+              duration_hs: flight.flight_duration_decimal,
+              billable_minutes: null,
+              notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+              is_non_billable_for_pilot: true
+            });
+          } 
+          else if (flight.pilot_id === selectedPilotId) {
+            billableItems.push({
+              id: `gli-${flight.id}`,
+              date: flight.date,
+              type: 'Remolque de Planeador',
+              aircraft: getAircraftName(flight.glider_aircraft_id),
+              duration_hs: flight.flight_duration_decimal,
+              billable_minutes: null,
+              notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
+            });
+            totalTowsCount += 1;
+          }
+        });
 
       const sortedData = billableItems.sort((a, b) => a.date.localeCompare(b.date));
       
