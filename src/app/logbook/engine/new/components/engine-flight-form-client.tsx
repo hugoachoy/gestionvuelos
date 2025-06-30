@@ -288,6 +288,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     }
   }, [showInstructorField, form]);
 
+  useEffect(() => {
+    if (watchedFlightPurpose === 'Remolque planeador') {
+      form.setValue('tows_count', 1, { shouldValidate: true });
+    }
+  }, [watchedFlightPurpose, form]);
 
   useEffect(() => {
     if (watchedDepartureTime && watchedArrivalTime && watchedDate && /^\d{2}:\d{2}/.test(watchedDepartureTime.substring(0,5)) && /^\d{2}:\d{2}/.test(watchedArrivalTime.substring(0,5))) {
