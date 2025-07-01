@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -887,8 +886,7 @@ export function useCompletedGliderFlightsStore() {
       
       if (pilotId) {
         // A pilot's personal logbook only contains flights where they were the Pilot in Command (PIC).
-        // The instructor role is captured by the flight_purpose 'Instrucción (Impartida)'.
-        // We no longer query for instructor_id to avoid showing the student's log entry in the instructor's history.
+        // This includes flights where they are instructing ('Instrucción (Impartida)').
         query = query.eq('pilot_id', pilotId);
       }
 
@@ -1021,7 +1019,7 @@ export function useCompletedEngineFlightsStore() {
         .order('departure_time', { ascending: true });
         
       if (pilotId) {
-        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
+        query = query.eq('pilot_id', pilotId);
       }
 
       const { data, error: fetchError } = await query;
