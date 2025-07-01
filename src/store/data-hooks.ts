@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Pilot, PilotCategory, Aircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
-import { format } from 'date-fns';
+import { format, isValid as isValidDate, parseISO } from 'date-fns';
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -886,7 +886,9 @@ export function useCompletedGliderFlightsStore() {
         .order('departure_time', { ascending: true });
       
       if (pilotId) {
-        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId},tow_pilot_id.eq.${pilotId}`);
+        // A pilot's glider history should only include flights where they were PIC or instructor in the glider.
+        // It should NOT include flights where they were the tow pilot.
+        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
       }
 
       const { data, error: fetchError } = await query;
