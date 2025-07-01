@@ -109,7 +109,7 @@ export function GliderFlightReportClient() {
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const tableColumn = ["Fecha", "Piloto (PIC)", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito"];
+      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito"];
       const tableRows: (string | null)[][] = [];
 
       reportData.forEach(flight => {
@@ -168,7 +168,7 @@ export function GliderFlightReportClient() {
     }
     setIsGenerating(true);
     try {
-        const headers = ["Fecha", "Piloto (PIC)", "Planeador", "Instructor", "Piloto Remolcador", "Avion Remolcador", "Salida", "Llegada", "Duracion (hs)", "Proposito"];
+        const headers = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Remolcador", "Avion Remolcador", "Salida", "Llegada", "Duracion (hs)", "Proposito"];
         const csvRows = [headers.join(',')];
 
         reportData.forEach(flight => {
@@ -325,7 +325,7 @@ export function GliderFlightReportClient() {
             <TableHeader>
               <TableRow>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Piloto (PIC)</TableHead>
+                <TableHead>Piloto</TableHead>
                 <TableHead>Planeador</TableHead>
                 <TableHead>Instructor</TableHead>
                 <TableHead>Piloto Rem.</TableHead>

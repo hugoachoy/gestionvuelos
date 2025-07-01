@@ -85,8 +85,12 @@ export function EngineFlightListClient() {
 
     const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     if (data) {
-      setFilteredFlights(data);
-      if (data.length === 0) {
+      const flightsForPIC = data.filter(flight => flight.pilot_id === pilotIdToFetch);
+      
+      const flightsToSet = pilotIdToFetch ? flightsForPIC : data;
+      setFilteredFlights(flightsToSet);
+
+      if (flightsToSet.length === 0) {
         toast({ title: "Sin Resultados", description: "No se encontraron vuelos a motor para los filtros seleccionados." });
       }
     }
@@ -328,7 +332,7 @@ export function EngineFlightListClient() {
             <TableHeader className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm">
               <TableRow>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Piloto (PIC)</TableHead>
+                <TableHead>Piloto</TableHead>
                 <TableHead>Aeronave</TableHead>
                 <TableHead>Instructor</TableHead>
                 <TableHead>Propósito</TableHead>

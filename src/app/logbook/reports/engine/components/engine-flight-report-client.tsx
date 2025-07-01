@@ -175,7 +175,7 @@ export function EngineFlightReportClient() {
     }
     setIsGenerating(true);
     try {
-        const headers = ["Fecha", "Piloto (PIC)", "Aeronave", "Instructor", "Proposito", "Salida", "Llegada", "Duracion (hs)", "Facturable (min)", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)"];
+        const headers = ["Fecha", "Piloto", "Aeronave", "Instructor", "Proposito", "Salida", "Llegada", "Duracion (hs)", "Facturable (min)", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)"];
         const csvRows = [headers.join(',')];
 
         reportData.forEach(flight => {
@@ -337,7 +337,7 @@ export function EngineFlightReportClient() {
             <TableHeader>
               <TableRow>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Piloto (PIC)</TableHead>
+                <TableHead>Piloto</TableHead>
                 <TableHead>Aeronave</TableHead>
                 <TableHead>Instructor</TableHead>
                 <TableHead>Propósito</TableHead>

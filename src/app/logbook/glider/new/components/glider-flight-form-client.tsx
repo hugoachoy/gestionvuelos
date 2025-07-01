@@ -730,7 +730,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Piloto a Cargo (PIC)</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Piloto a Cargo</FormLabel>
                    <Popover open={picPilotPopoverOpen} onOpenChange={setPicPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>

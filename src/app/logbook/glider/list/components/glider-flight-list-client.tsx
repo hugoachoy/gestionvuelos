@@ -83,8 +83,12 @@ export function GliderFlightListClient() {
 
     const data = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     if (data) {
-      setFilteredFlights(data);
-      if (data.length === 0) {
+      const flightsForPIC = data.filter(flight => flight.pilot_id === pilotIdToFetch);
+      
+      const flightsToSet = pilotIdToFetch ? flightsForPIC : data;
+      setFilteredFlights(flightsToSet);
+
+      if (flightsToSet.length === 0) {
         toast({ title: "Sin Resultados", description: "No se encontraron vuelos de planeador para los filtros seleccionados." });
       }
     }
@@ -150,7 +154,7 @@ export function GliderFlightListClient() {
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const tableColumn = ["Fecha", "Piloto (PIC)", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito"];
+      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito"];
       const tableRows: (string | null)[][] = [];
 
       sortedFlights.forEach(flight => {
@@ -316,7 +320,7 @@ export function GliderFlightListClient() {
             <TableHeader className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm">
               <TableRow>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Piloto (PIC)</TableHead>
+                <TableHead>Piloto</TableHead>
                 <TableHead>Planeador</TableHead>
                 <TableHead>Instructor</TableHead>
                 <TableHead>Piloto Rem.</TableHead>
