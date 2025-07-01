@@ -886,7 +886,7 @@ export function useCompletedGliderFlightsStore() {
         .order('departure_time', { ascending: true });
       
       if (pilotId) {
-        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
+        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId},tow_pilot_id.eq.${pilotId}`);
       }
 
       const { data, error: fetchError } = await query;

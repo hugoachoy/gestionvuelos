@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -14,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { RefreshCw, Trash2, Edit, CalendarIcon } from 'lucide-react';
+import { RefreshCw, Trash2, Edit, CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
 import { format, parseISO, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { usePilotsStore, useAircraftStore } from '@/store/data-hooks';
@@ -25,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 
 export function EngineFlightListClient() {
@@ -37,11 +39,30 @@ export function EngineFlightListClient() {
 
   const [startDate, setStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [selectedPilotId, setSelectedPilotId] = useState<string>('all');
+  const [currentUserPilotId, setCurrentUserPilotId] = useState<string | null>(null);
+
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+  const [isPilotPickerOpen, setIsPilotPickerOpen] = useState(false);
+  
   const [filteredFlights, setFilteredFlights] = useState<CompletedEngineFlight[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [flightToDelete, setFlightToDelete] = useState<CompletedEngineFlight | null>(null);
+
+  useEffect(() => {
+    fetchPilots();
+    fetchAircraft();
+  }, [fetchPilots, fetchAircraft]);
+
+  useEffect(() => {
+    if (currentUser && !currentUser.is_admin && pilots.length > 0) {
+      const foundPilot = pilots.find(p => p.auth_user_id === currentUser.id);
+      if (foundPilot) {
+        setCurrentUserPilotId(foundPilot.id);
+      }
+    }
+  }, [currentUser, pilots]);
 
   const handleFetchAndFilter = useCallback(async () => {
     if (!startDate || !endDate) {
@@ -52,21 +73,35 @@ export function EngineFlightListClient() {
         toast({ title: "Rango Inválido", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
         return;
     }
-    const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), undefined);
+    
+    const pilotIdToFetch = currentUser?.is_admin ? (selectedPilotId === 'all' ? undefined : selectedPilotId) : currentUserPilotId;
+
+    if (!currentUser?.is_admin && !pilotIdToFetch) {
+        toast({ title: "Perfil no encontrado", description: "No se encontró un perfil de piloto asociado a tu usuario. No se pueden cargar vuelos.", variant: "destructive" });
+        setFilteredFlights([]);
+        return;
+    }
+
+    const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     if (data) {
       setFilteredFlights(data);
       if (data.length === 0) {
-        toast({ title: "Sin Resultados", description: "No se encontraron vuelos a motor para el rango seleccionado." });
+        toast({ title: "Sin Resultados", description: "No se encontraron vuelos a motor para los filtros seleccionados." });
       }
     }
-  }, [startDate, endDate, fetchCompletedEngineFlightsForRange, toast]);
+  }, [startDate, endDate, fetchCompletedEngineFlightsForRange, toast, currentUser?.is_admin, selectedPilotId, currentUserPilotId]);
 
   useEffect(() => {
-    fetchPilots();
-    fetchAircraft();
-    handleFetchAndFilter();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+    if (startDate && endDate) {
+      if (currentUser?.is_admin) {
+        handleFetchAndFilter();
+      } else if (currentUserPilotId) {
+        // For non-admins, fetch as soon as their pilot ID is known
+        handleFetchAndFilter();
+      }
+    }
+  }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, handleFetchAndFilter]);
+
 
   const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading;
 
@@ -146,6 +181,43 @@ export function EngineFlightListClient() {
             <Calendar mode="single" selected={endDate} onSelect={(d) => { setEndDate(d); setIsEndDatePickerOpen(false); }} disabled={(date) => startDate && date < startDate} initialFocus locale={es} />
           </PopoverContent>
         </Popover>
+        
+        {currentUser?.is_admin && (
+           <Popover open={isPilotPickerOpen} onOpenChange={setIsPilotPickerOpen}>
+              <PopoverTrigger asChild>
+                  <Button
+                  variant="outline"
+                  role="combobox"
+                  className={cn("w-full sm:w-auto md:w-[240px] justify-between", !selectedPilotId && "text-muted-foreground")}
+                  disabled={isLoadingUI}
+                  >
+                  {selectedPilotId === 'all' ? 'Todos los Pilotos' : getPilotName(selectedPilotId)}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                      <CommandInput placeholder="Buscar piloto..." />
+                      <CommandList>
+                          <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
+                          <CommandGroup>
+                              <CommandItem value="all" onSelect={() => { setSelectedPilotId('all'); setIsPilotPickerOpen(false); }}>
+                                  <Check className={cn("mr-2 h-4 w-4", selectedPilotId === 'all' ? "opacity-100" : "opacity-0")} />
+                                  Todos los Pilotos
+                              </CommandItem>
+                              {pilots.map(pilot => (
+                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
+                                      <Check className={cn("mr-2 h-4 w-4", selectedPilotId === pilot.id ? "opacity-100" : "opacity-0")} />
+                                      {pilot.last_name}, {pilot.first_name}
+                                  </CommandItem>
+                              ))}
+                          </CommandGroup>
+                      </CommandList>
+                  </Command>
+              </PopoverContent>
+           </Popover>
+        )}
+
         <Button onClick={handleFetchAndFilter} disabled={isLoadingUI}>
           <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingUI && "animate-spin")} />
           Filtrar / Refrescar
@@ -184,7 +256,7 @@ export function EngineFlightListClient() {
               {sortedFlights.length === 0 && !isLoadingUI ? (
                 <TableRow>
                   <TableCell colSpan={15} className="text-center h-24">
-                    No hay vuelos a motor para el rango seleccionado.
+                    No hay vuelos a motor para los filtros seleccionados.
                   </TableCell>
                 </TableRow>
               ) : (
