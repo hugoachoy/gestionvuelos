@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react'; // Explicit React import
@@ -34,8 +33,6 @@ import { UnderlineKeywords } from '@/components/common/underline-keywords';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
-
-const LAST_CLEANUP_KEY = 'lastScheduleCleanup';
 
 const normalizeCategoryName = (name?: string): string => {
   return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
@@ -104,7 +101,7 @@ export function ScheduleClient() {
   const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
   const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
-  const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries, cleanupOldScheduleEntries } = useScheduleStore();
+  const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
   const { getNewsForDate, addDailyNewsItem, updateDailyNewsItem, deleteDailyNewsItem, loading: newsLoading, error: newsError, fetchDailyNews } = useDailyNewsStore();
 
@@ -168,33 +165,6 @@ export function ScheduleClient() {
       newsTextareaRef.current.style.height = `${newsTextareaRef.current.scrollHeight}px`;
     }
   }, [newsInput]);
-
-
-  useEffect(() => {
-    const runCleanup = async () => {
-      if (typeof window !== 'undefined') {
-        const lastCleanupTimestamp = localStorage.getItem(LAST_CLEANUP_KEY);
-        const now = new Date().getTime();
-        const oneDayInMs = 24 * 60 * 60 * 1000;
-
-        if (!lastCleanupTimestamp || (now - parseInt(lastCleanupTimestamp, 10)) > oneDayInMs) {
-          console.log("Running daily schedule cleanup...");
-          const result = await cleanupOldScheduleEntries();
-          if (result.success && result.count > 0) {
-            toast({
-              title: "Limpieza de Agenda",
-              description: `${result.count} turnos antiguos han sido eliminados.`,
-            });
-          } else if (!result.success && result.error) {
-             console.error("Failed to cleanup old entries:", result.error);
-          }
-          localStorage.setItem(LAST_CLEANUP_KEY, now.toString());
-        }
-      }
-    };
-    runCleanup();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
 
   const handleSaveObservation = async () => {

@@ -545,27 +545,7 @@ export function useScheduleStore() {
     }
   }, [fetchScheduleEntries]);
 
-  const cleanupOldScheduleEntries = useCallback(async () => {
-    try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const thresholdDate = format(thirtyDaysAgo, 'yyyy-MM-dd');
-      const { error: deleteError, count } = await supabase
-        .from('schedule_entries')
-        .delete({ count: 'exact'})
-        .lt('date', thresholdDate);
-      if (deleteError) {
-        logSupabaseError('Error cleaning up old schedule entries', deleteError);
-        return { success: false, error: deleteError, count: 0 };
-      }
-      return { success: true, count: count ?? 0 };
-    } catch (e) {
-      logSupabaseError('Unexpected error during old schedule entry cleanup', e);
-      return { success: false, error: e, count: 0 };
-    }
-  }, []);
-
-  return { scheduleEntries, loading, error, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, fetchScheduleEntries, cleanupOldScheduleEntries, fetchScheduleEntriesForRange };
+  return { scheduleEntries, loading, error, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, fetchScheduleEntries, fetchScheduleEntriesForRange };
 }
 
 // Daily Observations Store
@@ -885,8 +865,6 @@ export function useCompletedGliderFlightsStore() {
         .order('departure_time', { ascending: true });
       
       if (pilotId) {
-        // A pilot's personal logbook only contains flights where they were the Pilot in Command (PIC).
-        // This includes flights where they are instructing ('Instrucción (Impartida)').
         query = query.eq('pilot_id', pilotId);
       }
 
