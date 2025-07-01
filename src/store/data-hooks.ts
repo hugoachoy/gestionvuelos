@@ -886,9 +886,10 @@ export function useCompletedGliderFlightsStore() {
         .order('departure_time', { ascending: true });
       
       if (pilotId) {
-        // A pilot's glider history should only include flights where they were PIC or instructor in the glider.
-        // It should NOT include flights where they were the tow pilot.
-        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
+        // A pilot's personal logbook only contains flights where they were the Pilot in Command (PIC).
+        // The instructor role is captured by the flight_purpose 'Instrucción (Impartida)'.
+        // We no longer query for instructor_id to avoid showing the student's log entry in the instructor's history.
+        query = query.eq('pilot_id', pilotId);
       }
 
       const { data, error: fetchError } = await query;
@@ -1036,29 +1037,6 @@ export function useCompletedEngineFlightsStore() {
     }
   }, []);
 
-  const fetchEngineFlightsForBilling = useCallback(async (startDate: string, endDate: string, pilotId: string): Promise<CompletedEngineFlight[] | null> => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('completed_engine_flights')
-        .select('*')
-        .eq('pilot_id', pilotId)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .neq('flight_purpose', 'Remolque planeador') 
-        .order('date', { ascending: true })
-        .order('departure_time', { ascending: true });
-        
-      if (fetchError) {
-        logSupabaseError('Error fetching engine flights for billing', fetchError);
-        return null;
-      }
-      return data || [];
-    } catch (e) {
-      logSupabaseError('Unexpected error in fetchEngineFlightsForBilling', e);
-      return null;
-    }
-  }, []);
-
   const addCompletedEngineFlight = useCallback(async (flightData: Omit<CompletedEngineFlight, 'id' | 'created_at'>) => {
     let result = null;
     setError(null);
@@ -1131,5 +1109,5 @@ export function useCompletedEngineFlightsStore() {
     }
   }, []);
 
-  return { completedEngineFlights, loading, error, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange, fetchCompletedEngineFlights, fetchEngineFlightsForBilling };
+  return { completedEngineFlights, loading, error, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange, fetchCompletedEngineFlights };
 }
