@@ -4,29 +4,16 @@
  * @fileOverview A Genkit flow to generate and send weekly flight summary emails to pilots.
  *
  * - sendWeeklySummary - A function that handles the generation and sending process.
- * - WeeklySummaryStatus - The output type for the sendWeeklySummary function.
  */
 
 import { ai } from '@/ai/genkit';
 import { supabase, supabaseAdmin } from '@/lib/supabaseClient'; // Import both clients
-import { z } from 'genkit';
+import { z } from 'zod';
 import { format, startOfWeek, endOfWeek, subWeeks, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { MailerSend, EmailParams, Sender, Recipient } from 'mailersend';
-import type { CompletedEngineFlight, CompletedGliderFlight } from '@/types';
+import { WeeklySummaryStatusSchema, type CompletedEngineFlight, type CompletedGliderFlight, type WeeklySummaryStatus } from '@/types';
 
-
-export const WeeklySummaryStatusSchema = z.object({
-  sentCount: z.number().describe("The number of emails successfully sent."),
-  failedCount: z.number().describe("The number of emails that failed to send."),
-  details: z.array(z.object({
-    pilotId: z.string(),
-    pilotName: z.string(),
-    status: z.enum(["sent", "failed", "no_email", "no_activity"]),
-    error: z.string().optional(),
-  })).describe("Detailed status for each pilot processed."),
-});
-export type WeeklySummaryStatus = z.infer<typeof WeeklySummaryStatusSchema>;
 
 export async function sendWeeklySummary(): Promise<WeeklySummaryStatus> {
   return sendWeeklySummaryFlow();

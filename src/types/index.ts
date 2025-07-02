@@ -1,4 +1,6 @@
 
+import { z } from 'zod';
+
 export interface AuthUser {
   id: string;
   email?: string;
@@ -158,3 +160,17 @@ export interface CompletedEngineFlight extends BaseCompletedFlight {
 }
 
 export type CompletedFlight = CompletedGliderFlight | CompletedEngineFlight;
+
+// --- Weekly Summary Email Types ---
+
+export const WeeklySummaryStatusSchema = z.object({
+  sentCount: z.number().describe("The number of emails successfully sent."),
+  failedCount: z.number().describe("The number of emails that failed to send."),
+  details: z.array(z.object({
+    pilotId: z.string(),
+    pilotName: z.string(),
+    status: z.enum(["sent", "failed", "no_email", "no_activity"]),
+    error: z.string().optional(),
+  })).describe("Detailed status for each pilot processed."),
+});
+export type WeeklySummaryStatus = z.infer<typeof WeeklySummaryStatusSchema>;

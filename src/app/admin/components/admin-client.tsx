@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { triggerWeeklySummary } from '../actions';
-import type { WeeklySummaryStatus } from '@/ai/flows/send-weekly-summary';
+import type { WeeklySummaryStatus } from '@/types';
 
 export function AdminClient() {
   const [isSending, setIsSending] = useState(false);

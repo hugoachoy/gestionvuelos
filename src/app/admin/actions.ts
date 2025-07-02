@@ -2,7 +2,7 @@
 'use server';
 
 import { sendWeeklySummary } from '@/ai/flows/send-weekly-summary';
-import type { WeeklySummaryStatus } from '@/ai/flows/send-weekly-summary';
+import type { WeeklySummaryStatus } from '@/types';
 
 export async function triggerWeeklySummary(): Promise<WeeklySummaryStatus> {
   // Aquí podríamos añadir lógica de permisos adicional si fuera necesario.
