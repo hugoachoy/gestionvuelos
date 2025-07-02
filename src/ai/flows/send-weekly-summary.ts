@@ -174,7 +174,7 @@ const sendWeeklySummaryFlow = ai.defineFlow(
     
     results.forEach(result => {
         if (result.error) {
-             statusDetails.push({ pilotId: result.pilotId, pilotName: result.pilotName, status: "failed", error: result.error.message || "Unknown mailer error" });
+             statusDetails.push({ pilotId: result.pilotId, pilotName: result.pilotName, status: "failed", error: JSON.stringify(result.error) || "Could not serialize error" });
         } else if (result.response.statusCode >= 200 && result.response.statusCode < 300) {
             statusDetails.push({ pilotId: result.pilotId, pilotName: result.pilotName, status: "sent" });
         } else {
