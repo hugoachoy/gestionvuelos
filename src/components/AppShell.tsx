@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText } from 'lucide-react';
+import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText, Shield } from 'lucide-react';
 
 interface NavItemProps {
   href: string;
@@ -69,7 +69,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     { href: '/categories', label: 'Categoria Pilotos', icon: <Tags /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
     { href: '/twilight', label: 'Crepúsculo Civil', icon: <Sunrise /> },
-    { href: '/notams', label: 'NOTAMs', icon: <FileText /> }, // Changed link
+    { href: '/notams', label: 'NOTAMs', icon: <FileText /> },
   ];
 
   const handleLogout = async () => {
@@ -94,8 +94,6 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     return user.email ?? '';
   };
   
-  // NOTAM_URL_SAZX constant removed as it's now an internal link
-
   return (
     <>
       <Sidebar>
@@ -120,7 +118,9 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             {navItems.map((item) => (
               <NavItem key={item.href} {...item} pathname={pathname} />
             ))}
-            {/* Removed the direct external link for NOTAMs, it's now an internal page in navItems */}
+            {user?.is_admin && (
+                <NavItem href="/admin" label="Admin" icon={<Shield />} pathname={pathname} />
+            )}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">
