@@ -5,6 +5,7 @@
  *
  * - sendWeeklySummary - A function that handles the generation and sending process.
  */
+import 'dotenv/config'; // Explicitly load environment variables
 
 import { ai } from '@/ai/genkit';
 import { supabase, supabaseAdmin } from '@/lib/supabaseClient'; // Import both clients
