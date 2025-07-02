@@ -34,13 +34,12 @@ const sendWeeklySummaryFlow = ai.defineFlow(
     const mailerSend = new MailerSend({ apiKey: process.env.MAILERSEND_API_KEY });
     const fromSender = new Sender(process.env.MAIL_FROM_ADDRESS, "Aeroclub 9 de Julio");
 
-    // 2. Determine date range for the last full week
+    // 2. Determine date range for the CURRENT week for easier testing
     const now = new Date();
-    const lastWeek = subWeeks(now, 1);
-    const startOfLastWeek = startOfWeek(lastWeek, { weekStartsOn: 1 });
-    const endOfLastWeek = endOfWeek(lastWeek, { weekStartsOn: 1 });
-    const startDateStr = format(startOfLastWeek, 'yyyy-MM-dd');
-    const endDateStr = format(endOfLastWeek, 'yyyy-MM-dd');
+    const startOfThisWeek = startOfWeek(now, { weekStartsOn: 1 }); // Monday of the current week
+    const endOfThisWeek = endOfWeek(now, { weekStartsOn: 1 });   // Sunday of the current week
+    const startDateStr = format(startOfThisWeek, 'yyyy-MM-dd');
+    const endDateStr = format(endOfThisWeek, 'yyyy-MM-dd');
 
     // 3. Fetch all necessary data using the standard (RLS-enabled) client
     const [
@@ -122,12 +121,12 @@ const sendWeeklySummaryFlow = ai.defineFlow(
         }
 
         const pilotEmail = authUser.user.email;
-        const subject = `Resumen de Vuelos Semanal - ${format(startOfLastWeek, 'dd/MM/yy')} al ${format(endOfLastWeek, 'dd/MM/yy')}`;
+        const subject = `Resumen de Vuelos Semanal - ${format(startOfThisWeek, 'dd/MM/yy')} al ${format(endOfThisWeek, 'dd/MM/yy')}`;
         
         let htmlBody = `
             <div style="font-family: sans-serif; line-height: 1.6;">
                 <h2>Hola ${data.pilotName},</h2>
-                <p>Este es tu resumen de actividad de vuelo para la semana del ${format(startOfLastWeek, "d 'de' MMMM", { locale: es })} al ${format(endOfLastWeek, "d 'de' MMMM 'de' yyyy", { locale: es })}.</p>
+                <p>Este es tu resumen de actividad de vuelo para la semana del ${format(startOfThisWeek, "d 'de' MMMM", { locale: es })} al ${format(endOfThisWeek, "d 'de' MMMM 'de' yyyy", { locale: es })}.</p>
         `;
 
         if (data.picFlights.length > 0) {
