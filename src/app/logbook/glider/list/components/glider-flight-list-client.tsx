@@ -154,7 +154,7 @@ export function GliderFlightListClient() {
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito"];
+      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Notas"];
       const tableRows: (string | null)[][] = [];
 
       sortedFlights.forEach(flight => {
@@ -169,6 +169,7 @@ export function GliderFlightListClient() {
           flight.arrival_time,
           `${flight.flight_duration_decimal.toFixed(1)} hs`,
           flight.flight_purpose,
+          flight.notes || '-',
         ]);
       });
 
@@ -190,6 +191,7 @@ export function GliderFlightListClient() {
             7: { cellWidth: 15 },
             8: { cellWidth: 18 },
             9: { cellWidth: 25 },
+            10: { cellWidth: 25 },
         },
       });
       
@@ -329,13 +331,14 @@ export function GliderFlightListClient() {
                 <TableHead>Llegada</TableHead>
                 <TableHead>Duración</TableHead>
                 <TableHead>Propósito</TableHead>
+                <TableHead>Notas</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedFlights.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center h-24">
+                  <TableCell colSpan={12} className="text-center h-24">
                     No hay vuelos en planeador para los filtros seleccionados.
                   </TableCell>
                 </TableRow>
@@ -356,6 +359,7 @@ export function GliderFlightListClient() {
                       <TableCell>{flight.arrival_time}</TableCell>
                       <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                       <TableCell>{flight.flight_purpose}</TableCell>
+                      <TableCell>{flight.notes || '-'}</TableCell>
                       <TableCell className="text-right">
                         {canEdit && (
                           <Button variant="ghost" size="icon" onClick={() => handleEditRequest(flight)} className="mr-2 hover:text-primary">

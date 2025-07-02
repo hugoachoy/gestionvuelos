@@ -108,7 +108,7 @@ export function EngineFlightReportClient() {
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const tableColumn = ["Fecha", "Piloto", "Aeronave", "Instructor", "Propósito", "Salida", "Llegada", "Duración", "Facturable", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)"];
+      const tableColumn = ["Fecha", "Piloto", "Aeronave", "Instructor", "Propósito", "Salida", "Llegada", "Duración", "Facturable", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)", "Notas"];
       const tableRows: (string | null)[][] = [];
 
       reportData.forEach(flight => {
@@ -127,6 +127,7 @@ export function EngineFlightReportClient() {
           flight.tows_count?.toString() ?? '-',
           flight.oil_added_liters?.toString() ?? '-',
           flight.fuel_added_liters?.toString() ?? '-',
+          flight.notes || '-',
         ]);
       });
 
@@ -152,6 +153,7 @@ export function EngineFlightReportClient() {
             11: { cellWidth: 15 }, // Remolques
             12: { cellWidth: 15 }, // Aceite
             13: { cellWidth: 15 }, // Nafta
+            14: { cellWidth: 30 }, // Notas
         },
       });
       
@@ -175,7 +177,7 @@ export function EngineFlightReportClient() {
     }
     setIsGenerating(true);
     try {
-        const headers = ["Fecha", "Piloto", "Aeronave", "Instructor", "Proposito", "Salida", "Llegada", "Duracion (hs)", "Facturable (min)", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)"];
+        const headers = ["Fecha", "Piloto", "Aeronave", "Instructor", "Proposito", "Salida", "Llegada", "Duracion (hs)", "Facturable (min)", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)", "Notas"];
         const csvRows = [headers.join(',')];
 
         reportData.forEach(flight => {
@@ -194,6 +196,7 @@ export function EngineFlightReportClient() {
                 flight.tows_count?.toString() ?? '-',
                 flight.oil_added_liters?.toString() ?? '-',
                 flight.fuel_added_liters?.toString() ?? '-',
+                `"${(flight.notes || '-').replace(/"/g, '""')}"`,
             ];
             csvRows.push(row.join(','));
         });
@@ -350,6 +353,7 @@ export function EngineFlightReportClient() {
                 <TableHead>Remolques</TableHead>
                 <TableHead>Aceite (Lts)</TableHead>
                 <TableHead>Nafta (Lts)</TableHead>
+                <TableHead>Notas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -373,6 +377,7 @@ export function EngineFlightReportClient() {
                   <TableCell>{flight.tows_count ?? '-'}</TableCell>
                   <TableCell>{flight.oil_added_liters ?? '-'}</TableCell>
                   <TableCell>{flight.fuel_added_liters ?? '-'}</TableCell>
+                  <TableCell>{flight.notes || '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

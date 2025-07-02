@@ -176,7 +176,7 @@ export function EngineFlightListClient() {
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const tableColumn = ["Fecha", "Piloto", "Aeronave", "Instructor", "Propósito", "Salida", "Llegada", "Duración", "Facturable", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)"];
+      const tableColumn = ["Fecha", "Piloto", "Aeronave", "Instructor", "Propósito", "Salida", "Llegada", "Duración", "Facturable", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)", "Notas"];
       const tableRows: (string | null)[][] = [];
 
       sortedFlights.forEach(flight => {
@@ -195,6 +195,7 @@ export function EngineFlightListClient() {
           flight.tows_count?.toString() ?? '-',
           flight.oil_added_liters?.toString() ?? '-',
           flight.fuel_added_liters?.toString() ?? '-',
+          flight.notes || '-',
         ]);
       });
 
@@ -220,6 +221,7 @@ export function EngineFlightListClient() {
             11: { cellWidth: 15 }, // Remolques
             12: { cellWidth: 15 }, // Aceite
             13: { cellWidth: 15 }, // Nafta
+            14: { cellWidth: 30 }, // Notas
         },
       });
       
@@ -345,13 +347,14 @@ export function EngineFlightListClient() {
                 <TableHead>Remolques</TableHead>
                 <TableHead>Aceite (Lts)</TableHead>
                 <TableHead>Nafta (Lts)</TableHead>
+                <TableHead>Notas</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedFlights.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={15} className="text-center h-24">
+                  <TableCell colSpan={16} className="text-center h-24">
                     No hay vuelos a motor para los filtros seleccionados.
                   </TableCell>
                 </TableRow>
@@ -380,6 +383,7 @@ export function EngineFlightListClient() {
                       <TableCell>{flight.tows_count ?? '-'}</TableCell>
                       <TableCell>{flight.oil_added_liters ?? '-'}</TableCell>
                       <TableCell>{flight.fuel_added_liters ?? '-'}</TableCell>
+                      <TableCell>{flight.notes || '-'}</TableCell>
                       <TableCell className="text-right">
                         {canEdit && (
                           <Button variant="ghost" size="icon" onClick={() => handleEditRequest(flight)} className="mr-2 hover:text-primary">

@@ -109,7 +109,7 @@ export function GliderFlightReportClient() {
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito"];
+      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Notas"];
       const tableRows: (string | null)[][] = [];
 
       reportData.forEach(flight => {
@@ -124,6 +124,7 @@ export function GliderFlightReportClient() {
           flight.arrival_time,
           `${flight.flight_duration_decimal.toFixed(1)} hs`,
           flight.flight_purpose,
+          flight.notes || '-',
         ]);
       });
 
@@ -145,6 +146,7 @@ export function GliderFlightReportClient() {
             7: { cellWidth: 15 },
             8: { cellWidth: 18 },
             9: { cellWidth: 25 },
+            10: { cellWidth: 'auto' },
         },
       });
       
@@ -168,7 +170,7 @@ export function GliderFlightReportClient() {
     }
     setIsGenerating(true);
     try {
-        const headers = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Remolcador", "Avion Remolcador", "Salida", "Llegada", "Duracion (hs)", "Proposito"];
+        const headers = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Remolcador", "Avion Remolcador", "Salida", "Llegada", "Duracion (hs)", "Proposito", "Notas"];
         const csvRows = [headers.join(',')];
 
         reportData.forEach(flight => {
@@ -183,6 +185,7 @@ export function GliderFlightReportClient() {
                 flight.arrival_time,
                 flight.flight_duration_decimal.toFixed(1),
                 `"${flight.flight_purpose}"`,
+                `"${(flight.notes || '-').replace(/"/g, '""')}"`,
             ];
             csvRows.push(row.join(','));
         });
@@ -334,6 +337,7 @@ export function GliderFlightReportClient() {
                 <TableHead>Llegada</TableHead>
                 <TableHead>Duración</TableHead>
                 <TableHead>Propósito</TableHead>
+                <TableHead>Notas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -349,6 +353,7 @@ export function GliderFlightReportClient() {
                   <TableCell>{flight.arrival_time}</TableCell>
                   <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                   <TableCell>{flight.flight_purpose}</TableCell>
+                  <TableCell>{flight.notes || '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
