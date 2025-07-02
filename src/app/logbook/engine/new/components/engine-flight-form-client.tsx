@@ -291,6 +291,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   useEffect(() => {
     if (watchedFlightPurpose === 'Remolque planeador') {
       form.setValue('tows_count', 1, { shouldValidate: true });
+    } else {
+      // Clear tows_count if purpose is not towage
+      form.setValue('tows_count', 0, { shouldValidate: true });
     }
   }, [watchedFlightPurpose, form]);
 
@@ -1023,7 +1026,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <FormItem>
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
+                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'Remolque planeador'} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
