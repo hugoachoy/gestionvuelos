@@ -8,9 +8,9 @@
 import 'dotenv/config'; // Explicitly load environment variables
 
 import { ai } from '@/ai/genkit';
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient'; // Import both clients
+import { supabaseAdmin } from '@/lib/supabaseClient'; // Use ADMIN client for all data fetching
 import { z } from 'zod';
-import { format, startOfWeek, endOfWeek, subWeeks, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { MailerSend, EmailParams, Sender, Recipient } from 'mailersend';
 import { WeeklySummaryStatusSchema, type CompletedEngineFlight, type CompletedGliderFlight, type WeeklySummaryStatus } from '@/types';
@@ -41,15 +41,15 @@ const sendWeeklySummaryFlow = ai.defineFlow(
     const startDateStr = format(startOfThisWeek, 'yyyy-MM-dd');
     const endDateStr = format(endOfThisWeek, 'yyyy-MM-dd');
 
-    // 3. Fetch all necessary data using the standard (RLS-enabled) client
+    // 3. Fetch all necessary data using the ADMIN client to bypass RLS
     const [
         { data: engineFlights, error: engineError },
         { data: gliderFlights, error: gliderError },
         { data: pilots, error: pilotsError }
     ] = await Promise.all([
-        supabase.from('completed_engine_flights').select('*').gte('date', startDateStr).lte('date', endDateStr),
-        supabase.from('completed_glider_flights').select('*').gte('date', startDateStr).lte('date', endDateStr),
-        supabase.from('pilots').select('id, first_name, last_name, auth_user_id'),
+        supabaseAdmin.from('completed_engine_flights').select('*').gte('date', startDateStr).lte('date', endDateStr),
+        supabaseAdmin.from('completed_glider_flights').select('*').gte('date', startDateStr).lte('date', endDateStr),
+        supabaseAdmin.from('pilots').select('id, first_name, last_name, auth_user_id'),
     ]);
 
     if (engineError || gliderError || pilotsError) {
