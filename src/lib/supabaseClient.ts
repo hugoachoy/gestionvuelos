@@ -1,6 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// --- Client for Public Access (Browser, Client-side Components) ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -17,7 +18,6 @@ if (!supabaseAnonKey || supabaseAnonKey.trim() === '') {
 }
 
 try {
-  // Validate if the supabaseUrl is a valid URL format
   new URL(supabaseUrl);
 } catch (e) {
   throw new Error(
@@ -25,7 +25,6 @@ try {
   );
 }
 
-// Basic check for anon key format (Supabase anon keys are JWTs, typically starting with "eyJ")
 if (!supabaseAnonKey.startsWith('eyJ')) {
   console.warn(
     `Warning: The Supabase anon key provided does not look like a standard JWT (expected to start with "eyJ..."). Please double-check NEXT_PUBLIC_SUPABASE_ANON_KEY.`
@@ -33,3 +32,26 @@ if (!supabaseAnonKey.startsWith('eyJ')) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+
+// --- Admin Client for Server-Side Operations (Bypasses RLS) ---
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// This check ensures the admin client is only created in a server environment
+// where the service role key is expected to be available.
+if (!supabaseServiceRoleKey && process.env.NODE_ENV !== 'development') { // Allow development without it for client-side work
+    console.warn("SUPABASE_SERVICE_ROLE_KEY is not set. Admin operations will fail.");
+}
+
+export const supabaseAdmin = supabaseServiceRoleKey 
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : supabase; // Fallback to regular client if key is not present
+
+if (!supabaseServiceRoleKey) {
+  console.warn("Admin client falling back to anon key. Server-side admin operations will likely fail due to insufficient permissions.");
+}

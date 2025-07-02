@@ -8,7 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient'; // Import both clients
 import { z } from 'genkit';
 import { format, startOfWeek, endOfWeek, subWeeks, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,7 +54,7 @@ const sendWeeklySummaryFlow = ai.defineFlow(
     const startDateStr = format(startOfLastWeek, 'yyyy-MM-dd');
     const endDateStr = format(endOfLastWeek, 'yyyy-MM-dd');
 
-    // 3. Fetch all necessary data
+    // 3. Fetch all necessary data using the standard (RLS-enabled) client
     const [
         { data: engineFlights, error: engineError },
         { data: gliderFlights, error: gliderError },
@@ -124,8 +124,9 @@ const sendWeeklySummaryFlow = ai.defineFlow(
             statusDetails.push({ pilotId, pilotName: data.pilotName, status: "no_email", error: "Pilot profile not linked to an auth user." });
             continue;
         }
-
-        const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserById(data.authUserId);
+        
+        // Use the ADMIN client to get user email, bypassing RLS
+        const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(data.authUserId);
 
         if (authUserError || !authUser.user.email) {
             statusDetails.push({ pilotId, pilotName: data.pilotName, status: "no_email", error: authUserError?.message || "Email not found for auth user." });
