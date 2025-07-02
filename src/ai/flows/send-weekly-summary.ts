@@ -1,47 +1,60 @@
+
 'use server';
 /**
- * @fileOverview A Genkit flow to generate weekly flight summary emails for pilots.
+ * @fileOverview A Genkit flow to generate and send weekly flight summary emails to pilots.
  *
- * - generateWeeklySummary - A function that generates email content for all pilots with activity in the last week.
- * - WeeklySummary - The output type for the generateWeeklySummary function.
+ * - sendWeeklySummary - A function that handles the generation and sending process.
+ * - WeeklySummaryStatus - The output type for the sendWeeklySummary function.
  */
 
 import { ai } from '@/ai/genkit';
 import { supabase } from '@/lib/supabaseClient';
-import type { CompletedEngineFlight, CompletedGliderFlight, Pilot } from '@/types';
 import { z } from 'genkit';
 import { format, startOfWeek, endOfWeek, subWeeks, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { MailerSend, EmailParams, Sender, Recipient } from 'mailersend';
+import type { CompletedEngineFlight, CompletedGliderFlight } from '@/types';
 
-export const WeeklySummarySchema = z.object({
+
+export const WeeklySummaryStatusSchema = z.object({
+  sentCount: z.number().describe("The number of emails successfully sent."),
+  failedCount: z.number().describe("The number of emails that failed to send."),
+  details: z.array(z.object({
     pilotId: z.string(),
     pilotName: z.string(),
-    subject: z.string(),
-    htmlBody: z.string().describe("The full HTML content of the email body."),
+    status: z.enum(["sent", "failed", "no_email", "no_activity"]),
+    error: z.string().optional(),
+  })).describe("Detailed status for each pilot processed."),
 });
-export type WeeklySummary = z.infer<typeof WeeklySummarySchema>;
+export type WeeklySummaryStatus = z.infer<typeof WeeklySummaryStatusSchema>;
 
-export async function generateWeeklySummary(): Promise<WeeklySummary[]> {
-  return generateWeeklySummaryFlow();
+export async function sendWeeklySummary(): Promise<WeeklySummaryStatus> {
+  return sendWeeklySummaryFlow();
 }
 
-const generateWeeklySummaryFlow = ai.defineFlow(
+const sendWeeklySummaryFlow = ai.defineFlow(
   {
-    name: 'generateWeeklySummaryFlow',
+    name: 'sendWeeklySummaryFlow',
     inputSchema: z.void(),
-    outputSchema: z.array(WeeklySummarySchema),
+    outputSchema: WeeklySummaryStatusSchema,
   },
   async () => {
-    // 1. Determine date range for the last full week (Monday to Sunday)
+    // 1. Setup MailerSend
+    if (!process.env.MAILERSEND_API_KEY || !process.env.MAIL_FROM_ADDRESS) {
+      throw new Error("MailerSend API Key or From Address is not configured in environment variables (MAILERSEND_API_KEY, MAIL_FROM_ADDRESS).");
+    }
+    const mailerSend = new MailerSend({ apiKey: process.env.MAILERSEND_API_KEY });
+    const fromSender = new Sender(process.env.MAIL_FROM_ADDRESS, "Aeroclub 9 de Julio");
+
+    // 2. Determine date range for the last full week
     const now = new Date();
     const lastWeek = subWeeks(now, 1);
-    const startOfLastWeek = startOfWeek(lastWeek, { weekStartsOn: 1 }); // Monday
-    const endOfLastWeek = endOfWeek(lastWeek, { weekStartsOn: 1 }); // Sunday
-
+    const startOfLastWeek = startOfWeek(lastWeek, { weekStartsOn: 1 });
+    const endOfLastWeek = endOfWeek(lastWeek, { weekStartsOn: 1 });
     const startDateStr = format(startOfLastWeek, 'yyyy-MM-dd');
     const endDateStr = format(endOfLastWeek, 'yyyy-MM-dd');
 
-    // 2. Fetch all necessary data in parallel
+    // 3. Fetch all necessary data
     const [
         { data: engineFlights, error: engineError },
         { data: gliderFlights, error: gliderError },
@@ -49,7 +62,7 @@ const generateWeeklySummaryFlow = ai.defineFlow(
     ] = await Promise.all([
         supabase.from('completed_engine_flights').select('*').gte('date', startDateStr).lte('date', endDateStr),
         supabase.from('completed_glider_flights').select('*').gte('date', startDateStr).lte('date', endDateStr),
-        supabase.from('pilots').select('id, first_name, last_name'),
+        supabase.from('pilots').select('id, first_name, last_name, auth_user_id'),
     ]);
 
     if (engineError || gliderError || pilotsError) {
@@ -61,9 +74,10 @@ const generateWeeklySummaryFlow = ai.defineFlow(
         throw new Error('One or more data fetches returned null.');
     }
 
-    // 3. Process and group flights by pilot
+    // 4. Process and group flights by pilot
     const activityByPilot = new Map<string, {
         pilotName: string;
+        authUserId?: string | null;
         picFlights: (CompletedEngineFlight | CompletedGliderFlight)[];
         instFlights: (CompletedEngineFlight | CompletedGliderFlight)[];
     }>();
@@ -73,45 +87,52 @@ const generateWeeklySummaryFlow = ai.defineFlow(
         return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Piloto Desconocido';
     };
     
-    // Initialize map with all pilots to ensure we have their names
     pilots.forEach(p => {
         activityByPilot.set(p.id, {
             pilotName: getPilotName(p.id),
+            authUserId: p.auth_user_id,
             picFlights: [],
             instFlights: []
         });
     });
 
     engineFlights.forEach(flight => {
-        // Pilot in Command flights
         if (flight.pilot_id && activityByPilot.has(flight.pilot_id)) {
             activityByPilot.get(flight.pilot_id)!.picFlights.push(flight);
         }
-        // Instructed flights
         if (flight.instructor_id && activityByPilot.has(flight.instructor_id)) {
             activityByPilot.get(flight.instructor_id)!.instFlights.push(flight);
         }
     });
 
     gliderFlights.forEach(flight => {
-        // PIC flights
         if (flight.pilot_id && activityByPilot.has(flight.pilot_id)) {
              activityByPilot.get(flight.pilot_id)!.picFlights.push(flight);
         }
-        // Instructed flights
         if (flight.instructor_id && activityByPilot.has(flight.instructor_id)) {
             activityByPilot.get(flight.instructor_id)!.instFlights.push(flight);
         }
     });
 
-    // 4. Generate email content for each pilot with activity
-    const emailSummaries: WeeklySummary[] = [];
+    // 5. Generate and send emails
+    const emailPromises = [];
+    const statusDetails: WeeklySummaryStatus['details'] = [];
+    const pilotsWithActivity = Array.from(activityByPilot.entries()).filter(([_, data]) => data.picFlights.length > 0 || data.instFlights.length > 0);
 
-    for (const [pilotId, data] of activityByPilot.entries()) {
-        if (data.picFlights.length === 0 && data.instFlights.length === 0) {
-            continue; // Skip pilots with no activity
+    for (const [pilotId, data] of pilotsWithActivity) {
+        if (!data.authUserId) {
+            statusDetails.push({ pilotId, pilotName: data.pilotName, status: "no_email", error: "Pilot profile not linked to an auth user." });
+            continue;
         }
 
+        const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserById(data.authUserId);
+
+        if (authUserError || !authUser.user.email) {
+            statusDetails.push({ pilotId, pilotName: data.pilotName, status: "no_email", error: authUserError?.message || "Email not found for auth user." });
+            continue;
+        }
+
+        const pilotEmail = authUser.user.email;
         const subject = `Resumen de Vuelos Semanal - ${format(startOfLastWeek, 'dd/MM/yy')} al ${format(endOfLastWeek, 'dd/MM/yy')}`;
         
         let htmlBody = `
@@ -139,14 +160,47 @@ const generateWeeklySummaryFlow = ai.defineFlow(
 
         htmlBody += '<p>¡Buenos vuelos!</p><p>El equipo del Aeroclub 9 de Julio</p></div>';
 
-        emailSummaries.push({
-            pilotId: pilotId,
-            pilotName: data.pilotName,
-            subject: subject,
-            htmlBody: htmlBody,
-        });
-    }
+        const recipients = [new Recipient(pilotEmail, data.pilotName)];
+        const emailParams = new EmailParams()
+          .setFrom(fromSender)
+          .setTo(recipients)
+          .setSubject(subject)
+          .setHtml(htmlBody);
 
-    return emailSummaries;
+        const sendPromise = mailerSend.email.send(emailParams)
+          .then(response => ({ pilotId, pilotName: data.pilotName, response }))
+          .catch(error => ({ pilotId, pilotName: data.pilotName, error }));
+          
+        emailPromises.push(sendPromise);
+    }
+    
+    // Add pilots with no activity to the status report
+    pilots.forEach(p => {
+        if (!activityByPilot.has(p.id) || (activityByPilot.get(p.id)!.picFlights.length === 0 && activityByPilot.get(p.id)!.instFlights.length === 0)) {
+            statusDetails.push({ pilotId: p.id, pilotName: getPilotName(p.id), status: "no_activity" });
+        }
+    });
+
+    // Wait for all emails to be sent and process results
+    const results = await Promise.all(emailPromises);
+    
+    results.forEach(result => {
+        if (result.error) {
+             statusDetails.push({ pilotId: result.pilotId, pilotName: result.pilotName, status: "failed", error: result.error.message || "Unknown mailer error" });
+        } else if (result.response.statusCode >= 200 && result.response.statusCode < 300) {
+            statusDetails.push({ pilotId: result.pilotId, pilotName: result.pilotName, status: "sent" });
+        } else {
+             statusDetails.push({ pilotId: result.pilotId, pilotName: result.pilotName, status: "failed", error: `API Error: ${result.response.statusCode} - ${JSON.stringify(result.response.body)}` });
+        }
+    });
+
+    const sentCount = statusDetails.filter(d => d.status === 'sent').length;
+    const failedCount = statusDetails.filter(d => d.status === 'failed').length;
+
+    return {
+      sentCount,
+      failedCount,
+      details: statusDetails,
+    };
   }
 );
