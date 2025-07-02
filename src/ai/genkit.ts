@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Explicitly load environment variables
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 
