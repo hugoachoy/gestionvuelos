@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Pilot, PilotCategory } from '@/types';
@@ -189,7 +188,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
             <FormField
               control={form.control}
               name="first_name"
@@ -219,66 +218,71 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             <FormField
               control={form.control}
               name="category_ids"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Categorías</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "w-full justify-between",
-                            !field.value?.length && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value?.length
-                            ? field.value.map(id => categories.find(c => c.id === id)?.name).filter(Boolean).join(', ')
-                            : "Seleccionar categorías"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <ScrollArea className="h-48">
-                        {categories.map((category) => (
-                          <FormItem
-                            key={category.id}
-                            className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md"
+              render={({ field }) => {
+                const selectedCount = field.value?.length || 0;
+                const buttonText = selectedCount === 0
+                  ? "Seleccionar categorías"
+                  : `${selectedCount} categoría${selectedCount > 1 ? 's' : ''} seleccionada${selectedCount > 1 ? 's' : ''}`;
+                
+                return (
+                  <FormItem>
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Categorías</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value?.length && "text-muted-foreground"
+                            )}
                           >
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value?.includes(category.id)}
-                                onCheckedChange={(checked) => {
-                                  const currentCategoryIds = field.value || [];
-                                  return checked
-                                    ? field.onChange([...currentCategoryIds, category.id])
-                                    : field.onChange(
-                                        currentCategoryIds.filter(
-                                          (value) => value !== category.id
-                                        )
-                                      );
-                                }}
-                                id={`category-${category.id}`}
-                                aria-labelledby={`category-label-${category.id}`}
-                              />
-                            </FormControl>
-                            <FormLabel
-                              htmlFor={`category-${category.id}`} 
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                              id={`category-label-${category.id}`}
+                            <span className="truncate">{buttonText}</span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <ScrollArea className="h-48">
+                          {categories.map((category) => (
+                            <FormItem
+                              key={category.id}
+                              className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md"
                             >
-                              {category.name}
-                            </FormLabel>
-                          </FormItem>
-                        ))}
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value?.includes(category.id)}
+                                  onCheckedChange={(checked) => {
+                                    const currentCategoryIds = field.value || [];
+                                    return checked
+                                      ? field.onChange([...currentCategoryIds, category.id])
+                                      : field.onChange(
+                                          currentCategoryIds.filter(
+                                            (value) => value !== category.id
+                                          )
+                                        );
+                                  }}
+                                  id={`category-${category.id}`}
+                                  aria-labelledby={`category-label-${category.id}`}
+                                />
+                              </FormControl>
+                              <FormLabel
+                                htmlFor={`category-${category.id}`} 
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                id={`category-label-${category.id}`}
+                              >
+                                {category.name}
+                              </FormLabel>
+                            </FormItem>
+                          ))}
+                        </ScrollArea>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
             <FormField
               control={form.control}
@@ -356,7 +360,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
                 )}
               />
             )}
-            <DialogFooter>
+            <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => {
                 onOpenChange(false);
               }}>Cancelar</Button>
