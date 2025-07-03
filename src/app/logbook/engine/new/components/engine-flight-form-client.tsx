@@ -956,10 +956,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} disabled={isLoading} />
+                      <Input type="text" placeholder="14:30" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormDescription className="text-xs">
-                      Formato de 24 horas (ej: 14:30 para 2:30 PM).
+                      Use formato de 24 horas.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -972,10 +972,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} disabled={isLoading} />
+                      <Input type="text" placeholder="15:00" {...field} disabled={isLoading} />
                     </FormControl>
                      <FormDescription className="text-xs">
-                      Formato de 24 horas (ej: 15:00 para 3:00 PM).
+                      Use formato de 24 horas.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

@@ -993,10 +993,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} disabled={areFieldsDisabled} />
+                      <Input type="text" placeholder="09:00" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
                      <FormDescription className="text-xs">
-                      Formato de 24 horas (ej: 09:00 para 9:00 AM).
+                      Use formato de 24 horas.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1009,10 +1009,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} disabled={areFieldsDisabled} />
+                      <Input type="text" placeholder="10:30" {...field} disabled={areFieldsDisabled} />
                     </FormControl>
                     <FormDescription className="text-xs">
-                      Formato de 24 horas (ej: 17:30 para 5:30 PM).
+                      Use formato de 24 horas.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
