@@ -203,7 +203,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-1 pt-2 pb-4"> {/* Added pb-4 for spacing */}
+            <CardContent className="text-sm text-muted-foreground space-y-1 pt-2 pb-4">
               {entry.aircraft_id && (
                 <div className="flex items-center">
                   <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
@@ -230,4 +230,3 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
     </div>
   );
 }
-
