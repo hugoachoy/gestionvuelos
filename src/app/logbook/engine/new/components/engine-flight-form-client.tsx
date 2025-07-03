@@ -495,33 +495,41 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 return false; // No time overlap
             }
             
-            const aircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
-            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
-            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
-            const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
+            // At this point, there is a time overlap. Check for resource conflict.
+            const isAircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
+            const peopleInNew = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+            const peopleInExisting = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
+            const isPersonConflict = peopleInNew.some(p => peopleInExisting.includes(p as string));
 
-            const isPotentialConflict = aircraftConflict || personConflict;
-            if (!isPotentialConflict) {
-                return false; // No shared resources, no conflict.
+            if (!isAircraftConflict && !isPersonConflict) {
+                return false; // No shared people or aircraft, so no conflict despite time overlap.
             }
 
-            const currentPurpose = formData.flight_purpose;
-            const existingPurpose = existingFlight.flight_purpose;
-            
-            const isPairedInstruction = 
-                ( (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') && existingPurpose === 'Instrucción (Impartida)' ) ||
-                ( currentPurpose === 'Instrucción (Impartida)' && (existingPurpose === 'Instrucción (Recibida)' || existingPurpose === 'readaptación') );
-            
-            if (isPairedInstruction && aircraftConflict) {
-                const studentFlight = (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') ? formData : existingFlight;
-                const instructorFlight = currentPurpose === 'Instrucción (Impartida)' ? formData : existingFlight;
+            // A resource is shared during the same time. Check if it's an excusable instruction pair.
+            const currentIsRecibida = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'readaptación';
+            const currentIsImpartida = formData.flight_purpose === 'Instrucción (Impartida)';
 
-                if (instructorFlight.pilot_id === studentFlight.instructor_id) {
-                    return false; // It's a valid pair, so we IGNORE the conflict.
+            const existingIsRecibida = existingFlight.flight_purpose === 'Instrucción (Recibida)' || existingFlight.flight_purpose === 'readaptación';
+            const existingIsImpartida = existingFlight.flight_purpose === 'Instrucción (Impartida)';
+            
+            // Case 1: Current form is "Recibida", existing is "Impartida"
+            if (currentIsRecibida && existingIsImpartida) {
+                // To be a pair, aircraft must be same, and instructor of "Recibida" must be pilot of "Impartida"
+                if (isAircraftConflict && formData.instructor_id === existingFlight.pilot_id) {
+                    return false; // This is a valid pair, not a conflict.
                 }
             }
             
-            return true; // It's a real conflict.
+            // Case 2: Current form is "Impartida", existing is "Recibida"
+            if (currentIsImpartida && existingIsRecibida) {
+                // To be a pair, aircraft must be same, and pilot of "Impartida" must be instructor of "Recibida"
+                if (isAircraftConflict && formData.pilot_id === existingFlight.instructor_id) {
+                    return false; // This is a valid pair, not a conflict.
+                }
+            }
+
+            // If we've reached here, it's an unexcused conflict.
+            return true;
         });
 
         if (conflictingFlight) {

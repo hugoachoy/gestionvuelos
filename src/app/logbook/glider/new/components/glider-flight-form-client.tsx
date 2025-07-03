@@ -479,33 +479,43 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 return false; 
             }
             
-            const aircraftConflict = existingFlight.glider_aircraft_id === formData.glider_aircraft_id;
-            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
-            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
-            const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
+            // At this point, there is a time overlap. Check for resource conflict.
+            const isAircraftConflict = existingFlight.glider_aircraft_id === formData.glider_aircraft_id;
+            const isTowPlaneConflict = !!(formData.tow_aircraft_id && existingFlight.tow_aircraft_id && formData.tow_aircraft_id === existingFlight.tow_aircraft_id);
+
+            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id, formData.tow_pilot_id].filter(Boolean);
+            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id, existingFlight.tow_pilot_id].filter(Boolean);
+            const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
             
-            const isPotentialConflict = aircraftConflict || personConflict;
-            if (!isPotentialConflict) {
-                return false;
+            if (!isAircraftConflict && !isPersonConflict && !isTowPlaneConflict) {
+                return false; // No shared resources, no conflict.
             }
 
-            const currentPurpose = formData.flight_purpose;
-            const existingPurpose = existingFlight.flight_purpose;
+            // A resource is shared. Check for instruction pairing exception.
+            const currentIsRecibida = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'readaptación';
+            const currentIsImpartida = formData.flight_purpose === 'Instrucción (Impartida)';
 
-            const isPairedInstruction = 
-                ( (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') && existingPurpose === 'Instrucción (Impartida)' ) ||
-                ( currentPurpose === 'Instrucción (Impartida)' && (existingPurpose === 'Instrucción (Recibida)' || existingPurpose === 'readaptación') );
+            const existingIsRecibida = existingFlight.flight_purpose === 'Instrucción (Recibida)' || existingFlight.flight_purpose === 'readaptación';
+            const existingIsImpartida = existingFlight.flight_purpose === 'Instrucción (Impartida)';
 
-            if (isPairedInstruction && aircraftConflict) {
-                const studentFlight = (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') ? formData : existingFlight;
-                const instructorFlight = currentPurpose === 'Instrucción (Impartida)' ? formData : existingFlight;
-                
-                if (instructorFlight.pilot_id === studentFlight.instructor_id) {
-                    return false; // It's a valid pair, so we IGNORE the conflict.
+            // Case 1: Current form is "Recibida", existing is "Impartida"
+            if (currentIsRecibida && existingIsImpartida) {
+                // To be a pair, glider must be same, and instructor of "Recibida" must be pilot of "Impartida"
+                if (isAircraftConflict && formData.instructor_id === existingFlight.pilot_id) {
+                    return false; // This is a valid pair, not a conflict.
+                }
+            }
+            
+            // Case 2: Current form is "Impartida", existing is "Recibida"
+            if (currentIsImpartida && existingIsRecibida) {
+                // To be a pair, glider must be same, and pilot of "Impartida" must be instructor of "Recibida"
+                if (isAircraftConflict && formData.pilot_id === existingFlight.instructor_id) {
+                    return false; // This is a valid pair, not a conflict.
                 }
             }
 
-            return true; // It's a real conflict.
+            // Any other overlap is a real conflict.
+            return true;
         });
 
         if (conflictingFlight) {
