@@ -108,7 +108,7 @@ export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
-  'remolque',
+  'Remolque planeador',
   'Instrucción (Recibida)',
   'Instrucción (Impartida)',
   'local',
@@ -127,7 +127,7 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'local': 'Local',
   
   // Engine-specific
-  'remolque': 'Remolque',
+  'Remolque planeador': 'Remolque',
 
   // Shared Instruction
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
@@ -152,7 +152,7 @@ export interface CompletedGliderFlight extends BaseCompletedFlight {
 export interface CompletedEngineFlight extends BaseCompletedFlight {
   logbook_type: 'engine';
   engine_aircraft_id: string;
-  flight_purpose: string; // Use string type to allow for mapping to specific DB values
+  flight_purpose: EngineFlightPurpose;
   billable_minutes?: number | null; // Typically for engine flights
   route_from_to?: string | null;
   landings_count?: number | null;
