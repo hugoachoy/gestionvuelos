@@ -620,8 +620,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
           <CardTitle>{isEditMode ? 'Cargando Editor de Vuelo...' : 'Cargando Formulario...'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-1/2" />
         </CardContent>
         <CardFooter className="flex justify-end gap-2 pt-6">
@@ -1075,3 +1074,5 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
+    

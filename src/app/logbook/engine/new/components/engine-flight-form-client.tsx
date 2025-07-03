@@ -472,64 +472,53 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         const flightDate = formData.date;
-        const depTimeCleanedCheck = formData.departure_time.substring(0,5);
-        const arrTimeCleanedCheck = formData.arrival_time.substring(0,5);
-        const newFlightStart = parse(depTimeCleanedCheck, 'HH:mm', flightDate);
-        const newFlightEnd = parse(arrTimeCleanedCheck, 'HH:mm', flightDate);
+        const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
+        const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
+        
+        const { data: allFlightsOnDate, error: fetchError } = await supabase
+            .from('completed_engine_flights')
+            .select('*')
+            .eq('date', format(flightDate, 'yyyy-MM-dd'));
 
-        if (!isEditMode) {
-            await fetchCompletedEngineFlights();
+        if (fetchError) {
+            toast({ title: "Error", description: "No se pudo verificar el conflicto de horarios. Intente nuevamente.", variant: "destructive" });
+            setIsSubmittingForm(false);
+            return;
         }
-        const flightsToCheckForConflict = completedEngineFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
-
+        
+        const flightsToCheckForConflict = allFlightsOnDate?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
+        
         const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
-            const isOnSameDay = format(parseISO(existingFlight.date), 'yyyy-MM-dd') === format(flightDate, 'yyyy-MM-dd');
-            if (!isOnSameDay) return false;
-
-            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
-            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
-            const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
-            const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
-
+            const existingStart = parse(existingFlight.departure_time, 'HH:mm', flightDate);
+            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm', flightDate);
+        
             if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
-                return false; // No time overlap
+                return false;
             }
-            
-            // At this point, there is a time overlap. Check for resource conflict.
+        
             const isAircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
-            const peopleInNew = [formData.pilot_id, formData.instructor_id].filter(Boolean);
-            const peopleInExisting = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
-            const isPersonConflict = peopleInNew.some(p => peopleInExisting.includes(p as string));
-
+            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
+            const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
+        
             if (!isAircraftConflict && !isPersonConflict) {
-                return false; // No shared people or aircraft, so no conflict despite time overlap.
+                return false; 
             }
-
-            // A resource is shared during the same time. Check if it's an excusable instruction pair.
-            const currentIsRecibida = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'readaptación';
-            const currentIsImpartida = formData.flight_purpose === 'Instrucción (Impartida)';
-
-            const existingIsRecibida = existingFlight.flight_purpose === 'Instrucción (Recibida)' || existingFlight.flight_purpose === 'readaptación';
-            const existingIsImpartida = existingFlight.flight_purpose === 'Instrucción (Impartida)';
-            
-            // Case 1: Current form is "Recibida", existing is "Impartida"
-            if (currentIsRecibida && existingIsImpartida) {
-                // To be a pair, aircraft must be same, and instructor of "Recibida" must be pilot of "Impartida"
-                if (isAircraftConflict && formData.instructor_id === existingFlight.pilot_id) {
-                    return false; // This is a valid pair, not a conflict.
-                }
+        
+            // Check for valid instruction pair
+            const isNewFlightRecibida = formData.flight_purpose === 'Instrucción (Recibida)';
+            const isExistingFlightImpartida = existingFlight.flight_purpose === 'Instrucción (Impartida)';
+            if (isNewFlightRecibida && isExistingFlightImpartida && isAircraftConflict && formData.instructor_id === existingFlight.pilot_id) {
+                return false; // Valid pair: current is student, existing is instructor
             }
-            
-            // Case 2: Current form is "Impartida", existing is "Recibida"
-            if (currentIsImpartida && existingIsRecibida) {
-                // To be a pair, aircraft must be same, and pilot of "Impartida" must be instructor of "Recibida"
-                if (isAircraftConflict && formData.pilot_id === existingFlight.instructor_id) {
-                    return false; // This is a valid pair, not a conflict.
-                }
+        
+            const isNewFlightImpartida = formData.flight_purpose === 'Instrucción (Impartida)';
+            const isExistingFlightRecibida = existingFlight.flight_purpose === 'Instrucción (Recibida)';
+            if (isNewFlightImpartida && isExistingFlightRecibida && isAircraftConflict && formData.pilot_id === existingFlight.instructor_id) {
+                return false; // Valid pair: current is instructor, existing is student
             }
-
-            // If we've reached here, it's an unexcused conflict.
-            return true;
+        
+            return true; // Unresolved conflict
         });
 
         if (conflictingFlight) {
@@ -561,6 +550,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         if (formData.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
+        
+        let instructorIdToSave = formData.instructor_id;
+        if (formData.flight_purpose === 'Instrucción (Impartida)') {
+            instructorIdToSave = null;
+        }
 
         const submissionData = {
             ...formData,
@@ -570,7 +564,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             flight_duration_decimal: flightDurationDecimal,
             billable_minutes: billableMins,
             schedule_entry_id: formData.schedule_entry_id || null,
-            instructor_id: formData.instructor_id || null,
+            instructor_id: instructorIdToSave,
             route_from_to: formData.route_from_to || null,
             landings_count: formData.landings_count ?? 0,
             tows_count: formData.tows_count ?? 0,
@@ -1114,3 +1108,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
