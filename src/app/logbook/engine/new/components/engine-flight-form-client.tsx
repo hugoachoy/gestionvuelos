@@ -292,8 +292,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     if (watchedFlightPurpose === 'Remolque planeador') {
       form.setValue('tows_count', 1, { shouldValidate: true });
     } else {
-      // Clear tows_count if purpose is not towage
-      form.setValue('tows_count', 0, { shouldValidate: true });
+      if (form.getValues('tows_count') !== 0) {
+          form.setValue('tows_count', 0, { shouldValidate: true });
+      }
     }
   }, [watchedFlightPurpose, form]);
 
@@ -470,7 +471,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
 
-        // --- Conflict Check ---
         const flightDate = formData.date;
         const depTimeCleanedCheck = formData.departure_time.substring(0,5);
         const arrTimeCleanedCheck = formData.arrival_time.substring(0,5);
@@ -494,15 +494,34 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
                 return false; // No time overlap
             }
-
-            // Time overlaps, check for resource conflict
+            
             const aircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
-
             const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
             const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
 
-            return aircraftConflict || personConflict;
+            const isPotentialConflict = aircraftConflict || personConflict;
+            if (!isPotentialConflict) {
+                return false; // No shared resources, no conflict.
+            }
+
+            const currentPurpose = formData.flight_purpose;
+            const existingPurpose = existingFlight.flight_purpose;
+            
+            const isPairedInstruction = 
+                ( (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') && existingPurpose === 'Instrucción (Impartida)' ) ||
+                ( currentPurpose === 'Instrucción (Impartida)' && (existingPurpose === 'Instrucción (Recibida)' || existingPurpose === 'readaptación') );
+            
+            if (isPairedInstruction && aircraftConflict) {
+                const studentFlight = (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') ? formData : existingFlight;
+                const instructorFlight = currentPurpose === 'Instrucción (Impartida)' ? formData : existingFlight;
+
+                if (instructorFlight.pilot_id === studentFlight.instructor_id) {
+                    return false; // It's a valid pair, so we IGNORE the conflict.
+                }
+            }
+            
+            return true; // It's a real conflict.
         });
 
         if (conflictingFlight) {
@@ -516,8 +535,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             setIsSubmittingForm(false);
             return;
         }
-        // --- End Conflict Check ---
-
 
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);

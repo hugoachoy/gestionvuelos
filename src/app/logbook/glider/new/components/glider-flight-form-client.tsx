@@ -480,24 +480,32 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             }
             
             const aircraftConflict = existingFlight.glider_aircraft_id === formData.glider_aircraft_id;
-            
             const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
             const personConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
-
-            if (!aircraftConflict && !personConflict) {
-                return false; 
+            
+            const isPotentialConflict = aircraftConflict || personConflict;
+            if (!isPotentialConflict) {
+                return false;
             }
-            
+
             const currentPurpose = formData.flight_purpose;
-            const conflictingPurpose = existingFlight.flight_purpose;
+            const existingPurpose = existingFlight.flight_purpose;
 
-            const isPairedInstruction =
-              ((currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') && conflictingPurpose === 'Instrucción (Impartida)') ||
-              (currentPurpose === 'Instrucción (Impartida)' && (conflictingPurpose === 'Instrucción (Recibida)' || conflictingPurpose === 'readaptación'));
+            const isPairedInstruction = 
+                ( (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') && existingPurpose === 'Instrucción (Impartida)' ) ||
+                ( currentPurpose === 'Instrucción (Impartida)' && (existingPurpose === 'Instrucción (Recibida)' || existingPurpose === 'readaptación') );
 
-            
-            return !(isPairedInstruction && aircraftConflict);
+            if (isPairedInstruction && aircraftConflict) {
+                const studentFlight = (currentPurpose === 'Instrucción (Recibida)' || currentPurpose === 'readaptación') ? formData : existingFlight;
+                const instructorFlight = currentPurpose === 'Instrucción (Impartida)' ? formData : existingFlight;
+                
+                if (instructorFlight.pilot_id === studentFlight.instructor_id) {
+                    return false; // It's a valid pair, so we IGNORE the conflict.
+                }
+            }
+
+            return true; // It's a real conflict.
         });
 
         if (conflictingFlight) {
