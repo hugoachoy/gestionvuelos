@@ -106,7 +106,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     setExportEndDate(scheduleDate);
   }, [scheduleDate]);
 
-  const getFormattedEntry = (entry: ScheduleEntry, allPilots: Pilot[]) => {
+  const getFormattedEntry = (entry: ScheduleEntry, allPilots: Pilot[], allEntriesForDay: ScheduleEntry[]) => {
     const pilotName = getPilotName(entry.pilot_id);
     const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id);
     const flightTypeName = FLIGHT_TYPES.find(ft => ft.id === entry.flight_type_id)?.name || 'N/A';
@@ -114,7 +114,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     
     let availableStatus = '-';
     const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
-    const normalizedEntryCategoryName = normalizeCategoryNameForGrouping(entryCategoryDetails?.name); // Use grouping normalizer
+    const normalizedEntryCategoryName = normalizeCategoryNameForGrouping(entryCategoryDetails?.name);
     
     if (normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION_FOR_GROUPING || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_FOR_GROUPING) {
       availableStatus = 'Sí';
@@ -127,7 +127,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR_FOR_GROUPING);
 
     const isSportFlight = flightTypeName.toLowerCase() === 'deportivo';
-
 
     let medicalWarningText = "";
     let medicalWarningSeverity: 'critical' | 'warning' | 'none' = 'none';
@@ -158,6 +157,23 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
         }
       }
     }
+    
+    const sportFlightId = FLIGHT_TYPES.find(ft => ft.id === 'sport')?.id;
+    let sportConflictMessage = "";
+    if (entry.aircraft_id && entry.flight_type_id !== sportFlightId) {
+        const conflictingSportEntry = allEntriesForDay.find(
+            otherEntry =>
+                otherEntry.aircraft_id === entry.aircraft_id &&
+                otherEntry.flight_type_id === sportFlightId &&
+                otherEntry.id !== entry.id
+        );
+
+        if (conflictingSportEntry) {
+            const sportPilotName = getPilotName(conflictingSportEntry.pilot_id);
+            const aircraftName = getAircraftName(entry.aircraft_id);
+            sportConflictMessage = `(Supeditado a vuelo deportivo de ${sportPilotName} en ${aircraftName})`;
+        }
+    }
 
     return {
       time: entry.start_time.substring(0, 5),
@@ -170,6 +186,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
       isSportFlight,
       medicalWarningText,
       medicalWarningSeverity,
+      sportConflictMessage,
     };
   };
 
@@ -328,7 +345,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             fullText += `\n--- ${formatTextForExport(groupDetails.name)} ---\n`;
             previousGroupIdentifier = groupDetails.id;
           }
-          const formatted = getFormattedEntry(entry, allPilots);
+          const formatted = getFormattedEntry(entry, allPilots, entriesForDay);
           
           let flightTypeString = formatted.flightType;
           if (formatted.shouldFlightTypeBeBoldForInstructorOrTow) {
@@ -339,8 +356,12 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
 
           let pilotCategoryString = formatted.category; 
           const medicalWarningString = formatted.medicalWarningText ? ` (${formatted.medicalWarningText})` : "";
-
+          
           fullText += `${formatted.time} - ${formatted.pilot}${medicalWarningString} (${pilotCategoryString}${formatted.availableStatus !== '-' ? ' - Disp: ' + formatted.availableStatus : ''}) - ${flightTypeString}${formatted.aircraft !== 'N/A' ? ' - Aeronave: ' + formatted.aircraft : ''}\n`;
+          
+          if (formatted.sportConflictMessage) {
+            fullText += `  *${formatted.sportConflictMessage}*\n`;
+          }
         });
       }
     });
@@ -384,7 +405,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     if (!data || !exportStartDate || !exportEndDate) return;
 
     let csvContent = `Agenda de Vuelo del ${format(exportStartDate, "yyyy-MM-dd", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' al ' + format(exportEndDate, "yyyy-MM-dd", { locale: es }) : ''}\n`;
-    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría (Turno)", "Disponible", "Tipo de Vuelo", "Aeronave"];
+    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría (Turno)", "Disponible", "Tipo de Vuelo", "Aeronave", "Advertencia V.D."];
     
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
     let contentAddedForPreviousDay = false;
@@ -465,7 +486,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 csvContent += `"${groupDetails.name.replace(/"/g, '""')}",,,,,,\n`; 
                 previousGroupIdentifier = groupDetails.id;
               }
-              const formatted = getFormattedEntry(entry, data.allPilots);
+              const formatted = getFormattedEntry(entry, data.allPilots, entriesForDay);
               
               let flightTypeCellContent = formatted.flightType;
               if (formatted.shouldFlightTypeBeBoldForInstructorOrTow || formatted.isSportFlight) {
@@ -480,6 +501,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 formatted.availableStatus,
                 `"${flightTypeCellContent.replace(/"/g, '""')}"`,
                 `"${formatted.aircraft.replace(/"/g, '""')}"`,
+                `"${formatted.sportConflictMessage.replace(/"/g, '""')}"`
               ];
               csvContent += row.join(",") + "\n";
             });
@@ -656,7 +678,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             doc.text("No hay turnos programados para esta fecha.", 14, currentY);
             currentY += 10;
         } else if (entriesForDay.length > 0) {
-            const tableColumn = ["Hora", "Piloto", "Adv. Psicof.", "Categoría (Turno)", "Disponible", "Tipo Vuelo", "Aeronave"];
+            const tableColumn = ["Hora", "Piloto", "Adv. Psicof.", "Categoría (Turno)", "Disponible", "Tipo Vuelo", "Aeronave", "Adv. V.D."];
             const tableRows: (string | { content: string; colSpan?: number; styles?: any } | null)[][] = [];
             
             let previousGroupIdentifier: string | null = null;
@@ -675,7 +697,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                   ]);
                   previousGroupIdentifier = groupDetails.id;
               }
-              const formatted = getFormattedEntry(entry, data.allPilots);
+              const formatted = getFormattedEntry(entry, data.allPilots, entriesForDay);
               
               const flightTypeCellStyles: any = {};
               if (formatted.shouldFlightTypeBeBoldForInstructorOrTow || formatted.isSportFlight) {
@@ -691,6 +713,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
               }
               const medicalCell = { content: formatted.medicalWarningText, styles: medicalCellStyles };
 
+              const sportConflictCell = { content: formatted.sportConflictMessage, styles: { textColor: [230, 126, 34], fontSize: 7 } };
+
               tableRows.push([
                   formatted.time,
                   formatted.pilot,
@@ -699,6 +723,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                   formatted.availableStatus,
                   flightTypeCell,
                   formatted.aircraft,
+                  sportConflictCell
               ]);
             });
             
@@ -716,7 +741,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                     3: { cellWidth: 28 }, 
                     4: { cellWidth: 20 }, 
                     5: { cellWidth: 25 }, 
-                    6: { cellWidth: 'auto' }, 
+                    6: { cellWidth: 'auto' },
+                    7: { cellWidth: 35 }, 
                 },
                 didDrawPage: (hookData) => { 
                     currentY = hookData.cursor?.y ?? currentY;
