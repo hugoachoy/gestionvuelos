@@ -187,9 +187,12 @@ export function FlightStatsClient() {
             if (flight.pilot_id === pilotIdToFetch) {
                 newStats.engineTotalHours += flight.flight_duration_decimal;
                 newStats.engineTotalFlights += 1;
-                if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
+                if (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
                     newStats.engineInstructionTakenHours += flight.flight_duration_decimal;
                     newStats.engineInstructionTakenFlights += 1;
+                } else if (flight.flight_purpose === 'Instrucción (Impartida)') {
+                    newStats.engineInstructionGivenHours += flight.flight_duration_decimal;
+                    newStats.engineInstructionGivenFlights += 1;
                 } else if (flight.flight_purpose === 'Remolque planeador') {
                     newStats.engineTowHours += flight.flight_duration_decimal;
                     newStats.engineTowFlights += 1;
@@ -197,7 +200,7 @@ export function FlightStatsClient() {
                     newStats.engineOtherHours += flight.flight_duration_decimal;
                     newStats.engineOtherFlights += 1;
                 }
-            } else if (flight.instructor_id === pilotIdToFetch && (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación')) {
+            } else if (flight.instructor_id === pilotIdToFetch && (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación')) {
                 newStats.engineInstructionGivenHours += flight.flight_duration_decimal;
                 newStats.engineInstructionGivenFlights += 1;
             }
@@ -206,7 +209,7 @@ export function FlightStatsClient() {
         engineData.forEach(flight => {
             newStats.engineTotalHours += flight.flight_duration_decimal;
             newStats.engineTotalFlights += 1;
-            if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
+            if (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
                 newStats.engineInstructionTotalHours += flight.flight_duration_decimal;
                 newStats.engineInstructionTotalFlights += 1;
             } else if (flight.flight_purpose === 'Remolque planeador') {

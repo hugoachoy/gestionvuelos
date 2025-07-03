@@ -67,12 +67,12 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  if (data.flight_purpose === 'instrucción' && !data.instructor_id) {
+  if ((data.flight_purpose === 'Instrucción (Recibida)' || data.flight_purpose === 'readaptación') && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción'.",
+  message: "Se requiere un instructor para 'Instrucción (Recibida)' o 'Readaptación'.",
   path: ["instructor_id"],
 });
 
@@ -90,8 +90,8 @@ const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador
 
 const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | undefined => {
     switch (scheduleTypeId) {
-        case 'instruction_taken': return 'instrucción';
-        case 'instruction_given': return 'instrucción';
+        case 'instruction_taken': return 'Instrucción (Recibida)';
+        case 'instruction_given': return 'Instrucción (Impartida)';
         case 'towage': return 'Remolque planeador';
         case 'trip': return 'viaje';
         case 'local': return 'local';
@@ -278,7 +278,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'instrucción' || watchedFlightPurpose === 'readaptación';
+    return watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -842,13 +842,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.entries(FLIGHT_PURPOSE_DISPLAY_MAP)
-                        .filter(([key]) => ['entrenamiento', 'readaptación', 'Remolque planeador', 'instrucción', 'local', 'viaje'].includes(key))
-                        .map(([key, displayName]) => (
-                          <SelectItem key={key} value={key}>
-                            {displayName}
-                          </SelectItem>
-                        ))}
+                      {ENGINE_FLIGHT_PURPOSES.map((purpose) => (
+                        <SelectItem key={purpose} value={purpose}>
+                          {FLIGHT_PURPOSE_DISPLAY_MAP[purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || purpose}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

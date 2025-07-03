@@ -105,31 +105,33 @@ export function BillingReportClient() {
       let totalMins = 0;
       let totalTowsCount = 0;
 
-      engineFlights.forEach((flight) => {
-        if (flight.instructor_id === selectedPilotId && flight.flight_purpose === 'instrucción') {
-          billableItems.push({
-            id: `eng-inst-${flight.id}`,
-            date: flight.date,
-            type: 'Instrucción Impartida',
-            aircraft: getAircraftName(flight.engine_aircraft_id),
-            duration_hs: flight.flight_duration_decimal,
-            billable_minutes: null,
-            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
-            is_non_billable_for_pilot: true
-          });
-        } else if (flight.pilot_id === selectedPilotId && flight.flight_purpose !== 'Remolque planeador') {
-          billableItems.push({
-            id: `eng-${flight.id}`,
-            date: flight.date,
-            type: 'Vuelo a Motor',
-            aircraft: getAircraftName(flight.engine_aircraft_id),
-            duration_hs: flight.flight_duration_decimal,
-            billable_minutes: flight.billable_minutes ?? 0,
-            notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
-          });
-          totalMins += flight.billable_minutes ?? 0;
-        }
-      });
+      engineFlights
+        .filter(flight => flight.flight_purpose !== 'Instrucción (Impartida)')
+        .forEach((flight) => {
+          if (flight.instructor_id === selectedPilotId && (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación')) {
+            billableItems.push({
+              id: `eng-inst-${flight.id}`,
+              date: flight.date,
+              type: 'Instrucción Impartida',
+              aircraft: getAircraftName(flight.engine_aircraft_id),
+              duration_hs: flight.flight_duration_decimal,
+              billable_minutes: null,
+              notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+              is_non_billable_for_pilot: true
+            });
+          } else if (flight.pilot_id === selectedPilotId && flight.flight_purpose !== 'Remolque planeador') {
+            billableItems.push({
+              id: `eng-${flight.id}`,
+              date: flight.date,
+              type: 'Vuelo a Motor',
+              aircraft: getAircraftName(flight.engine_aircraft_id),
+              duration_hs: flight.flight_duration_decimal,
+              billable_minutes: flight.billable_minutes ?? 0,
+              notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
+            });
+            totalMins += flight.billable_minutes ?? 0;
+          }
+        });
       
       gliderFlights
         .filter(flight => flight.flight_purpose !== 'Instrucción (Impartida)')

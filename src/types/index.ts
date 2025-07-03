@@ -109,7 +109,8 @@ export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
   'Remolque planeador',
-  'instrucción',
+  'Instrucción (Recibida)',
+  'Instrucción (Impartida)',
   'local',
   'viaje'
 ] as const;
@@ -118,20 +119,21 @@ export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 
 export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
-  // Logbook DB values -> Display Name
+  // Common
   'entrenamiento': 'Entrenamiento',
   'readaptación': 'Readaptación',
   'deportivo': 'Deportivo',
-  'instrucción': 'Instrucción',
   'viaje': 'Travesía',
   'local': 'Local',
+  
+  // Engine-specific
   'Remolque planeador': 'Remolque',
 
-  // UI values for Glider (which match its DB values) -> Display Name
+  // Shared Instruction
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
   'Instrucción (Impartida)': 'Instrucción (Impartida)',
 
-  // Schedule IDs -> Display Name (for mapping in forms)
+  // Schedule IDs for mapping in forms
   'instruction_taken': 'Instrucción',
   'instruction_given': 'Instrucción (Impartida)',
   'towage': 'Remolque',
