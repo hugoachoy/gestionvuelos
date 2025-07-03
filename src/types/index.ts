@@ -108,7 +108,7 @@ export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
-  'Remolque planeador',
+  'remolque',
   'Instrucción (Recibida)',
   'Instrucción (Impartida)',
   'local',
@@ -127,7 +127,7 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'local': 'Local',
   
   // Engine-specific
-  'Remolque planeador': 'Remolque',
+  'remolque': 'Remolque',
 
   // Shared Instruction
   'Instrucción (Recibida)': 'Instrucción (Recibida)',

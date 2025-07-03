@@ -43,7 +43,7 @@ const engineFlightSchema = z.object({
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   instructor_id: z.string().optional().nullable(),
   engine_aircraft_id: z.string().min(1, "Seleccione una aeronave."),
-  flight_purpose: z.string({ required_error: "El propósito del vuelo es obligatorio." }),
+  flight_purpose: z.enum(ENGINE_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
   departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de salida inválido (HH:MM)."),
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de llegada inválido (HH:MM)."),
   route_from_to: z.string().optional().nullable(),
@@ -92,7 +92,7 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | 
     switch (scheduleTypeId) {
         case 'instruction_taken': return 'Instrucción (Recibida)';
         case 'instruction_given': return 'Instrucción (Impartida)';
-        case 'towage': return 'Remolque planeador';
+        case 'towage': return 'remolque';
         case 'trip': return 'viaje';
         case 'local': return 'local';
         default:
@@ -208,6 +208,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     schedule_entry_id: data.schedule_entry_id || null,
                     departure_time: data.departure_time ? data.departure_time.substring(0,5) : '',
                     arrival_time: data.arrival_time ? data.arrival_time.substring(0,5) : '',
+                    flight_purpose: data.flight_purpose as EngineFlightPurpose,
                 });
             } else {
                 setFlightFetchError("No tienes permiso para editar este vuelo.");
@@ -239,7 +240,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               arrival_time: '',
               schedule_entry_id: entry.id,
               instructor_id: null,
-              flight_purpose: prefilledFlightPurpose,
+              flight_purpose: prefilledFlightPurpose as EngineFlightPurpose,
               route_from_to: null,
               landings_count: 0,
               tows_count: 0,
@@ -289,7 +290,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [showInstructorField, form]);
 
   useEffect(() => {
-    if (watchedFlightPurpose === 'Remolque planeador') {
+    if (watchedFlightPurpose === 'remolque') {
       form.setValue('tows_count', 1, { shouldValidate: true });
     } else {
       if (form.getValues('tows_count') !== 0) {
@@ -547,7 +548,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'remolque' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
         
@@ -1043,7 +1044,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <FormItem>
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'Remolque planeador'} />
+                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'remolque'} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -1108,5 +1109,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
-    
