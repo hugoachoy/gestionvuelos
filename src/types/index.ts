@@ -109,8 +109,7 @@ export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
   'Remolque planeador',
-  'Instrucción (Recibida)',
-  'Instrucción (Impartida)',
+  'instrucción',
   'local',
   'viaje'
 ] as const;
@@ -126,6 +125,7 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'deportivo': 'Deportivo',
   'viaje': 'Travesía',
   'local': 'Local',
+  'instrucción': 'Instrucción',
   
   // Engine-specific
   'Remolque planeador': 'Remolque',

@@ -67,12 +67,12 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  if ((data.flight_purpose === 'Instrucción (Recibida)' || data.flight_purpose === 'readaptación') && !data.instructor_id) {
+  if ((data.flight_purpose === 'instrucción' || data.flight_purpose === 'readaptación') && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción (Recibida)' o 'Readaptación'.",
+  message: "Se requiere un instructor para 'Instrucción' o 'Readaptación'.",
   path: ["instructor_id"],
 });
 
@@ -90,8 +90,8 @@ const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador
 
 const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | undefined => {
     switch (scheduleTypeId) {
-        case 'instruction_taken': return 'Instrucción (Recibida)';
-        case 'instruction_given': return 'Instrucción (Impartida)';
+        case 'instruction_taken': return 'instrucción';
+        case 'instruction_given': return 'instrucción';
         case 'towage': return 'Remolque planeador';
         case 'trip': return 'viaje';
         case 'local': return 'local';
@@ -279,7 +279,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación';
+    return watchedFlightPurpose === 'instrucción' || watchedFlightPurpose === 'readaptación';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -502,23 +502,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
             const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
         
-            if (!isAircraftConflict && !isPersonConflict) {
-                return false; 
-            }
-        
-            const isNewFlightRecibida = formData.flight_purpose === 'Instrucción (Recibida)';
-            const isExistingFlightImpartida = existingFlight.flight_purpose === 'Instrucción (Impartida)';
-            if (isNewFlightRecibida && isExistingFlightImpartida && isAircraftConflict && formData.instructor_id === existingFlight.pilot_id && formData.pilot_id === existingFlight.instructor_id) {
-                return false; // Valid pair: current is student, existing is instructor
-            }
-        
-            const isNewFlightImpartida = formData.flight_purpose === 'Instrucción (Impartida)';
-            const isExistingFlightRecibida = existingFlight.flight_purpose === 'Instrucción (Recibida)';
-            if (isNewFlightImpartida && isExistingFlightRecibida && isAircraftConflict && formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) {
-                return false; // Valid pair: current is instructor, existing is student
-            }
-        
-            return true; // Unresolved conflict
+            return isAircraftConflict || isPersonConflict;
         });
 
         if (conflictingFlight) {
@@ -551,11 +535,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           billableMins = durationMinutes;
         }
         
-        let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'Instrucción (Impartida)') {
-            instructorIdToSave = null;
-        }
-
         const submissionData = {
             ...formData,
             date: format(formData.date, 'yyyy-MM-dd'),
@@ -564,7 +543,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             flight_duration_decimal: flightDurationDecimal,
             billable_minutes: billableMins,
             schedule_entry_id: formData.schedule_entry_id || null,
-            instructor_id: instructorIdToSave,
             route_from_to: formData.route_from_to || null,
             landings_count: formData.landings_count ?? 0,
             tows_count: formData.tows_count ?? 0,

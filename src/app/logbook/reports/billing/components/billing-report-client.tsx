@@ -106,9 +106,8 @@ export function BillingReportClient() {
       let totalTowsCount = 0;
 
       engineFlights
-        .filter(flight => flight.flight_purpose !== 'Instrucción (Impartida)')
         .forEach((flight) => {
-          if (flight.instructor_id === selectedPilotId && (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación')) {
+          if (flight.instructor_id === selectedPilotId && (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación')) {
             billableItems.push({
               id: `eng-inst-${flight.id}`,
               date: flight.date,
