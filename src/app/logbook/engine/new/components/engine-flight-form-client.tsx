@@ -67,12 +67,12 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  if ((data.flight_purpose === 'instrucción' || data.flight_purpose === 'readaptación') && !data.instructor_id) {
+  if (data.flight_purpose === 'instrucción' && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción' o 'Readaptación'.",
+  message: "Se requiere un instructor para 'Instrucción'.",
   path: ["instructor_id"],
 });
 
@@ -92,7 +92,7 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | 
     switch (scheduleTypeId) {
         case 'instruction_taken': return 'instrucción';
         case 'instruction_given': return 'instrucción';
-        case 'towage': return 'Remolque planeador';
+        case 'towage': return 'remolque';
         case 'trip': return 'viaje';
         case 'local': return 'local';
         default:
@@ -128,6 +128,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const [instructorSearchTerm, setInstructorSearchTerm] = useState('');
   const [instructorPopoverOpen, setInstructorPopoverOpen] = useState(false);
   const [medicalWarning, setMedicalWarning] = useState<string | null>(null);
+  const [instructorMedicalWarning, setInstructorMedicalWarning] = useState<string | null>(null);
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
 
@@ -273,13 +274,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
 
   const watchedPilotId = form.watch("pilot_id");
+  const watchedInstructorId = form.watch("instructor_id");
   const watchedDate = form.watch("date");
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
 
   const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'instrucción' || watchedFlightPurpose === 'readaptación';
+    return watchedFlightPurpose === 'instrucción';
   }, [watchedFlightPurpose]);
 
   useEffect(() => {
@@ -290,7 +292,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [showInstructorField, form]);
 
   useEffect(() => {
-    if (watchedFlightPurpose === 'Remolque planeador') {
+    if (watchedFlightPurpose === 'remolque') {
       form.setValue('tows_count', 1, { shouldValidate: true });
     } else {
       if (form.getValues('tows_count') !== 0) {
@@ -342,30 +344,33 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [watchedDepartureTime, watchedArrivalTime, watchedDate, form]);
 
   const checkPilotValidity = useCallback(() => {
-    setMedicalWarning(null);
-    setCategoryWarning(null);
+    const checkMedical = (pilotId: string | null | undefined, date: Date | undefined, role: string): string | null => {
+        if (!pilotId || !date || pilots.length === 0) return null;
+        const pilot = pilots.find(p => p.id === pilotId);
+        if (!pilot?.medical_expiry) return null;
+        const medicalExpiryDate = parseISO(pilot.medical_expiry);
+        if (!isValid(medicalExpiryDate)) return null;
+        const flightDate = startOfDay(date);
+        if (isBefore(medicalExpiryDate, flightDate)) {
+            return `¡Psicofísico de ${role} VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
+        }
+        const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
+        if (daysDiff <= 30) {
+            return `Psicofísico de ${role} vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (${daysDiff} días).`;
+        }
+        return null;
+    }
 
+    setMedicalWarning(checkMedical(watchedPilotId, watchedDate, 'Piloto a Cargo'));
+    setInstructorMedicalWarning(checkMedical(watchedInstructorId, watchedDate, 'Instructor'));
+    
+    // Keep category check for main pilot
+    setCategoryWarning(null);
     if (!watchedPilotId || !watchedDate || pilots.length === 0 || categories.length === 0) {
       return;
     }
-
     const pilot = pilots.find(p => p.id === watchedPilotId);
     if (!pilot) return;
-
-    if (pilot.medical_expiry) {
-      const medicalExpiryDate = parseISO(pilot.medical_expiry);
-      const flightDate = startOfDay(watchedDate);
-      if (isValid(medicalExpiryDate)) {
-        if (isBefore(medicalExpiryDate, flightDate)) {
-          setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}! No se puede registrar el vuelo.`);
-        } else {
-          const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
-          if (daysDiff <= 30) {
-            setMedicalWarning(`Psicofísico vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (en ${daysDiff} días).`);
-          }
-        }
-      }
-    }
 
     const pilotCategoryNamesNormalized = pilot.category_ids
       .map(catId => {
@@ -381,7 +386,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     if (!hasRequiredCategory) {
       setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión, Remolcador, o Instructor de Avión) para registrar este vuelo.");
     }
-  }, [watchedPilotId, watchedDate, pilots, categories]);
+
+  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories]);
 
   useEffect(() => {
     checkPilotValidity();
@@ -426,6 +432,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                    .sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
+  const isAnyPilotInvalidForFlight = useMemo(() => {
+    const isPicExpired = medicalWarning?.toUpperCase().includes("VENCIDO");
+    const isInstructorExpired = instructorMedicalWarning?.toUpperCase().includes("VENCIDO");
+    return !!(isPicExpired || isInstructorExpired);
+  }, [medicalWarning, instructorMedicalWarning]);
+
   const onSubmit = async (formData: EngineFlightFormData) => {
     setIsSubmittingForm(true);
     try {
@@ -435,13 +447,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
 
-        checkPilotValidity();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        if (isAnyPilotInvalidForFlight) {
+            let errorMessages: string[] = [];
+            if (medicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(medicalWarning);
+            if (instructorMedicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(instructorMedicalWarning);
 
-        if (medicalWarning && medicalWarning.includes("VENCIDO!")) {
             toast({
-                title: "Error de Psicofísico",
-                description: medicalWarning,
+                title: "Error de Psicofísico Vencido",
+                description: `No se puede registrar el vuelo. Revise: ${errorMessages.join(' ')}`,
                 variant: "destructive",
                 duration: 7000,
             });
@@ -531,7 +544,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'remolque' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
         
@@ -604,7 +617,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isSubmitDisabled =
     isLoading ||
-    (medicalWarning != null && medicalWarning.includes("VENCIDO!")) ||
+    isAnyPilotInvalidForFlight ||
     (categoryWarning != null && !user?.is_admin);
 
 
@@ -720,9 +733,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
             {medicalWarning && (
-              <Alert variant={medicalWarning.includes("VENCIDO!") ? "destructive" : "default"} className={!medicalWarning.includes("VENCIDO!") ? "border-yellow-500" : ""}>
-                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.includes("VENCIDO!") && "text-yellow-600")} />
-                <AlertTitle>{medicalWarning.includes("VENCIDO!") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
+              <Alert variant={medicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className={!medicalWarning.toUpperCase().includes("VENCIDO") ? "border-yellow-500" : ""}>
+                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.toUpperCase().includes("VENCIDO") && "text-yellow-600")} />
+                <AlertTitle>{medicalWarning.toUpperCase().includes("VENCIDO") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
                 <AlertDescription>{medicalWarning}</AlertDescription>
               </Alert>
             )}
@@ -913,6 +926,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     </Popover>
                     {!instructorAvionCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró una categoría que contenga "Instructor" y "Avión". Por favor, créela.</FormDescription>}
                     <FormMessage />
+                    {instructorMedicalWarning && (
+                        <Alert variant={instructorMedicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className="mt-2 text-xs">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>{instructorMedicalWarning}</AlertDescription>
+                        </Alert>
+                    )}
                   </FormItem>
                 )}
               />
@@ -1021,7 +1040,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <FormItem>
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'Remolque planeador'} />
+                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'remolque'} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>

@@ -113,6 +113,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const [towPilotSearchTerm, setTowPilotSearchTerm] = useState('');
   const [towPilotPopoverOpen, setTowPilotPopoverOpen] = useState(false);
   const [medicalWarning, setMedicalWarning] = useState<string | null>(null);
+  const [instructorMedicalWarning, setInstructorMedicalWarning] = useState<string | null>(null);
+  const [towPilotMedicalWarning, setTowPilotMedicalWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
 
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
@@ -252,6 +254,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const watchedPicPilotId = form.watch("pilot_id");
   const watchedInstructorId = form.watch("instructor_id");
+  const watchedTowPilotId = form.watch("tow_pilot_id");
   const watchedDate = form.watch("date");
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
@@ -313,25 +316,32 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
 
   useEffect(() => {
-    setMedicalWarning(null);
-    if (watchedPicPilotId && watchedDate && pilots.length > 0) {
-      const pilot = pilots.find(p => p.id === watchedPicPilotId);
-      if (pilot?.medical_expiry) {
-        const medicalExpiryDate = parseISO(pilot.medical_expiry);
-        const flightDate = startOfDay(watchedDate);
-        if (isValid(medicalExpiryDate)) {
-          if (isBefore(medicalExpiryDate, flightDate)) {
-            setMedicalWarning(`¡Psicofísico VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}! No puede registrar vuelos.`);
-          } else {
-            const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
-            if (daysDiff <= 30) {
-              setMedicalWarning(`Psicofísico vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (en ${daysDiff} días).`);
-            }
-          }
+    const checkPilotMedical = (pilotId: string | null | undefined, date: Date | undefined, pilotRole: string): string | null => {
+      if (!pilotId || !date || !pilots.length) {
+        return null;
+      }
+      const pilot = pilots.find(p => p.id === pilotId);
+      if (!pilot?.medical_expiry) {
+        return null;
+      }
+      const medicalExpiryDate = parseISO(pilot.medical_expiry);
+      const flightDate = startOfDay(date);
+      if (isValid(medicalExpiryDate)) {
+        if (isBefore(medicalExpiryDate, flightDate)) {
+          return `¡Psicofísico de ${pilotRole} VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
+        }
+        const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
+        if (daysDiff <= 30) {
+          return `Psicofísico de ${pilotRole} vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (${daysDiff} días).`;
         }
       }
-    }
-  }, [watchedPicPilotId, watchedDate, pilots]);
+      return null;
+    };
+
+    setMedicalWarning(checkPilotMedical(watchedPicPilotId, watchedDate, 'Piloto a Cargo'));
+    setInstructorMedicalWarning(checkPilotMedical(watchedInstructorId, watchedDate, 'Instructor'));
+    setTowPilotMedicalWarning(checkPilotMedical(watchedTowPilotId, watchedDate, 'Piloto Remolcador'));
+  }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedDate, pilots]);
 
 
   const sortedPilots = useMemo(() => {
@@ -405,9 +415,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return start1 < end2 && start2 < end1;
   };
 
-  const isPilotInvalidForFlight = useMemo(() => {
-    return !!(medicalWarning && medicalWarning.toUpperCase().includes("VENCIDO"));
-  }, [medicalWarning]);
+  const isAnyPilotInvalidForFlight = useMemo(() => {
+    const isPicExpired = medicalWarning?.toUpperCase().includes("VENCIDO");
+    const isInstructorExpired = instructorMedicalWarning?.toUpperCase().includes("VENCIDO");
+    const isTowPilotExpired = towPilotMedicalWarning?.toUpperCase().includes("VENCIDO");
+    return !!(isPicExpired || isInstructorExpired || isTowPilotExpired);
+  }, [medicalWarning, instructorMedicalWarning, towPilotMedicalWarning]);
 
   const onSubmit = async (formData: GliderFlightFormData) => {
     setIsSubmittingForm(true);
@@ -417,10 +430,14 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             setIsSubmittingForm(false);
             return;
         }
-        if (isPilotInvalidForFlight) {
+        if (isAnyPilotInvalidForFlight) {
+            let errorMessages: string[] = [];
+            if (medicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(medicalWarning);
+            if (instructorMedicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(instructorMedicalWarning);
+            if (towPilotMedicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(towPilotMedicalWarning);
             toast({
-                title: "Error de Psicofísico",
-                description: medicalWarning || "El psicofísico del piloto está vencido. No puede registrar vuelos.",
+                title: "Error de Psicofísico Vencido",
+                description: `No se puede registrar el vuelo. Por favor, revise los siguientes problemas: ${errorMessages.join(' ')}`,
                 variant: "destructive",
                 duration: 7000,
             });
@@ -607,8 +624,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
-  const isSubmitDisabled = isLoading || isPilotInvalidForFlight;
-  const areFieldsDisabled = isLoading || isPilotInvalidForFlight;
+  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight;
 
   const disablePilotSelection = !user?.is_admin;
 
@@ -802,9 +818,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             />
 
             {medicalWarning && (
-              <Alert variant={isPilotInvalidForFlight ? "destructive" : "default"} className={!isPilotInvalidForFlight ? "border-yellow-500" : ""}>
-                <AlertTriangle className={cn("h-4 w-4", !isPilotInvalidForFlight && "text-yellow-600")} />
-                <AlertTitle>{isPilotInvalidForFlight ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
+              <Alert variant={medicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className={!medicalWarning.toUpperCase().includes("VENCIDO") ? "border-yellow-500" : ""}>
+                <AlertTriangle className={cn("h-4 w-4", !medicalWarning.toUpperCase().includes("VENCIDO") && "text-yellow-600")} />
+                <AlertTitle>{medicalWarning.toUpperCase().includes("VENCIDO") ? "Psicofísico Vencido" : "Advertencia de Psicofísico"}</AlertTitle>
                 <AlertDescription>{medicalWarning}</AlertDescription>
               </Alert>
             )}
@@ -815,7 +831,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Propósito del Vuelo</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isAnyPilotInvalidForFlight || isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar propósito" />
@@ -848,7 +864,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                             variant="outline"
                             role="combobox"
                             className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                            disabled={areFieldsDisabled || !instructorPlaneadorCategoryId}
+                            disabled={isAnyPilotInvalidForFlight || isLoading || !instructorPlaneadorCategoryId}
                           >
                             {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -896,6 +912,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     </Popover>
                     {!instructorPlaneadorCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró una categoría que contenga "Instructor" y "Planeador". Por favor, créela.</FormDescription>}
                     <FormMessage />
+                    {instructorMedicalWarning && (
+                      <Alert variant={instructorMedicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className="mt-2 text-xs">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>{instructorMedicalWarning}</AlertDescription>
+                      </Alert>
+                    )}
                   </FormItem>
                 )}
               />
@@ -915,7 +937,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={areFieldsDisabled || !towPilotCategoryId}
+                          disabled={isAnyPilotInvalidForFlight || isLoading || !towPilotCategoryId}
                         >
                           {field.value ? getPilotName(field.value) : "Seleccionar piloto remolcador"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -948,6 +970,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                   </Popover>
                   {!towPilotCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró la categoría "Remolcador". Por favor, créela.</FormDescription>}
                   <FormMessage />
+                  {towPilotMedicalWarning && (
+                      <Alert variant={towPilotMedicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className="mt-2 text-xs">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>{towPilotMedicalWarning}</AlertDescription>
+                      </Alert>
+                  )}
                 </FormItem>
               )}
             />
@@ -958,7 +986,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Planeador</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={areFieldsDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isAnyPilotInvalidForFlight || isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar planeador" />
@@ -983,7 +1011,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Avión Remolcador</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={areFieldsDisabled}>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isAnyPilotInvalidForFlight || isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar avión remolcador" />
@@ -1010,7 +1038,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="09:00" {...field} disabled={areFieldsDisabled} />
+                      <Input type="text" placeholder="09:00" {...field} disabled={isAnyPilotInvalidForFlight || isLoading} />
                     </FormControl>
                      <FormDescription className="text-xs">
                       Use formato de 24 horas.
@@ -1026,7 +1054,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="10:30" {...field} disabled={areFieldsDisabled} />
+                      <Input type="text" placeholder="10:30" {...field} disabled={isAnyPilotInvalidForFlight || isLoading} />
                     </FormControl>
                     <FormDescription className="text-xs">
                       Use formato de 24 horas.
@@ -1053,7 +1081,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 <FormItem>
                   <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Notas (Opcional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""} disabled={areFieldsDisabled}/>
+                    <Textarea placeholder="Anotaciones adicionales sobre el vuelo..." {...field} value={field.value ?? ""} disabled={isAnyPilotInvalidForFlight || isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -1074,5 +1102,3 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
-
-    
