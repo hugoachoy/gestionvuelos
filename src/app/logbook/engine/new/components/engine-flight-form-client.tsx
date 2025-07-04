@@ -68,12 +68,13 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
+  const isInstruction = data.flight_purpose === 'Instrucción (Recibida)' || data.flight_purpose === 'Instrucción (Impartida)';
+  if (isInstruction && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
+  message: "Se requiere un instructor para un vuelo de instrucción.",
   path: ["instructor_id"],
 });
 
@@ -207,10 +208,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 // Determine UI purpose
                 let uiPurpose: EngineFlightFormData['flight_purpose'];
-                const loggedInPilot = pilots.find(p => p.auth_user_id === user.id);
-                if (data.flight_purpose === 'instrucción' && loggedInPilot && data.instructor_id === loggedInPilot.id) {
-                  uiPurpose = 'Instrucción (Impartida)';
-                } else if (data.flight_purpose === 'instrucción') {
+                
+                if (data.flight_purpose === 'instrucción') {
+                  // If there's an instructor_id, it must be either received or imparted.
+                  // This is a UI decision based on who the PIC was.
+                  // For simplicity, we'll default to "Recibida" in edit mode. The user can change it.
+                  // A more advanced logic could check if the PIC is a known instructor.
                   uiPurpose = 'Instrucción (Recibida)';
                 } else {
                   uiPurpose = data.flight_purpose as EngineFlightFormData['flight_purpose'];
@@ -300,16 +303,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
 
-  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
   const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
+  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
+  const isInstructionMode = isInstructionGivenMode || isInstructionTakenMode;
   const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto a Cargo';
-
-  useEffect(() => {
-    if (!isInstructionTakenMode && form.getValues("instructor_id") !== null) {
-      form.setValue("instructor_id", null, { shouldValidate: true });
-      setInstructorSearchTerm('');
-    }
-  }, [isInstructionTakenMode, form]);
 
   useEffect(() => {
     if (watchedFlightPurpose === 'Remolque planeador') {
@@ -382,7 +379,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     }
 
     setMedicalWarning(checkMedical(watchedPilotId, watchedDate, picOrStudentLabel));
-    if (isInstructionTakenMode) {
+    if (isInstructionMode) {
       setInstructorMedicalWarning(checkMedical(watchedInstructorId, watchedDate, 'Instructor'));
     } else {
       setInstructorMedicalWarning(null);
@@ -410,7 +407,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión, Remolcador, o Instructor de Avión) para registrar este vuelo.");
     }
 
-  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, picOrStudentLabel, isInstructionTakenMode]);
+  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, picOrStudentLabel, isInstructionMode]);
 
   useEffect(() => {
     checkPilotValidity();
@@ -514,19 +511,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
         
-        let finalPilotId = formData.pilot_id;
-        let finalInstructorId: string | null | undefined = null;
-
-        if (isInstructionTakenMode) {
-            finalInstructorId = formData.instructor_id;
-        } else if (isInstructionGivenMode) {
-            if (!currentUserLinkedPilotId) {
-                toast({ title: "Error", description: "No se pudo identificar su perfil de piloto para registrarse como instructor.", variant: "destructive" });
-                setIsSubmittingForm(false);
-                return;
-            }
-            finalInstructorId = currentUserLinkedPilotId;
-        }
+        const finalInstructorId = isInstructionMode ? formData.instructor_id : null;
+        const finalPilotId = formData.pilot_id;
 
         const flightDate = formData.date;
         const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
@@ -553,6 +539,19 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) return false;
         
             const isAircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
+            
+            const newFlightIsInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)';
+            const existingFlightIsInstruction = existingFlight.flight_purpose === 'instrucción';
+            
+            // If both are instruction flights, check if they are the counterpart of each other
+            if (newFlightIsInstruction && existingFlightIsInstruction) {
+                const isSamePair = (existingFlight.pilot_id === finalPilotId && existingFlight.instructor_id === finalInstructorId) ||
+                                   (existingFlight.pilot_id === finalInstructorId && existingFlight.instructor_id === finalPilotId);
+                if (isSamePair) {
+                    return false; // Not a conflict, it's the other side of the same flight
+                }
+            }
+
             const peopleInNewFlight = [finalPilotId, finalInstructorId].filter(Boolean);
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
             const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
@@ -916,7 +915,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               )}
             />
 
-            {isInstructionTakenMode && (
+            {isInstructionMode && (
               <FormField
                 control={form.control}
                 name="instructor_id"
