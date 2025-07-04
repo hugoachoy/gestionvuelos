@@ -117,8 +117,7 @@ export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
 // New constant for the form dropdown options, providing a better UX
 export const ENGINE_FLIGHT_PURPOSE_OPTIONS = [
-  { value: 'Instrucción (Recibida)', label: 'Instrucción (Recibida)' },
-  { value: 'Instrucción (Impartida)', label: 'Instrucción (Impartida)' },
+  { value: 'instrucción', label: 'Instrucción' },
   { value: 'Remolque planeador', label: 'Remolque' },
   { value: 'entrenamiento', label: 'Entrenamiento' },
   { value: 'readaptación', label: 'Readaptación' },
