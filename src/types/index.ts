@@ -105,6 +105,7 @@ export const GLIDER_FLIGHT_PURPOSES = [
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
+// These are the values the ENGINE flight log table in the database accepts.
 export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
@@ -115,9 +116,11 @@ export const ENGINE_FLIGHT_PURPOSES = [
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
-// New constant for the form dropdown options, providing a better UX
+// New constant for the ENGINE form dropdown options, providing a better UX
+// We map these UI-friendly values to the single 'instrucción' value expected by the DB.
 export const ENGINE_FLIGHT_PURPOSE_OPTIONS = [
-  { value: 'instrucción', label: 'Instrucción' },
+  { value: 'Instrucción (Recibida)', label: 'Instrucción (Recibida)' },
+  { value: 'Instrucción (Impartida)', label: 'Instrucción (Impartida)' },
   { value: 'Remolque planeador', label: 'Remolque' },
   { value: 'entrenamiento', label: 'Entrenamiento' },
   { value: 'readaptación', label: 'Readaptación' },
@@ -140,7 +143,7 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'instrucción': 'Instrucción',
   'Remolque planeador': 'Remolque',
 
-  // Glider-specific
+  // Glider-specific / UI specific
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
   'Instrucción (Impartida)': 'Instrucción (Impartida)',
 

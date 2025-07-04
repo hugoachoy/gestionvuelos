@@ -68,12 +68,12 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  if (data.flight_purpose === 'instrucción') {
+  if (data.flight_purpose === 'Instrucción (Recibida)') {
     return !!data.instructor_id;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para un vuelo de 'Instrucción'.",
+  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
   path: ["instructor_id"],
 });
 
@@ -91,9 +91,8 @@ const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador
 
 const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | undefined => {
     switch (scheduleTypeId) {
-        case 'instruction_taken':
-        case 'instruction_given':
-             return 'instrucción';
+        case 'instruction_taken': return 'Instrucción (Recibida)';
+        case 'instruction_given': return 'Instrucción (Impartida)';
         case 'towage': return 'Remolque planeador';
         case 'trip': return 'viaje';
         case 'local': return 'local';
@@ -133,6 +132,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
   const [flightFetchError, setFlightFetchError] = useState<string | null>(null);
   const [initialFlightData, setInitialFlightData] = useState<CompletedEngineFlight | null>(null);
+  
+  const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
 
   const isEditMode = !!flightIdToLoad;
 
@@ -161,6 +162,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   };
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
+
+  useEffect(() => {
+    if (user && pilots && pilots.length > 0) {
+      const userPilot = pilots.find(p => p.auth_user_id === user.id);
+      setCurrentUserLinkedPilotId(userPilot?.id || null);
+    }
+  }, [user, pilots]);
 
   useEffect(() => {
     fetchPilots();
@@ -194,6 +202,19 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           } else if (data) {
             if (data.auth_user_id === user.id || user.is_admin) {
                 setInitialFlightData(data);
+                
+                // Determine UI flight purpose
+                let uiFlightPurpose: string = data.flight_purpose;
+                if(data.flight_purpose === 'instrucción') {
+                    // If the user is the instructor, they were giving the class
+                    if (data.instructor_id && data.instructor_id === currentUserLinkedPilotId) {
+                        uiFlightPurpose = 'Instrucción (Impartida)';
+                    } else {
+                        // Otherwise they were receiving it, or an admin is viewing it
+                        uiFlightPurpose = 'Instrucción (Recibida)';
+                    }
+                }
+
                 form.reset({
                     ...data,
                     date: data.date ? parseISO(data.date) : new Date(),
@@ -207,7 +228,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     schedule_entry_id: data.schedule_entry_id || null,
                     departure_time: data.departure_time ? data.departure_time.substring(0,5) : '',
                     arrival_time: data.arrival_time ? data.arrival_time.substring(0,5) : '',
-                    flight_purpose: data.flight_purpose as EngineFlightFormData['flight_purpose'],
+                    flight_purpose: uiFlightPurpose as EngineFlightFormData['flight_purpose'],
                 });
             } else {
                 setFlightFetchError("No tienes permiso para editar este vuelo.");
@@ -268,7 +289,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]);
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length, currentUserLinkedPilotId]);
 
 
   const watchedPilotId = form.watch("pilot_id");
@@ -278,6 +299,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
   
+  const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
+  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
+  const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto a Cargo';
+
+  useEffect(() => {
+    if (!isInstructionTakenMode && form.getValues("instructor_id") !== null) {
+      form.setValue("instructor_id", null, { shouldValidate: true });
+      setInstructorSearchTerm('');
+    }
+  }, [isInstructionTakenMode, form]);
+
   useEffect(() => {
     if (watchedFlightPurpose === 'Remolque planeador') {
       form.setValue('tows_count', 1, { shouldValidate: true });
@@ -348,7 +380,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         return null;
     }
 
-    setMedicalWarning(checkMedical(watchedPilotId, watchedDate, 'Piloto a Cargo'));
+    setMedicalWarning(checkMedical(watchedPilotId, watchedDate, picOrStudentLabel));
     setInstructorMedicalWarning(checkMedical(watchedInstructorId, watchedDate, 'Instructor'));
     
     setCategoryWarning(null);
@@ -370,10 +402,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     );
 
     if (!hasRequiredCategory) {
-      setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión, Remolcador, o Instructor de Avión) para registrar este vuelo.");
+      setCategoryWarning("El piloto seleccionado no tiene la categoría requerida (Piloto de Avión, Remolcador, o Instructor de Avión) para registrar este vuelo.");
     }
 
-  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories]);
+  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, picOrStudentLabel]);
 
   useEffect(() => {
     checkPilotValidity();
@@ -391,10 +423,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     if (pilotsLoading || !pilots.length || !enginePilotCategoryIds.length) return [];
     let availablePilots = [...pilots];
     
+    if (isInstructionGivenMode && currentUserLinkedPilotId) {
+        availablePilots = availablePilots.filter(p => p.id !== currentUserLinkedPilotId);
+    }
+
     return availablePilots
       .filter(pilot => pilot.category_ids.some(catId => enginePilotCategoryIds.includes(catId)))
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, pilotsLoading, enginePilotCategoryIds]);
+  }, [pilots, pilotsLoading, enginePilotCategoryIds, isInstructionGivenMode, currentUserLinkedPilotId]);
 
 
   const instructorAvionCategoryId = useMemo(() => {
@@ -473,6 +509,25 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
 
+        let finalPilotId = formData.pilot_id;
+        let finalInstructorId: string | null | undefined = null;
+        let dbFlightPurpose: EngineFlightPurpose;
+
+        if (isInstructionTakenMode) {
+            finalInstructorId = formData.instructor_id;
+            dbFlightPurpose = 'instrucción';
+        } else if (isInstructionGivenMode) {
+            if (!currentUserLinkedPilotId) {
+                toast({ title: "Error", description: "No se pudo identificar su perfil de piloto para registrarse como instructor.", variant: "destructive" });
+                setIsSubmittingForm(false);
+                return;
+            }
+            finalInstructorId = currentUserLinkedPilotId;
+            dbFlightPurpose = 'instrucción';
+        } else {
+            dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
+        }
+
         const flightDate = formData.date;
         const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
         const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
@@ -497,13 +552,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             if (!isValid(existingStart) || !isValid(existingEnd)) return false; 
             if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) return false;
         
-            // Aircraft conflict
             if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
                 return true;
             }
 
-            // Person conflict
-            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+            const peopleInNewFlight = [finalPilotId, finalInstructorId].filter(Boolean);
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
             const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
             
@@ -536,12 +589,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
+        if (dbFlightPurpose !== 'Remolque planeador' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
         
         const submissionData = {
             ...formData,
+            pilot_id: finalPilotId,
+            instructor_id: finalInstructorId,
+            flight_purpose: dbFlightPurpose,
             date: format(formData.date, 'yyyy-MM-dd'),
             departure_time: depTimeCleaned,
             arrival_time: arrTimeCleaned,
@@ -807,17 +863,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto a Cargo</FormLabel>
-                  <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">{picOrStudentLabel}</FormLabel>
+                   <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading}
+                          disabled={isLoading || (isInstructionGivenMode && !user?.is_admin)}
                         >
-                          {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
+                          {field.value ? getPilotName(field.value) : `Seleccionar ${picOrStudentLabel.toLowerCase()}`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -856,76 +912,78 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               )}
             />
 
-            <FormField
-                control={form.control}
-                name="instructor_id"
-                render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Instructor (Opcional si no es vuelo de instrucción)</FormLabel>
-                    <Popover open={instructorPopoverOpen} onOpenChange={setInstructorPopoverOpen}>
-                        <PopoverTrigger asChild>
-                        <FormControl>
-                            <Button
-                            variant="outline"
-                            role="combobox"
-                            className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                            disabled={isLoading || !instructorAvionCategoryId}
-                            >
-                            {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                        </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                            <CommandInput placeholder="Buscar instructor..." value={instructorSearchTerm} onValueChange={setInstructorSearchTerm}/>
-                            <CommandList>
-                            {field.value && (
-                                <CommandItem
-                                key="clear-instructor"
-                                value="Limpiar selección"
-                                onSelect={() => {
-                                    form.setValue("instructor_id", null, { shouldValidate: true });
-                                    setInstructorPopoverOpen(false);
-                                    setInstructorSearchTerm('');
-                                }}
-                                className="text-muted-foreground italic"
-                                >
-                                <XCircle className="mr-2 h-4 w-4" />
-                                Limpiar selección de instructor
-                                </CommandItem>
-                            )}
-                            <CommandEmpty>No se encontraron instructores de avión.</CommandEmpty>
-                            <CommandGroup>
-                                {sortedInstructors.map((pilot) => (
-                                <CommandItem
-                                    value={`${pilot.last_name}, ${pilot.first_name}`}
-                                    key={pilot.id}
-                                    onSelect={() => {
-                                    form.setValue("instructor_id", pilot.id, { shouldValidate: true });
-                                    setInstructorPopoverOpen(false);
-                                    }}
-                                >
-                                    <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
-                                    {pilot.last_name}, {pilot.first_name}
-                                </CommandItem>
-                                ))}
-                            </CommandGroup>
-                            </CommandList>
-                        </Command>
-                        </PopoverContent>
-                    </Popover>
-                    {!instructorAvionCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró una categoría que contenga "Instructor" y "Avión". Por favor, créela.</FormDescription>}
-                    <FormMessage />
-                    {instructorMedicalWarning && (
-                        <Alert variant={instructorMedicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className="mt-2 text-xs">
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>{instructorMedicalWarning}</AlertDescription>
-                        </Alert>
-                    )}
-                    </FormItem>
-                )}
-                />
+            {isInstructionTakenMode && (
+              <FormField
+                  control={form.control}
+                  name="instructor_id"
+                  render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                      <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Instructor</FormLabel>
+                      <Popover open={instructorPopoverOpen} onOpenChange={setInstructorPopoverOpen}>
+                          <PopoverTrigger asChild>
+                          <FormControl>
+                              <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
+                              disabled={isLoading || !instructorAvionCategoryId}
+                              >
+                              {field.value ? getPilotName(field.value) : "Seleccionar instructor"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                          </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                          <Command>
+                              <CommandInput placeholder="Buscar instructor..." value={instructorSearchTerm} onValueChange={setInstructorSearchTerm}/>
+                              <CommandList>
+                              {field.value && (
+                                  <CommandItem
+                                  key="clear-instructor"
+                                  value="Limpiar selección"
+                                  onSelect={() => {
+                                      form.setValue("instructor_id", null, { shouldValidate: true });
+                                      setInstructorPopoverOpen(false);
+                                      setInstructorSearchTerm('');
+                                  }}
+                                  className="text-muted-foreground italic"
+                                  >
+                                  <XCircle className="mr-2 h-4 w-4" />
+                                  Limpiar selección de instructor
+                                  </CommandItem>
+                              )}
+                              <CommandEmpty>No se encontraron instructores de avión.</CommandEmpty>
+                              <CommandGroup>
+                                  {sortedInstructors.map((pilot) => (
+                                  <CommandItem
+                                      value={`${pilot.last_name}, ${pilot.first_name}`}
+                                      key={pilot.id}
+                                      onSelect={() => {
+                                      form.setValue("instructor_id", pilot.id, { shouldValidate: true });
+                                      setInstructorPopoverOpen(false);
+                                      }}
+                                  >
+                                      <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
+                                      {pilot.last_name}, {pilot.first_name}
+                                  </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                              </CommandList>
+                          </Command>
+                          </PopoverContent>
+                      </Popover>
+                      {!instructorAvionCategoryId && !categoriesLoading && <FormDescription className="text-xs text-destructive">No se encontró una categoría que contenga "Instructor" y "Avión". Por favor, créela.</FormDescription>}
+                      <FormMessage />
+                      {instructorMedicalWarning && (
+                          <Alert variant={instructorMedicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className="mt-2 text-xs">
+                              <AlertTriangle className="h-4 w-4" />
+                              <AlertDescription>{instructorMedicalWarning}</AlertDescription>
+                          </Alert>
+                      )}
+                      </FormItem>
+                  )}
+              />
+            )}
 
             <FormField
               control={form.control}
