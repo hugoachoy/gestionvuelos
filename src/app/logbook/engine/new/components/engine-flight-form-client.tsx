@@ -35,7 +35,6 @@ const normalizeCategoryName = (name?: string): string => {
   return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
 
-// Use keywords for robust matching
 const INSTRUCTOR_AVION_KEYWORDS = ["instructor", "avion"];
 
 const engineFlightSchema = z.object({
@@ -44,8 +43,8 @@ const engineFlightSchema = z.object({
   instructor_id: z.string().optional().nullable(),
   engine_aircraft_id: z.string().min(1, "Seleccione una aeronave."),
   flight_purpose: z.enum(ENGINE_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
-  departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de salida inválido (HH:MM)."),
-  arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de llegada inválido (HH:MM)."),
+  departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de salida inválido (HH:MM)."),
+  arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
   route_from_to: z.string().optional().nullable(),
   landings_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
   tows_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
@@ -86,7 +85,7 @@ const normalizeText = (text?: string | null): string => {
     .replace(/[\u0300-\u036f]/g, "");
 };
 
-const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador", "instructor de avion"];
+const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador", "instructor avion"];
 
 const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | undefined => {
     switch (scheduleTypeId) {
@@ -98,10 +97,6 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | 
         default:
             return undefined;
     }
-};
-
-const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
-    return start1 < end2 && start2 < end1;
 };
 
 interface EngineFlightFormClientProps {
@@ -157,6 +152,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       schedule_entry_id: null,
     },
   });
+
+  const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    return start1 < end2 && start2 < end1;
+  };
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
 
@@ -292,7 +291,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [showInstructorField, form]);
 
   useEffect(() => {
-    if (watchedFlightPurpose === 'remolque') {
+    if (watchedFlightPurpose === 'Remolque planeador') {
       form.setValue('tows_count', 1, { shouldValidate: true });
     } else {
       if (form.getValues('tows_count') !== 0) {
@@ -484,7 +483,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           setIsSubmittingForm(false);
           return;
         }
-
+        
         const flightDate = formData.date;
         const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
         const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
@@ -503,18 +502,24 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const flightsToCheckForConflict = allFlightsOnDate?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
         
         const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
-            const existingStart = parse(existingFlight.departure_time, 'HH:mm', flightDate);
-            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm', flightDate);
+            const existingStart = parse(existingFlight.departure_time, 'HH:mm', parseISO(existingFlight.date));
+            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm', parseISO(existingFlight.date));
         
+            if (!isValid(existingStart) || !isValid(existingEnd)) {
+                return false; 
+            }
+
             if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
                 return false;
             }
         
             const isAircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
+            
             const peopleInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
+            
             const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
-        
+            
             return isAircraftConflict || isPersonConflict;
         });
 
@@ -544,7 +549,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (formData.flight_purpose !== 'remolque' && durationMinutes > 0) {
+        if (formData.flight_purpose !== 'Remolque planeador' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
         
@@ -1040,7 +1045,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <FormItem>
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'remolque'} />
+                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'Remolque planeador'} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
