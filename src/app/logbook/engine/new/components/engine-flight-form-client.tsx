@@ -68,13 +68,13 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  const isInstruction = data.flight_purpose === 'Instrucción (Recibida)' || data.flight_purpose === 'Instrucción (Impartida)';
-  if (isInstruction && !data.instructor_id) {
-    return false;
+  if (data.flight_purpose === 'Instrucción (Recibida)') {
+    // When receiving instruction, an instructor must be selected.
+    return !!data.instructor_id;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para un vuelo de instrucción.",
+  message: "Se requiere un instructor para un vuelo de 'Instrucción (Recibida)'.",
   path: ["instructor_id"],
 });
 
@@ -206,15 +206,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             if (data.auth_user_id === user.id || user.is_admin) {
                 setInitialFlightData(data);
                 
-                // Determine UI purpose
                 let uiPurpose: EngineFlightFormData['flight_purpose'];
                 
                 if (data.flight_purpose === 'instrucción') {
-                  // If there's an instructor_id, it must be either received or imparted.
-                  // This is a UI decision based on who the PIC was.
-                  // For simplicity, we'll default to "Recibida" in edit mode. The user can change it.
-                  // A more advanced logic could check if the PIC is a known instructor.
-                  uiPurpose = 'Instrucción (Recibida)';
+                  const userIsInstructorOfFlight = data.instructor_id === currentUserLinkedPilotId;
+                  if (userIsInstructorOfFlight && !user.is_admin) {
+                    uiPurpose = 'Instrucción (Impartida)';
+                  } else {
+                    uiPurpose = 'Instrucción (Recibida)';
+                  }
                 } else {
                   uiPurpose = data.flight_purpose as EngineFlightFormData['flight_purpose'];
                 }
@@ -248,7 +248,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       }
     };
 
-    if (user && pilots.length > 0) { // pilots must be loaded to determine UI purpose
+    if (user && pilots.length > 0) {
         if (isEditMode) {
             loadFlightDetails();
         } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && aircraft.length > 0) {
@@ -293,7 +293,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]);
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length, currentUserLinkedPilotId]);
 
 
   const watchedPilotId = form.watch("pilot_id");
@@ -305,7 +305,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
   const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
-  const isInstructionMode = isInstructionGivenMode || isInstructionTakenMode;
+  
   const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto a Cargo';
 
   useEffect(() => {
@@ -379,7 +379,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     }
 
     setMedicalWarning(checkMedical(watchedPilotId, watchedDate, picOrStudentLabel));
-    if (isInstructionMode) {
+    if (isInstructionTakenMode) {
       setInstructorMedicalWarning(checkMedical(watchedInstructorId, watchedDate, 'Instructor'));
     } else {
       setInstructorMedicalWarning(null);
@@ -407,7 +407,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       setCategoryWarning("El piloto no tiene la categoría requerida (Piloto de Avión, Remolcador, o Instructor de Avión) para registrar este vuelo.");
     }
 
-  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, picOrStudentLabel, isInstructionMode]);
+  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, picOrStudentLabel, isInstructionTakenMode]);
 
   useEffect(() => {
     checkPilotValidity();
@@ -498,6 +498,25 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             setIsSubmittingForm(false);
             return;
         }
+        
+        let finalPilotId = formData.pilot_id;
+        let finalInstructorId: string | null | undefined = null;
+        
+        if (formData.flight_purpose === 'Instrucción (Recibida)') {
+          finalPilotId = formData.pilot_id;
+          finalInstructorId = formData.instructor_id;
+        } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
+          if (!currentUserLinkedPilotId) {
+            toast({ title: "Error de Perfil", description: "No se pudo identificar tu perfil para asignarte como instructor.", variant: "destructive" });
+            setIsSubmittingForm(false);
+            return;
+          }
+          finalPilotId = formData.pilot_id; // The student
+          finalInstructorId = currentUserLinkedPilotId; // The instructor (current user)
+        } else {
+          finalInstructorId = null;
+        }
+
 
         const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === formData.engine_aircraft_id);
         if (!selectedAircraft || (selectedAircraft.type !== 'Tow Plane' && selectedAircraft.type !== 'Avión')) {
@@ -510,9 +529,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           setIsSubmittingForm(false);
           return;
         }
-        
-        const finalInstructorId = isInstructionMode ? formData.instructor_id : null;
-        const finalPilotId = formData.pilot_id;
 
         const flightDate = formData.date;
         const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
@@ -540,16 +556,16 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         
             const isAircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
             
-            const newFlightIsInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)';
-            const existingFlightIsInstruction = existingFlight.flight_purpose === 'instrucción';
-            
-            // If both are instruction flights, check if they are the counterpart of each other
-            if (newFlightIsInstruction && existingFlightIsInstruction) {
-                const isSamePair = (existingFlight.pilot_id === finalPilotId && existingFlight.instructor_id === finalInstructorId) ||
-                                   (existingFlight.pilot_id === finalInstructorId && existingFlight.instructor_id === finalPilotId);
-                if (isSamePair) {
-                    return false; // Not a conflict, it's the other side of the same flight
-                }
+            const isInstructionFlightPair = 
+                (formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)') &&
+                existingFlight.flight_purpose === 'instrucción' &&
+                (
+                    (existingFlight.pilot_id === finalPilotId && existingFlight.instructor_id === finalInstructorId) ||
+                    (existingFlight.pilot_id === finalInstructorId && existingFlight.instructor_id === finalPilotId)
+                );
+
+            if (isInstructionFlightPair) {
+                return false; 
             }
 
             const peopleInNewFlight = [finalPilotId, finalInstructorId].filter(Boolean);
@@ -836,6 +852,31 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               )}
             />
 
+             <FormField
+              control={form.control}
+              name="flight_purpose"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Propósito del Vuelo</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar propósito" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ENGINE_FLIGHT_PURPOSE_OPTIONS.map((purpose) => (
+                        <SelectItem key={purpose.value} value={purpose.value}>
+                          {purpose.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="pilot_id"
@@ -849,7 +890,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || (!user?.is_admin && !isInstructionGivenMode)}
+                          disabled={isLoading}
                         >
                           {field.value ? getPilotName(field.value) : `Seleccionar ${picOrStudentLabel.toLowerCase()}`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -890,32 +931,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="flight_purpose"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Propósito del Vuelo</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar propósito" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {ENGINE_FLIGHT_PURPOSE_OPTIONS.map((purpose) => (
-                        <SelectItem key={purpose.value} value={purpose.value}>
-                          {purpose.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {isInstructionMode && (
+            {isInstructionTakenMode && (
               <FormField
                 control={form.control}
                 name="instructor_id"
