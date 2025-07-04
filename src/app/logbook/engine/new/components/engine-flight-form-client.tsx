@@ -207,16 +207,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 // Determine UI purpose
                 let uiPurpose: EngineFlightFormData['flight_purpose'];
-                if (data.flight_purpose === 'instrucción') {
-                    // If the logged-in user is the instructor for this flight, it's "Impartida"
-                    const loggedInPilot = pilots.find(p => p.auth_user_id === user.id);
-                    if (loggedInPilot && data.instructor_id === loggedInPilot.id) {
-                        uiPurpose = 'Instrucción (Impartida)';
-                    } else {
-                        uiPurpose = 'Instrucción (Recibida)';
-                    }
+                const loggedInPilot = pilots.find(p => p.auth_user_id === user.id);
+                if (data.flight_purpose === 'instrucción' && loggedInPilot && data.instructor_id === loggedInPilot.id) {
+                  uiPurpose = 'Instrucción (Impartida)';
+                } else if (data.flight_purpose === 'instrucción') {
+                  uiPurpose = 'Instrucción (Recibida)';
                 } else {
-                    uiPurpose = data.flight_purpose as EngineFlightFormData['flight_purpose'];
+                  uiPurpose = data.flight_purpose as EngineFlightFormData['flight_purpose'];
                 }
 
                 form.reset({
@@ -853,7 +850,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || (isInstructionGivenMode && !currentUser?.is_admin)}
+                          disabled={isLoading || (!user?.is_admin && !isInstructionGivenMode)}
                         >
                           {field.value ? getPilotName(field.value) : `Seleccionar ${picOrStudentLabel.toLowerCase()}`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

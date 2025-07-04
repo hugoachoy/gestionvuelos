@@ -50,8 +50,8 @@ const gliderFlightSchema = z.object({
   glider_aircraft_id: z.string().min(1, "Seleccione un planeador."),
   tow_aircraft_id: z.string().min(1, "Seleccione un avión remolcador."),
   flight_purpose: z.enum(GLIDER_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
-  departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de salida inválido (HH:MM)."),
-  arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, "Formato de hora de llegada inválido (HH:MM)."),
+  departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de salida inválido (HH:MM)."),
+  arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
   notes: z.string().optional().nullable(),
   schedule_entry_id: z.string().optional().nullable(),
 }).refine(data => {
@@ -260,16 +260,16 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
 
-  const showInstructorField = useMemo(() => {
-    return watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación';
-  }, [watchedFlightPurpose]);
+  const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
+  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación', [watchedFlightPurpose]);
+  const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto a Cargo';
 
   useEffect(() => {
-    if (!showInstructorField && form.getValues("instructor_id") !== null) {
+    if (!isInstructionTakenMode && form.getValues("instructor_id") !== null) {
       form.setValue("instructor_id", null, { shouldValidate: true });
       setInstructorSearchTerm('');
     }
-  }, [showInstructorField, form]);
+  }, [isInstructionTakenMode, form]);
 
 
   useEffect(() => {
@@ -338,10 +338,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       return null;
     };
 
-    setMedicalWarning(checkPilotMedical(watchedPicPilotId, watchedDate, 'Piloto a Cargo'));
+    setMedicalWarning(checkPilotMedical(watchedPicPilotId, watchedDate, picOrStudentLabel));
     setInstructorMedicalWarning(checkPilotMedical(watchedInstructorId, watchedDate, 'Instructor'));
     setTowPilotMedicalWarning(checkPilotMedical(watchedTowPilotId, watchedDate, 'Piloto Remolcador'));
-  }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedDate, pilots]);
+  }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedDate, pilots, picOrStudentLabel]);
 
 
   const sortedPilots = useMemo(() => {
@@ -362,10 +362,16 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const sortedPilotsForPic = useMemo(() => {
     if (pilotsLoading || !pilots.length || !gliderPilotCategoryIds.length) return [];
-    return [...pilots]
+    let availablePilots = [...pilots];
+    // If the user is an instructor giving a class, they can't be their own student.
+    if (isInstructionGivenMode && currentUserLinkedPilotId) {
+        availablePilots = availablePilots.filter(p => p.id !== currentUserLinkedPilotId);
+    }
+    
+    return availablePilots
       .filter(pilot => pilot.category_ids.some(catId => gliderPilotCategoryIds.includes(catId)))
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, pilotsLoading, gliderPilotCategoryIds]);
+  }, [pilots, pilotsLoading, gliderPilotCategoryIds, isInstructionGivenMode, currentUserLinkedPilotId]);
 
   const instructorPlaneadorCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
@@ -467,6 +473,20 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
           setIsSubmittingForm(false);
           return;
         }
+        
+        let finalPilotId = formData.pilot_id;
+        let finalInstructorId: string | null | undefined = null;
+
+        if (isInstructionTakenMode) {
+            finalInstructorId = formData.instructor_id;
+        } else if (isInstructionGivenMode) {
+            if (!currentUserLinkedPilotId) {
+                toast({ title: "Error", description: "No se pudo identificar su perfil de piloto para registrarse como instructor.", variant: "destructive" });
+                setIsSubmittingForm(false);
+                return;
+            }
+            finalInstructorId = currentUserLinkedPilotId;
+        }
 
         const flightDate = formData.date;
         const depTimeCleaned = formData.departure_time.substring(0,5);
@@ -496,43 +516,14 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 return false; 
             }
             
-            // At this point, there is a time overlap. Check for resource conflict.
             const isAircraftConflict = existingFlight.glider_aircraft_id === formData.glider_aircraft_id;
             const isTowPlaneConflict = !!(formData.tow_aircraft_id && existingFlight.tow_aircraft_id && formData.tow_aircraft_id === existingFlight.tow_aircraft_id);
 
-            const peopleInNewFlight = [formData.pilot_id, formData.instructor_id, formData.tow_pilot_id].filter(Boolean);
+            const peopleInNewFlight = [finalPilotId, finalInstructorId, formData.tow_pilot_id].filter(Boolean);
             const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id, existingFlight.tow_pilot_id].filter(Boolean);
             const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
             
-            if (!isAircraftConflict && !isPersonConflict && !isTowPlaneConflict) {
-                return false; // No shared resources, no conflict.
-            }
-
-            // A resource is shared. Check for instruction pairing exception.
-            const currentIsRecibida = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'readaptación';
-            const currentIsImpartida = formData.flight_purpose === 'Instrucción (Impartida)';
-
-            const existingIsRecibida = existingFlight.flight_purpose === 'Instrucción (Recibida)' || existingFlight.flight_purpose === 'readaptación';
-            const existingIsImpartida = existingFlight.flight_purpose === 'Instrucción (Impartida)';
-
-            // Case 1: Current form is "Recibida", existing is "Impartida"
-            if (currentIsRecibida && existingIsImpartida) {
-                // To be a pair, glider must be same, and instructor of "Recibida" must be pilot of "Impartida"
-                if (isAircraftConflict && formData.instructor_id === existingFlight.pilot_id) {
-                    return false; // This is a valid pair, not a conflict.
-                }
-            }
-            
-            // Case 2: Current form is "Impartida", existing is "Recibida"
-            if (currentIsImpartida && existingIsRecibida) {
-                // To be a pair, glider must be same, and pilot of "Impartida" must be instructor of "Recibida"
-                if (isAircraftConflict && formData.pilot_id === existingFlight.instructor_id) {
-                    return false; // This is a valid pair, not a conflict.
-                }
-            }
-
-            // Any other overlap is a real conflict.
-            return true;
+            return isAircraftConflict || isTowPlaneConflict || isPersonConflict;
         });
 
         if (conflictingFlight) {
@@ -555,21 +546,16 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             const decimalHours = durationMinutes / 60;
             flightDurationDecimal = parseFloat((Math.ceil(decimalHours * 10) / 10).toFixed(1));
         }
-        
-        let instructorIdToSave = formData.instructor_id;
-        if (formData.flight_purpose === 'Instrucción (Impartida)') {
-            instructorIdToSave = null; 
-        }
-
 
         const submissionData = {
             ...formData,
+            pilot_id: finalPilotId,
+            instructor_id: finalInstructorId,
             date: format(formData.date, 'yyyy-MM-dd'),
             departure_time: depTimeCleaned,
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
             schedule_entry_id: formData.schedule_entry_id || null,
-            instructor_id: instructorIdToSave,
             notes: formData.notes || null,
         };
 
@@ -625,9 +611,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
   const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight;
-
-  const disablePilotSelection = !user?.is_admin;
-
 
   if (authLoading && !user) { 
     return (
@@ -763,7 +746,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Piloto a Cargo</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">{picOrStudentLabel}</FormLabel>
                    <Popover open={picPilotPopoverOpen} onOpenChange={setPicPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -771,9 +754,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || disablePilotSelection}
+                          disabled={isLoading || (!user?.is_admin && !isInstructionGivenMode)}
                         >
-                          {field.value ? getPilotName(field.value) : "Seleccionar piloto"}
+                          {field.value ? getPilotName(field.value) : `Seleccionar ${picOrStudentLabel.toLowerCase()}`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -796,7 +779,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
                                   setPicPilotPopoverOpen(false);
                                 }}
-                                disabled={disablePilotSelection}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
                                 {pilot.last_name}, {pilot.first_name}
@@ -850,7 +832,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               )}
             />
 
-            {showInstructorField && (
+            {isInstructionTakenMode && (
               <FormField
                 control={form.control}
                 name="instructor_id"
