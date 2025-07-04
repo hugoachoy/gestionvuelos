@@ -116,6 +116,7 @@ export const ENGINE_FLIGHT_PURPOSES = [
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
+
 export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 
 export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
