@@ -94,12 +94,16 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | 
     switch (scheduleTypeId) {
         case 'instruction_taken': return 'Instrucción (Recibida)';
         case 'instruction_given': return 'Instrucción (Impartida)';
-        case 'towage': return 'remolque';
+        case 'towage': return 'Remolque planeador';
         case 'trip': return 'viaje';
         case 'local': return 'local';
         default:
             return undefined;
     }
+};
+
+const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    return start1 < end2 && start2 < end1;
 };
 
 interface EngineFlightFormClientProps {
@@ -158,10 +162,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     },
   });
 
-  const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
-    return start1 < end2 && start2 < end1;
-  };
-
   const scheduleEntryIdParam = searchParams.get('schedule_id');
 
   useEffect(() => {
@@ -207,10 +207,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 let uiFlightPurpose: string = data.flight_purpose;
                 // For edit mode, determine UI purpose from DB state
                 if(data.flight_purpose === 'instrucción') {
-                    // If an instructor is logged, it implies it was imparted by them.
-                    // This is imperfect, but a reasonable assumption for the UI.
-                    // A better approach would be to know who the student was.
-                    // If instructor_id is populated, it was received. If not, it was imparted.
                     uiFlightPurpose = data.instructor_id ? 'Instrucción (Recibida)' : 'Instrucción (Impartida)';
                 }
 
@@ -308,7 +304,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [watchedFlightPurpose, form]);
 
   useEffect(() => {
-    if (watchedFlightPurpose === 'remolque') {
+    if (watchedFlightPurpose === 'Remolque planeador') {
       form.setValue('tows_count', 1, { shouldValidate: true });
     } else {
       if (form.getValues('tows_count') !== 0) {
@@ -503,21 +499,63 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let dbFlightPurpose: EngineFlightPurpose;
-        let finalInstructorId: string | null | undefined = formData.instructor_id;
+        let finalInstructorId: string | null | undefined = null; // Default to null
 
-        if (formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)') {
+        if (formData.flight_purpose === 'Instrucción (Recibida)') {
             dbFlightPurpose = 'instrucción';
-            if (formData.flight_purpose === 'Instrucción (Impartida)') {
-                finalInstructorId = null; // Key change: No instructor ID for imparted instruction
-            }
+            finalInstructorId = formData.instructor_id; // Keep instructor from form
+        } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
+            dbFlightPurpose = 'instrucción';
+            finalInstructorId = null; // Ensure instructor is null
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
-            finalInstructorId = null;
+            finalInstructorId = null; // No instructor for other types
         }
 
         const flightDate = formData.date;
         const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
         const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
+        
+        const hasFuelOrOil = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
+
+        if (hasFuelOrOil) {
+            const { data: flightsInSameSlot, error: sameSlotFetchError } = await supabase
+                .from('completed_engine_flights')
+                .select('id, departure_time, arrival_time, fuel_added_liters, oil_added_liters')
+                .eq('date', format(flightDate, 'yyyy-MM-dd'))
+                .eq('engine_aircraft_id', formData.engine_aircraft_id);
+
+            if (sameSlotFetchError) {
+                toast({ title: "Error", description: "No se pudo verificar la carga de combustible/aceite duplicada.", variant: "destructive" });
+                setIsSubmittingForm(false);
+                return;
+            }
+
+            const otherFlightsInSlot = flightsInSameSlot?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
+            
+            const conflictingFuelOilFlight = otherFlightsInSlot.find(existingFlight => {
+                const existingStart = parse(existingFlight.departure_time, 'HH:mm', flightDate);
+                const existingEnd = parse(existingFlight.arrival_time, 'HH:mm', flightDate);
+
+                if (!isValid(existingStart) || !isValid(existingEnd)) return false;
+
+                if (isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
+                    return (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
+                }
+                return false;
+            });
+
+            if (conflictingFuelOilFlight) {
+                toast({
+                    title: "Carga Duplicada Detectada",
+                    description: "Ya existe un registro de vuelo para esta aeronave y horario con combustible/aceite cargado. Por favor, ingrese la carga en un solo registro.",
+                    variant: "destructive",
+                    duration: 8000,
+                });
+                setIsSubmittingForm(false);
+                return;
+            }
+        }
         
         const { data: allFlightsOnDate, error: fetchError } = await supabase
             .from('completed_engine_flights')
