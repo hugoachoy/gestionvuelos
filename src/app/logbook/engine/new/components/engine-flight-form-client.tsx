@@ -103,6 +103,9 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | 
 };
 
 const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    if (!isValid(start1) || !isValid(end1) || !isValid(start2) || !isValid(end2)) {
+        return false;
+    }
     return start1 < end2 && start2 < end1;
 };
 
@@ -205,7 +208,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setInitialFlightData(data);
                 
                 let uiFlightPurpose: string = data.flight_purpose;
-                // For edit mode, determine UI purpose from DB state
                 if(data.flight_purpose === 'instrucción') {
                     uiFlightPurpose = data.instructor_id ? 'Instrucción (Recibida)' : 'Instrucción (Impartida)';
                 }
@@ -296,10 +298,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
   
   useEffect(() => {
-    // If purpose is changed to something that isn't 'Instrucción (Recibida)', clear the instructor field
-    if (watchedFlightPurpose !== 'Instrucción (Recibida)' && form.getValues("instructor_id")) {
-      form.setValue("instructor_id", null, { shouldValidate: true });
-      setInstructorSearchTerm('');
+    // If purpose is changed to something that isn't instruction, clear instructor
+    if (watchedFlightPurpose !== 'Instrucción (Recibida)') {
+      if (form.getValues("instructor_id")) {
+        form.setValue("instructor_id", null, { shouldValidate: true });
+        setInstructorSearchTerm('');
+      }
     }
   }, [watchedFlightPurpose, form]);
 
@@ -498,23 +502,24 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
 
+        const flightDate = formData.date;
+        const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
+        const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
+
+        // This block handles the mapping from UI purpose to DB purpose and sets the instructor
         let dbFlightPurpose: EngineFlightPurpose;
         let finalInstructorId: string | null | undefined = null; // Default to null
 
         if (formData.flight_purpose === 'Instrucción (Recibida)') {
             dbFlightPurpose = 'instrucción';
-            finalInstructorId = formData.instructor_id; // Keep instructor from form
+            finalInstructorId = formData.instructor_id;
         } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
             dbFlightPurpose = 'instrucción';
-            finalInstructorId = null; // Ensure instructor is null
+            finalInstructorId = null; // Ensure instructor is explicitly null
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
             finalInstructorId = null; // No instructor for other types
         }
-
-        const flightDate = formData.date;
-        const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
-        const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
         
         const hasFuelOrOil = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
 
@@ -536,8 +541,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const conflictingFuelOilFlight = otherFlightsInSlot.find(existingFlight => {
                 const existingStart = parse(existingFlight.departure_time, 'HH:mm', flightDate);
                 const existingEnd = parse(existingFlight.arrival_time, 'HH:mm', flightDate);
-
-                if (!isValid(existingStart) || !isValid(existingEnd)) return false;
 
                 if (isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
                     return (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
@@ -886,7 +889,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">{watchedFlightPurpose === 'Instrucción (Impartida)' ? 'Alumno' : 'Piloto'}</FormLabel>
                    <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -896,7 +899,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
                           disabled={isLoading}
                         >
-                          {field.value ? getPilotName(field.value) : `Seleccionar piloto`}
+                          {field.value ? getPilotName(field.value) : (watchedFlightPurpose === 'Instrucción (Impartida)' ? `Seleccionar alumno` : `Seleccionar piloto`)}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -1176,3 +1179,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
