@@ -65,7 +65,7 @@ const engineFlightSchema = z.object({
   message: "La hora de llegada debe ser posterior a la hora de salida.",
   path: ["arrival_time"],
 }).refine(data => data.pilot_id !== data.instructor_id, {
-  message: "El piloto no puede ser su propio instructor.",
+  message: "El piloto/alumno no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
   if (data.flight_purpose === 'Instrucción (Recibida)' || data.flight_purpose === 'Instrucción (Impartida)') {
@@ -93,7 +93,7 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | 
     switch (scheduleTypeId) {
         case 'instruction_taken': return 'Instrucción (Recibida)';
         case 'instruction_given': return 'Instrucción (Impartida)';
-        case 'towage': return 'Remolque planeador';
+        case 'towage': return 'remolque';
         case 'trip': return 'viaje';
         case 'local': return 'local';
         default:
@@ -293,10 +293,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
   
-  const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
-  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
-  const isInstructionMode = useMemo(() => isInstructionGivenMode || isInstructionTakenMode, [isInstructionGivenMode, isInstructionTakenMode]);
-  const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto a Cargo';
+  const isInstructionMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)' || watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
+  const picOrStudentLabel = isInstructionMode ? 'Alumno' : 'Piloto a Cargo';
 
   useEffect(() => {
     if (!isInstructionMode && form.getValues("instructor_id")) {
@@ -306,7 +304,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [isInstructionMode, form]);
 
   useEffect(() => {
-    if (watchedFlightPurpose === 'Remolque planeador') {
+    if (watchedFlightPurpose === 'remolque') {
       form.setValue('tows_count', 1, { shouldValidate: true });
     } else {
       if (form.getValues('tows_count') !== 0) {
@@ -571,7 +569,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         let billableMins: number | null = null;
-        if (dbFlightPurpose !== 'Remolque planeador' && durationMinutes > 0) {
+        if (dbFlightPurpose !== 'remolque' && durationMinutes > 0) {
           billableMins = durationMinutes;
         }
         
@@ -1069,7 +1067,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <FormItem>
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'Remolque planeador'} />
+                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || watchedFlightPurpose !== 'remolque'} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -1134,3 +1132,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
