@@ -889,7 +889,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">{watchedFlightPurpose === 'Instrucción (Impartida)' ? 'Alumno' : 'Piloto'}</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto</FormLabel>
                    <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -899,7 +899,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
                           disabled={isLoading}
                         >
-                          {field.value ? getPilotName(field.value) : (watchedFlightPurpose === 'Instrucción (Impartida)' ? `Seleccionar alumno` : `Seleccionar piloto`)}
+                          {field.value ? getPilotName(field.value) : `Seleccionar piloto`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
