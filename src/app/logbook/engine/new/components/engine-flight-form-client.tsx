@@ -208,10 +208,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setInitialFlightData(data);
                 
                 let uiFlightPurpose: string = data.flight_purpose;
+                // Simplified UI mapping logic
                 if(data.flight_purpose === 'instrucción') {
-                    if (data.pilot_id === user.id && data.instructor_id === null) {
+                    // If instructor_id is null, it was an "Impartida" flight for the pilot_id
+                    if (data.instructor_id === null) {
                         uiFlightPurpose = 'Instrucción (Impartida)';
-                    } else if (data.instructor_id) {
+                    } else { // Otherwise it was "Recibida"
                         uiFlightPurpose = 'Instrucción (Recibida)';
                     }
                 }
@@ -539,8 +541,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const hasFuelOrOil = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
         if (hasFuelOrOil) {
             const conflictingFuelOilFlight = flightsToCheckForConflict.find(existingFlight => {
-                const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date());
-                const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date());
+                const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(existingFlight.date));
+                const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(existingFlight.date));
 
                 if (isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
                     if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
@@ -563,33 +565,19 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
         
         const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
-            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date());
-            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date());
+            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(existingFlight.date));
+            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(existingFlight.date));
 
             if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
                 return false;
             }
 
-            const isNewFlightInstructionGiven = formData.flight_purpose === 'Instrucción (Impartida)';
-            const isNewFlightInstructionTaken = formData.flight_purpose === 'Instrucción (Recibida)';
-            
-            const isExistingFlightInstruction = existingFlight.flight_purpose === 'instrucción';
-            const isExistingFlightInstructionGiven = isExistingFlightInstruction && !existingFlight.instructor_id;
-            const isExistingFlightInstructionTaken = isExistingFlightInstruction && !!existingFlight.instructor_id;
+            if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
+                const isNewFlightInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)';
+                const isExistingFlightInstruction = existingFlight.flight_purpose === 'instrucción';
 
-            const hasAircraftConflict = existingFlight.engine_aircraft_id === formData.engine_aircraft_id;
-            
-            if (hasAircraftConflict) {
-                if (isNewFlightInstructionGiven && isExistingFlightInstructionTaken) {
-                    if (existingFlight.instructor_id === formData.pilot_id) {
-                        return false; 
-                    }
-                }
-                
-                if (isNewFlightInstructionTaken && isExistingFlightInstructionGiven) {
-                    if (existingFlight.pilot_id === formData.instructor_id) {
-                        return false;
-                    }
+                if (isNewFlightInstruction && isExistingFlightInstruction) {
+                    return false;
                 }
                 
                 return true;
@@ -602,6 +590,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
             return isPersonInBothFlights;
         });
+
 
         if (conflictingFlight) {
             const conflictingPilotName = getPilotName(conflictingFlight.pilot_id);
@@ -1192,3 +1181,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
