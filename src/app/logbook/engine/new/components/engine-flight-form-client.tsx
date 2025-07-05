@@ -208,8 +208,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setInitialFlightData(data);
                 
                 let uiFlightPurpose: string = data.flight_purpose;
+                // If the stored purpose is 'instrucción', we need to decide which UI option to show
                 if(data.flight_purpose === 'instrucción') {
-                    uiFlightPurpose = data.instructor_id ? 'Instrucción (Recibida)' : 'Instrucción (Impartida)';
+                    // if instructor_id is the logged in user, it means they GAVE instruction.
+                    // But here we need to check if an instructor was present AT ALL.
+                    // If an instructor was present, the PIC (pilot_id) RECEIVED instruction.
+                    if (data.instructor_id) {
+                        uiFlightPurpose = 'Instrucción (Recibida)';
+                    } else {
+                        // If no instructor is logged, it means the PIC gave instruction.
+                        uiFlightPurpose = 'Instrucción (Impartida)';
+                    }
                 }
 
                 form.reset({
@@ -298,7 +307,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
   
   useEffect(() => {
-    // If purpose is changed to something that isn't instruction, clear instructor
+    // If purpose is changed to something that isn't received instruction, clear instructor field.
+    // If it's "impartida", the instructor field should not be there anyway.
     if (watchedFlightPurpose !== 'Instrucción (Recibida)') {
       if (form.getValues("instructor_id")) {
         form.setValue("instructor_id", null, { shouldValidate: true });
@@ -311,6 +321,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     if (watchedFlightPurpose === 'Remolque planeador') {
       form.setValue('tows_count', 1, { shouldValidate: true });
     } else {
+      // Only reset if it's not already 0 to avoid unnecessary re-renders.
       if (form.getValues('tows_count') !== 0) {
           form.setValue('tows_count', 0, { shouldValidate: true });
       }
@@ -515,7 +526,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             finalInstructorId = formData.instructor_id;
         } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
             dbFlightPurpose = 'instrucción';
-            finalInstructorId = null; // Ensure instructor is explicitly null
+            // Instructor is the pilot_id, so the instructor_id field must be null.
+            finalInstructorId = null; 
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
             finalInstructorId = null; // No instructor for other types
@@ -539,8 +551,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const otherFlightsInSlot = flightsInSameSlot?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
             
             const conflictingFuelOilFlight = otherFlightsInSlot.find(existingFlight => {
-                const existingStart = parse(existingFlight.departure_time, 'HH:mm', flightDate);
-                const existingEnd = parse(existingFlight.arrival_time, 'HH:mm', flightDate);
+                const existingDepTimeClean = existingFlight.departure_time.substring(0, 5);
+                const existingArrTimeClean = existingFlight.arrival_time.substring(0, 5);
+
+                const existingStart = parse(existingDepTimeClean, 'HH:mm', flightDate);
+                const existingEnd = parse(existingArrTimeClean, 'HH:mm', flightDate);
 
                 if (isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
                     return (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
@@ -574,8 +589,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const flightsToCheckForConflict = allFlightsOnDate?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
         
         const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
-            const existingStart = parse(existingFlight.departure_time, 'HH:mm', parseISO(existingFlight.date));
-            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm', parseISO(existingFlight.date));
+            const existingStart = parse(existingFlight.departure_time.substring(0,5), 'HH:mm', parseISO(existingFlight.date));
+            const existingEnd = parse(existingFlight.arrival_time.substring(0,5), 'HH:mm', parseISO(existingFlight.date));
         
             if (!isValid(existingStart) || !isValid(existingEnd) || !isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) return false; 
         
@@ -1179,5 +1194,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
-    
