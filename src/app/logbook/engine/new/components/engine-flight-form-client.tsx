@@ -48,7 +48,7 @@ const engineFlightSchema = z.object({
   departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de salida inválido (HH:MM)."),
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
   route_from_to: z.string().optional().nullable(),
-  landings_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
+  landings_count: z.coerce.number().int().min(1, "Debe registrar al menos un aterrizaje."),
   tows_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
   oil_added_liters: z.coerce.number().min(0, "Debe ser 0 o más.").optional().nullable(),
   fuel_added_liters: z.coerce.number().min(0, "Debe ser 0 o más.").optional().nullable(),
@@ -156,7 +156,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       departure_time: '',
       arrival_time: '',
       route_from_to: null,
-      landings_count: 0,
+      landings_count: 1,
       tows_count: 0,
       oil_added_liters: null,
       fuel_added_liters: null,
@@ -222,7 +222,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     date: data.date ? parseISO(data.date) : new Date(),
                     instructor_id: data.instructor_id || null,
                     route_from_to: data.route_from_to || null,
-                    landings_count: data.landings_count ?? 0,
+                    landings_count: data.landings_count ?? 1,
                     tows_count: data.tows_count ?? 0,
                     oil_added_liters: data.oil_added_liters || null,
                     fuel_added_liters: data.fuel_added_liters || null,
@@ -264,7 +264,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               instructor_id: null,
               flight_purpose: prefilledFlightPurpose as EngineFlightFormData['flight_purpose'],
               route_from_to: null,
-              landings_count: 0,
+              landings_count: 1,
               tows_count: 0,
               oil_added_liters: null,
               fuel_added_liters: null,
@@ -282,7 +282,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 departure_time: '',
                 arrival_time: '',
                 route_from_to: null,
-                landings_count: 0,
+                landings_count: 1,
                 tows_count: 0,
                 oil_added_liters: null,
                 fuel_added_liters: null,
@@ -303,11 +303,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
   
   useEffect(() => {
-    if (watchedFlightPurpose !== 'Instrucción (Recibida)') {
-      if (form.getValues("instructor_id")) {
+    if (watchedFlightPurpose === 'Instrucción (Impartida)' && form.getValues("instructor_id")) {
         form.setValue("instructor_id", null, { shouldValidate: true });
         setInstructorSearchTerm('');
-      }
     }
   }, [watchedFlightPurpose, form]);
 
@@ -512,13 +510,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         let dbFlightPurpose: EngineFlightPurpose;
         let finalInstructorId: string | null | undefined = null;
+        let finalPilotId = formData.pilot_id;
 
         if (formData.flight_purpose === 'Instrucción (Recibida)') {
             dbFlightPurpose = 'instrucción';
             finalInstructorId = formData.instructor_id;
         } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
             dbFlightPurpose = 'instrucción';
-            finalInstructorId = null; 
+            finalPilotId = user?.is_admin ? formData.pilot_id : currentUserLinkedPilotId || formData.pilot_id;
+            finalInstructorId = null;
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
             finalInstructorId = null;
@@ -536,6 +536,48 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         const flightsToCheckForConflict = allFlightsOnDate?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
+        
+        const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
+            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(existingFlight.date));
+            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(existingFlight.date));
+
+            if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
+                return false;
+            }
+            
+            const isInstructionFlightPair = 
+                (dbFlightPurpose === 'instrucción' && existingFlight.flight_purpose === 'instrucción') &&
+                (
+                  (finalPilotId === existingFlight.pilot_id && finalInstructorId === existingFlight.instructor_id) ||
+                  (finalPilotId === existingFlight.instructor_id && finalInstructorId === existingFlight.pilot_id)
+                );
+
+            if (isInstructionFlightPair) return false;
+
+            if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
+                return true;
+            }
+
+            const peopleInNewFlight = [finalPilotId, finalInstructorId].filter(Boolean);
+            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
+            
+            const isPersonInBothFlights = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
+
+            return isPersonInBothFlights;
+        });
+
+
+        if (conflictingFlight) {
+            const conflictingPilotName = getPilotName(conflictingFlight.pilot_id);
+            toast({
+                title: "Conflicto de Horario",
+                description: `La aeronave o una de las personas involucradas ya tiene un vuelo registrado que se superpone con este horario (Vuelo de ${conflictingPilotName} a las ${conflictingFlight.departure_time.substring(0,5)}).`,
+                variant: "destructive",
+                duration: 8000,
+            });
+            setIsSubmittingForm(false);
+            return;
+        }
 
         const hasFuelOrOil = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
         if (hasFuelOrOil) {
@@ -562,46 +604,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 return;
             }
         }
-        
-        const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
-            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(existingFlight.date));
-            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(existingFlight.date));
-
-            if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
-                return false;
-            }
-
-            if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
-                const isNewFlightInstruction = dbFlightPurpose === 'instrucción';
-                const isExistingFlightInstruction = existingFlight.flight_purpose === 'instrucción';
-
-                if (isNewFlightInstruction && isExistingFlightInstruction) {
-                    return false;
-                }
-                
-                return true;
-            }
-
-            const peopleInNewFlight = [formData.pilot_id, finalInstructorId].filter(Boolean);
-            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
-            
-            const isPersonInBothFlights = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
-
-            return isPersonInBothFlights;
-        });
-
-
-        if (conflictingFlight) {
-            const conflictingPilotName = getPilotName(conflictingFlight.pilot_id);
-            toast({
-                title: "Conflicto de Horario",
-                description: `La aeronave o una de las personas involucradas ya tiene un vuelo registrado que se superpone con este horario (Vuelo de ${conflictingPilotName} a las ${conflictingFlight.departure_time.substring(0,5)}).`,
-                variant: "destructive",
-                duration: 8000,
-            });
-            setIsSubmittingForm(false);
-            return;
-        }
 
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
@@ -623,6 +625,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         
         const submissionData = {
             ...formData,
+            pilot_id: finalPilotId,
             instructor_id: finalInstructorId,
             flight_purpose: dbFlightPurpose,
             date: format(formData.date, 'yyyy-MM-dd'),
@@ -632,7 +635,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             billable_minutes: billableMins,
             schedule_entry_id: formData.schedule_entry_id || null,
             route_from_to: formData.route_from_to || null,
-            landings_count: formData.landings_count ?? 0,
             tows_count: formData.tows_count ?? 0,
             oil_added_liters: formData.oil_added_liters || null,
             fuel_added_liters: formData.fuel_added_liters || null,
@@ -1100,9 +1102,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     name="landings_count"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aterrizajes (Opcional)</FormLabel>
+                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aterrizajes</FormLabel>
                         <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
+                        <Input type="number" min="1" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
