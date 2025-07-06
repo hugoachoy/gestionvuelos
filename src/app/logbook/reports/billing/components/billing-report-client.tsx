@@ -37,7 +37,7 @@ function logSupabaseError(context: string, error: any) {
 type BillableItem = {
   id: string;
   date: string;
-  type: 'Vuelo a Motor' | 'Remolque de Planeador' | 'Instrucción Impartida';
+  type: 'Vuelo a Motor' | 'Remolque de Planeador' | 'Instrucción Impartida' | 'Remolque de Planeador (En instruccion)';
   aircraft: string;
   duration_hs: number;
   billable_minutes: number | null;
@@ -148,10 +148,15 @@ export function BillingReportClient() {
             });
           } 
           else if (flight.pilot_id === selectedPilotId) {
+            const isInstructional = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación';
+            const typeText = isInstructional 
+                ? 'Remolque de Planeador (En instruccion)' 
+                : 'Remolque de Planeador';
+            
             billableItems.push({
               id: `gli-${flight.id}`,
               date: flight.date,
-              type: 'Remolque de Planeador',
+              type: typeText,
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,
@@ -215,7 +220,7 @@ export function BillingReportClient() {
           { content: item.aircraft, styles },
           { content: item.notes, styles },
           { content: item.billable_minutes?.toString() ?? '-', styles },
-          { content: item.is_non_billable_for_pilot ? '-' : (item.type === 'Remolque de Planeador' ? '1' : '-'), styles },
+          { content: item.is_non_billable_for_pilot ? '-' : (item.type.startsWith('Remolque') ? '1' : '-'), styles },
         ]);
       });
 
@@ -280,7 +285,7 @@ export function BillingReportClient() {
                 `"${item.aircraft.replace(/"/g, '""')}"`,
                 `"${item.notes.replace(/"/g, '""')}"`,
                 item.billable_minutes ?? '',
-                item.is_non_billable_for_pilot ? '' : (item.type === 'Remolque de Planeador' ? '1' : ''),
+                item.is_non_billable_for_pilot ? '' : (item.type.startsWith('Remolque') ? '1' : ''),
             ];
             csvContent += row.join(',') + "\n";
         });
@@ -433,7 +438,7 @@ export function BillingReportClient() {
                   <TableCell>{item.aircraft}</TableCell>
                   <TableCell>{item.notes}</TableCell>
                   <TableCell className="text-right">{item.billable_minutes ?? '-'}</TableCell>
-                  <TableCell className="text-right">{item.is_non_billable_for_pilot ? '-' : (item.type === 'Remolque de Planeador' ? '1' : '-')}</TableCell>
+                  <TableCell className="text-right">{item.is_non_billable_for_pilot ? '-' : (item.type.startsWith('Remolque') ? '1' : '-')}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
