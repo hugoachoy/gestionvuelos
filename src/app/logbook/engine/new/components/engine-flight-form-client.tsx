@@ -101,13 +101,6 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): string | 
     }
 };
 
-const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
-    if (!isValid(start1) || !isValid(end1) || !isValid(start2) || !isValid(end2)) {
-        return false;
-    }
-    return start1 < end2 && start2 < end1;
-};
-
 interface EngineFlightFormClientProps {
   flightIdToLoad?: string;
 }
@@ -144,6 +137,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
   const picOrStudentLabel = 'Piloto';
+
+  const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    if (!isValid(start1) || !isValid(end1) || !isValid(start2) || !isValid(end2)) {
+        return false;
+    }
+    return start1 < end2 && start2 < end1;
+  };
 
   const form = useForm<EngineFlightFormData>({
     resolver: zodResolver(engineFlightSchema),
@@ -208,14 +208,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setInitialFlightData(data);
                 
                 let uiFlightPurpose: string = data.flight_purpose;
-                // Simplified UI mapping logic
                 if(data.flight_purpose === 'instrucción') {
-                    // If instructor_id is null, it was an "Impartida" flight for the pilot_id
-                    if (data.instructor_id === null) {
-                        uiFlightPurpose = 'Instrucción (Impartida)';
-                    } else { // Otherwise it was "Recibida"
-                        uiFlightPurpose = 'Instrucción (Recibida)';
-                    }
+                  // Determine if it was "Impartida" (instructor was the pilot_id) or "Recibida"
+                  if (data.auth_user_id === user.id && data.pilot_id === currentUserLinkedPilotId) {
+                      uiFlightPurpose = 'Instrucción (Impartida)';
+                  } else {
+                      uiFlightPurpose = 'Instrucción (Recibida)';
+                  }
                 }
 
                 form.reset({
@@ -247,7 +246,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       }
     };
 
-    if (user && pilots.length > 0) {
+    if (user && pilots.length > 0 && categories.length > 0) {
         if (isEditMode) {
             loadFlightDetails();
         } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && aircraft.length > 0) {
@@ -293,7 +292,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]);
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length, categories.length, currentUserLinkedPilotId]);
 
 
   const watchedPilotId = form.watch("pilot_id");
@@ -573,7 +572,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             }
 
             if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
-                const isNewFlightInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)';
+                const isNewFlightInstruction = dbFlightPurpose === 'instrucción';
                 const isExistingFlightInstruction = existingFlight.flight_purpose === 'instrucción';
 
                 if (isNewFlightInstruction && isExistingFlightInstruction) {
@@ -831,7 +830,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">{picOrStudentLabel}</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha</FormLabel>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -891,7 +890,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">{picOrStudentLabel}</FormLabel>
                    <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -1181,5 +1180,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
-    
