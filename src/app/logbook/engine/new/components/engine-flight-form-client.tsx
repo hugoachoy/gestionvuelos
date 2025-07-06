@@ -50,7 +50,7 @@ const engineFlightSchema = z.object({
   route_from_to: z.string().optional().nullable(),
   landings_count: z.coerce.number().int().min(1, "Debe registrar al menos un aterrizaje."),
   tows_count: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().nullable(),
-  oil_added_liters: z.coerce.number().min(0, "Debe ser 0 o más.").optional().nullable(),
+  oil_added_liters: z.coerce.number().int("La cantidad de aceite debe ser un número entero.").min(0, "Debe ser 0 o más.").optional().nullable(),
   fuel_added_liters: z.coerce.number().min(0, "Debe ser 0 o más.").optional().nullable(),
   notes: z.string().optional().nullable(),
   schedule_entry_id: z.string().optional().nullable(),
@@ -217,7 +217,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                            uiFlightPurpose = 'Instrucción (Recibida)';
                         }
                     } else {
-                        // Fallback or logic for when instructor or auth_user_id is null
                         uiFlightPurpose = 'Instrucción (Recibida)';
                     }
                 }
@@ -510,10 +509,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
 
         const flightDate = formData.date;
-        const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
-        const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
+        const newFlightStart = parse(formData.departure_time, 'HH:mm', new Date(flightDate));
+        const newFlightEnd = parse(formData.arrival_time, 'HH:mm', new Date(flightDate));
 
-        // --- VALIDATION LOGIC REWRITE ---
 
         const { data: allFlightsOnDate, error: fetchError } = await supabase
             .from('completed_engine_flights')
@@ -531,33 +529,25 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const overlappingAircraftFlights = flightsToCheckForConflict.filter(existingFlight => {
             if (existingFlight.engine_aircraft_id !== formData.engine_aircraft_id) return false;
             
-            // FIX: Use the same `flightDate` object for all time parsing to ensure timezone consistency.
-            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', flightDate);
-            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', flightDate);
+            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(flightDate));
+            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(flightDate));
             return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
         });
 
         if (overlappingAircraftFlights.length > 0) {
-            let finalInstructorId: string | null | undefined = null;
-            if (formData.flight_purpose === 'Instrucción (Recibida)') {
-                finalInstructorId = formData.instructor_id;
-            } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
-                finalInstructorId = currentUserLinkedPilotId;
-            }
+            const isCurrentFlightInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)';
+            
+            const isPotentialInstructionPair = 
+                isCurrentFlightInstruction &&
+                overlappingAircraftFlights.length === 1 &&
+                overlappingAircraftFlights[0].flight_purpose === 'instrucción';
 
-            const isPairedInstructionFlight = overlappingAircraftFlights.every(existingFlight => 
-                existingFlight.flight_purpose === 'instrucción' &&
-                existingFlight.pilot_id === formData.pilot_id &&
-                existingFlight.instructor_id === finalInstructorId
-            );
-
-            if (isPairedInstructionFlight) {
+            if (isPotentialInstructionPair) {
                 const hasFuelOrOilInNewFlight = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
                 
                 if (hasFuelOrOilInNewFlight) {
-                    const existingFlightHasFuelOrOil = overlappingAircraftFlights.some(ef => 
-                        (ef.fuel_added_liters ?? 0) > 0 || (ef.oil_added_liters ?? 0) > 0
-                    );
+                    const existingFlight = overlappingAircraftFlights[0];
+                    const existingFlightHasFuelOrOil = (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
 
                     if (existingFlightHasFuelOrOil) {
                         toast({
@@ -567,7 +557,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                             duration: 8000,
                         });
                         setIsSubmittingForm(false);
-                        return; // STOP
+                        return;
                     }
                 }
             } else {
@@ -579,13 +569,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     duration: 8000
                 });
                 setIsSubmittingForm(false);
-                return; // STOP
+                return;
             }
         }
         
-        // --- END VALIDATION LOGIC REWRITE ---
-
-        // Prepare submission data
         let dbFlightPurpose: EngineFlightPurpose;
         let finalInstructorIdForSave: string | null | undefined = null;
         
@@ -594,7 +581,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             finalInstructorIdForSave = formData.instructor_id;
         } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
             dbFlightPurpose = 'instrucción';
-            finalInstructorIdForSave = currentUserLinkedPilotId;
+            finalInstructorIdForSave = null;
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
             finalInstructorIdForSave = null;
@@ -1140,7 +1127,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     <FormItem>
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aceite Cargado (Lts) (Opcional)</FormLabel>
                         <FormControl>
-                        <Input type="number" step="0.01" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
+                        <Input type="number" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -1176,3 +1163,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
