@@ -417,10 +417,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return aircraft.filter(ac => ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
-  const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
-    return start1 < end2 && start2 < end1;
-  };
-
   const isAnyPilotInvalidForFlight = useMemo(() => {
     const isPicExpired = medicalWarning?.toUpperCase().includes("VENCIDO");
     const isInstructorExpired = instructorMedicalWarning?.toUpperCase().includes("VENCIDO");
@@ -488,54 +484,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             finalInstructorId = currentUserLinkedPilotId;
         }
 
-        const flightDate = formData.date;
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
-
-        const [depH, depM] = depTimeCleaned.split(':').map(Number);
-        const [arrH, arrM] = arrTimeCleaned.split(':').map(Number);
-
-        const newFlightStart = setMinutes(setHours(flightDate, depH), depM);
-        const newFlightEnd = setMinutes(setHours(flightDate, arrH), arrM);
-
-        if (!isEditMode || !initialFlightData) {
-            await fetchCompletedGliderFlights();
-        }
-        const flightsToCheckForConflict = completedGliderFlights.filter(f => isEditMode ? f.id !== flightIdToLoad : true);
-
-        const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
-            const isOnSameDay = format(parseISO(existingFlight.date), 'yyyy-MM-dd') === format(flightDate, 'yyyy-MM-dd');
-            if (!isOnSameDay) return false;
-
-            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
-            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
-            const existingStart = setMinutes(setHours(parseISO(existingFlight.date), exDepH), exDepM);
-            const existingEnd = setMinutes(setHours(parseISO(existingFlight.date), exArrH), exArrM);
-
-            if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
-                return false; 
-            }
-            
-            const isAircraftConflict = existingFlight.glider_aircraft_id === formData.glider_aircraft_id;
-            const isTowPlaneConflict = !!(formData.tow_aircraft_id && existingFlight.tow_aircraft_id && formData.tow_aircraft_id === existingFlight.tow_aircraft_id);
-
-            const peopleInNewFlight = [finalPilotId, finalInstructorId, formData.tow_pilot_id].filter(Boolean);
-            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id, existingFlight.tow_pilot_id].filter(Boolean);
-            const isPersonConflict = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
-            
-            return isAircraftConflict || isTowPlaneConflict || isPersonConflict;
-        });
-
-        if (conflictingFlight) {
-             toast({
-                title: "Conflicto de Horario",
-                description: `La aeronave o una de las personas involucradas ya tiene un vuelo registrado que se superpone con este horario.`,
-                variant: "destructive",
-                duration: 8000,
-            });
-            setIsSubmittingForm(false);
-            return;
-        }
 
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
         const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
