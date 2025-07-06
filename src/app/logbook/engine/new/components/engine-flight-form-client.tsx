@@ -531,13 +531,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const overlappingAircraftFlights = flightsToCheckForConflict.filter(existingFlight => {
             if (existingFlight.engine_aircraft_id !== formData.engine_aircraft_id) return false;
             
-            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(existingFlight.date));
-            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(existingFlight.date));
+            // FIX: Use the same `flightDate` object for all time parsing to ensure timezone consistency.
+            const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', flightDate);
+            const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', flightDate);
             return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
         });
 
         if (overlappingAircraftFlights.length > 0) {
-            // Determine the final instructor for the flight being submitted
             let finalInstructorId: string | null | undefined = null;
             if (formData.flight_purpose === 'Instrucción (Recibida)') {
                 finalInstructorId = formData.instructor_id;
@@ -545,7 +545,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 finalInstructorId = currentUserLinkedPilotId;
             }
 
-            // Check if the overlap is a valid instruction pair
             const isPairedInstructionFlight = overlappingAircraftFlights.every(existingFlight => 
                 existingFlight.flight_purpose === 'instrucción' &&
                 existingFlight.pilot_id === formData.pilot_id &&
@@ -553,7 +552,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             );
 
             if (isPairedInstructionFlight) {
-                // It's a valid pair, now ONLY check for duplicate fuel/oil load.
                 const hasFuelOrOilInNewFlight = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
                 
                 if (hasFuelOrOilInNewFlight) {
@@ -572,9 +570,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                         return; // STOP
                     }
                 }
-                // If we get here, it's a valid pair and no duplicate fuel. The "conflict" is allowed.
             } else {
-                // It's a REAL conflict (not a paired instruction flight). Block it.
                 const conflictingPilotName = getPilotName(overlappingAircraftFlights[0].pilot_id);
                 toast({
                     title: "Conflicto de Horario",
@@ -900,7 +896,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
                           disabled={isLoading}
                         >
-                          {field.value ? getPilotName(field.value) : `Seleccionar piloto`}
+                          {field.value ? getPilotName(field.value) : `Seleccionar ${picOrStudentLabel.toLowerCase()}`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
