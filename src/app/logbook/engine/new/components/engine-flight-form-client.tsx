@@ -110,7 +110,7 @@ const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): bool
         return false;
     }
     return start1 < end2 && start2 < end1;
-  };
+};
 
 export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClientProps) {
   const router = useRouter();
@@ -208,8 +208,18 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setInitialFlightData(data);
                 
                 let uiFlightPurpose: string = data.flight_purpose;
-                if(data.flight_purpose === 'instrucción') {
-                  uiFlightPurpose = data.instructor_id === currentUserLinkedPilotId ? 'Instrucción (Impartida)' : 'Instrucción (Recibida)';
+                 if (data.flight_purpose === 'instrucción') {
+                    if (data.instructor_id && data.auth_user_id && pilots.length > 0) {
+                        const instructorPilot = pilots.find(p => p.id === data.instructor_id);
+                        if (instructorPilot && instructorPilot.auth_user_id === data.auth_user_id) {
+                           uiFlightPurpose = 'Instrucción (Impartida)';
+                        } else {
+                           uiFlightPurpose = 'Instrucción (Recibida)';
+                        }
+                    } else {
+                        // Fallback or logic for when instructor or auth_user_id is null
+                        uiFlightPurpose = 'Instrucción (Recibida)';
+                    }
                 }
 
                 form.reset({
@@ -503,21 +513,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const newFlightStart = parse(formData.departure_time, 'HH:mm', flightDate);
         const newFlightEnd = parse(formData.arrival_time, 'HH:mm', flightDate);
 
-        let dbFlightPurpose: EngineFlightPurpose;
-        let finalInstructorId: string | null | undefined = null;
-        let finalPilotId = formData.pilot_id;
+        // --- VALIDATION LOGIC REWRITE ---
 
-        if (formData.flight_purpose === 'Instrucción (Recibida)') {
-            dbFlightPurpose = 'instrucción';
-            finalInstructorId = formData.instructor_id;
-        } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
-            dbFlightPurpose = 'instrucción';
-            finalInstructorId = null; 
-        } else {
-            dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
-            finalInstructorId = null;
-        }
-        
         const { data: allFlightsOnDate, error: fetchError } = await supabase
             .from('completed_engine_flights')
             .select('*')
@@ -531,72 +528,80 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         const flightsToCheckForConflict = allFlightsOnDate?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
         
-        const conflictingFlight = flightsToCheckForConflict.find(existingFlight => {
+        const overlappingAircraftFlights = flightsToCheckForConflict.filter(existingFlight => {
+            if (existingFlight.engine_aircraft_id !== formData.engine_aircraft_id) return false;
+            
             const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(existingFlight.date));
             const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(existingFlight.date));
-
-            if (!isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
-                return false;
-            }
-            
-            const isInstructionFlightPair = 
-                (dbFlightPurpose === 'instrucción' && existingFlight.flight_purpose === 'instrucción') &&
-                (
-                  (finalPilotId === existingFlight.pilot_id && finalInstructorId === existingFlight.instructor_id) ||
-                  (finalPilotId === existingFlight.instructor_id && finalInstructorId === existingFlight.pilot_id)
-                );
-
-            if (isInstructionFlightPair) return false;
-
-            if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
-                return true;
-            }
-
-            const peopleInNewFlight = [finalPilotId, finalInstructorId].filter(Boolean);
-            const peopleInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
-            
-            const isPersonInBothFlights = peopleInNewFlight.some(p => peopleInExistingFlight.includes(p as string));
-
-            return isPersonInBothFlights;
+            return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
         });
 
+        if (overlappingAircraftFlights.length > 0) {
+            // Determine the final instructor for the flight being submitted
+            let finalInstructorId: string | null | undefined = null;
+            if (formData.flight_purpose === 'Instrucción (Recibida)') {
+                finalInstructorId = formData.instructor_id;
+            } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
+                finalInstructorId = currentUserLinkedPilotId;
+            }
 
-        if (conflictingFlight) {
-            const conflictingPilotName = getPilotName(conflictingFlight.pilot_id);
-            toast({
-                title: "Conflicto de Horario",
-                description: `La aeronave o una de las personas involucradas ya tiene un vuelo registrado que se superpone con este horario (Vuelo de ${conflictingPilotName} a las ${conflictingFlight.departure_time.substring(0,5)}).`,
-                variant: "destructive",
-                duration: 8000,
-            });
-            setIsSubmittingForm(false);
-            return;
-        }
+            // Check if the overlap is a valid instruction pair
+            const isPairedInstructionFlight = overlappingAircraftFlights.every(existingFlight => 
+                existingFlight.flight_purpose === 'instrucción' &&
+                existingFlight.pilot_id === formData.pilot_id &&
+                existingFlight.instructor_id === finalInstructorId
+            );
 
-        const hasFuelOrOil = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
-        if (hasFuelOrOil) {
-            const conflictingFuelOilFlight = flightsToCheckForConflict.find(existingFlight => {
-                const existingStart = parse(existingFlight.departure_time.substring(0,5), 'HH:mm', new Date(existingFlight.date));
-                const existingEnd = parse(existingFlight.arrival_time.substring(0,5), 'HH:mm', new Date(existingFlight.date));
+            if (isPairedInstructionFlight) {
+                // It's a valid pair, now ONLY check for duplicate fuel/oil load.
+                const hasFuelOrOilInNewFlight = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
                 
-                if (isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
-                    if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
-                         return (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
+                if (hasFuelOrOilInNewFlight) {
+                    const existingFlightHasFuelOrOil = overlappingAircraftFlights.some(ef => 
+                        (ef.fuel_added_liters ?? 0) > 0 || (ef.oil_added_liters ?? 0) > 0
+                    );
+
+                    if (existingFlightHasFuelOrOil) {
+                        toast({
+                            title: "Carga Duplicada Detectada",
+                            description: "El combustible/aceite ya fue registrado en el vuelo de instrucción por la otra persona. Ingrese la carga en un solo registro.",
+                            variant: "destructive",
+                            duration: 8000,
+                        });
+                        setIsSubmittingForm(false);
+                        return; // STOP
                     }
                 }
-                return false;
-            });
-
-            if (conflictingFuelOilFlight) {
+                // If we get here, it's a valid pair and no duplicate fuel. The "conflict" is allowed.
+            } else {
+                // It's a REAL conflict (not a paired instruction flight). Block it.
+                const conflictingPilotName = getPilotName(overlappingAircraftFlights[0].pilot_id);
                 toast({
-                    title: "Carga Duplicada Detectada",
-                    description: "Ya existe un registro de vuelo para esta aeronave y horario con combustible/aceite cargado. Por favor, ingrese la carga en un solo registro.",
+                    title: "Conflicto de Horario",
+                    description: `La aeronave ya tiene un vuelo registrado que se superpone con este horario (Vuelo de ${conflictingPilotName}).`,
                     variant: "destructive",
-                    duration: 8000,
+                    duration: 8000
                 });
                 setIsSubmittingForm(false);
-                return;
+                return; // STOP
             }
+        }
+        
+        // --- END VALIDATION LOGIC REWRITE ---
+
+        // Prepare submission data
+        let dbFlightPurpose: EngineFlightPurpose;
+        let finalInstructorIdForSave: string | null | undefined = null;
+        
+        if (formData.flight_purpose === 'Instrucción (Recibida)') {
+            dbFlightPurpose = 'instrucción';
+            finalInstructorIdForSave = formData.instructor_id;
+        } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
+            dbFlightPurpose = 'instrucción';
+            finalInstructorIdForSave = currentUserLinkedPilotId;
+        } else {
+            dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
+            finalInstructorIdForSave = null;
         }
 
         const depTimeCleaned = formData.departure_time.substring(0,5);
@@ -619,8 +624,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         
         const submissionData = {
             ...formData,
-            pilot_id: finalPilotId,
-            instructor_id: finalInstructorId,
+            instructor_id: finalInstructorIdForSave,
             flight_purpose: dbFlightPurpose,
             date: format(formData.date, 'yyyy-MM-dd'),
             departure_time: depTimeCleaned,
