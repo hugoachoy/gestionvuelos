@@ -476,12 +476,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         if (isInstructionTakenMode) {
             finalInstructorId = formData.instructor_id;
         } else if (isInstructionGivenMode) {
-            if (!currentUserLinkedPilotId) {
-                toast({ title: "Error", description: "No se pudo identificar su perfil de piloto para registrarse como instructor.", variant: "destructive" });
-                setIsSubmittingForm(false);
-                return;
-            }
-            finalInstructorId = currentUserLinkedPilotId;
+            finalInstructorId = null;
         }
 
         const depTimeCleaned = formData.departure_time.substring(0,5);
