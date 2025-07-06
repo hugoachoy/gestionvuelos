@@ -105,6 +105,13 @@ interface EngineFlightFormClientProps {
   flightIdToLoad?: string;
 }
 
+const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    if (!isValid(start1) || !isValid(end1) || !isValid(start2) || !isValid(end2)) {
+        return false;
+    }
+    return start1 < end2 && start2 < end1;
+  };
+
 export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -137,13 +144,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
   const picOrStudentLabel = 'Piloto';
-
-  const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
-    if (!isValid(start1) || !isValid(end1) || !isValid(start2) || !isValid(end2)) {
-        return false;
-    }
-    return start1 < end2 && start2 < end1;
-  };
 
   const form = useForm<EngineFlightFormData>({
     resolver: zodResolver(engineFlightSchema),
@@ -209,12 +209,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 let uiFlightPurpose: string = data.flight_purpose;
                 if(data.flight_purpose === 'instrucción') {
-                  // Determine if it was "Impartida" (instructor was the pilot_id) or "Recibida"
-                  if (data.auth_user_id === user.id && data.pilot_id === currentUserLinkedPilotId) {
-                      uiFlightPurpose = 'Instrucción (Impartida)';
-                  } else {
-                      uiFlightPurpose = 'Instrucción (Recibida)';
-                  }
+                  uiFlightPurpose = data.instructor_id === currentUserLinkedPilotId ? 'Instrucción (Impartida)' : 'Instrucción (Recibida)';
                 }
 
                 form.reset({
@@ -517,8 +512,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             finalInstructorId = formData.instructor_id;
         } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
             dbFlightPurpose = 'instrucción';
-            finalPilotId = user?.is_admin ? formData.pilot_id : currentUserLinkedPilotId || formData.pilot_id;
-            finalInstructorId = null;
+            finalInstructorId = null; 
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
             finalInstructorId = null;
@@ -582,9 +576,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const hasFuelOrOil = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
         if (hasFuelOrOil) {
             const conflictingFuelOilFlight = flightsToCheckForConflict.find(existingFlight => {
-                const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(existingFlight.date));
-                const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(existingFlight.date));
-
+                const existingStart = parse(existingFlight.departure_time.substring(0,5), 'HH:mm', new Date(existingFlight.date));
+                const existingEnd = parse(existingFlight.arrival_time.substring(0,5), 'HH:mm', new Date(existingFlight.date));
+                
                 if (isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd)) {
                     if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
                          return (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
