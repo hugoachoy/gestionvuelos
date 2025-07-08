@@ -52,6 +52,7 @@ const aircraftSchema = z.object({
   out_of_service_reason: z.string().nullable().optional(),
   annual_review_date: z.date().nullable().optional(),
   last_oil_change_date: z.date().nullable().optional(),
+  insurance_expiry_date: z.date().nullable().optional(),
 }).refine(data => {
   if (data.is_out_of_service && (!data.out_of_service_reason || data.out_of_service_reason.trim() === '')) {
     return false;
@@ -74,6 +75,7 @@ interface AircraftFormProps {
 export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: AircraftFormProps) {
   const [isAnnualPickerOpen, setAnnualPickerOpen] = useState(false);
   const [isOilPickerOpen, setOilPickerOpen] = useState(false);
+  const [isInsurancePickerOpen, setInsurancePickerOpen] = useState(false);
 
   const form = useForm<AircraftFormData>({
     resolver: zodResolver(aircraftSchema),
@@ -84,6 +86,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
       out_of_service_reason: null,
       annual_review_date: null,
       last_oil_change_date: null,
+      insurance_expiry_date: null,
     },
   });
 
@@ -94,6 +97,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
       ...data,
       annual_review_date: data.annual_review_date ? format(data.annual_review_date, 'yyyy-MM-dd') : null,
       last_oil_change_date: data.last_oil_change_date ? format(data.last_oil_change_date, 'yyyy-MM-dd') : null,
+      insurance_expiry_date: data.insurance_expiry_date ? format(data.insurance_expiry_date, 'yyyy-MM-dd') : null,
       out_of_service_reason: data.is_out_of_service ? data.out_of_service_reason : null,
     };
     onSubmit(dataToSubmit, aircraft?.id);
@@ -111,6 +115,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
             out_of_service_reason: aircraft.out_of_service_reason,
             annual_review_date: aircraft.annual_review_date && isValid(parseISO(aircraft.annual_review_date)) ? parseISO(aircraft.annual_review_date) : null,
             last_oil_change_date: aircraft.last_oil_change_date && isValid(parseISO(aircraft.last_oil_change_date)) ? parseISO(aircraft.last_oil_change_date) : null,
+            insurance_expiry_date: aircraft.insurance_expiry_date && isValid(parseISO(aircraft.insurance_expiry_date)) ? parseISO(aircraft.insurance_expiry_date) : null,
           }
         : {
             name: '',
@@ -119,6 +124,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
             out_of_service_reason: null,
             annual_review_date: null,
             last_oil_change_date: null,
+            insurance_expiry_date: null,
           };
       form.reset(defaultValues);
     }
@@ -193,6 +199,38 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
                         mode="single"
                         selected={field.value}
                         onSelect={(date) => { field.onChange(date); setAnnualPickerOpen(false); }}
+                        initialFocus
+                        locale={es}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="insurance_expiry_date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha Vencimiento Seguro</FormLabel>
+                  <Popover open={isInsurancePickerOpen} onOpenChange={setInsurancePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                        >
+                          {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => { field.onChange(date); setInsurancePickerOpen(false); }}
                         initialFocus
                         locale={es}
                       />
