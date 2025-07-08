@@ -1,6 +1,5 @@
 
 import { Suspense } from 'react';
-import { AdminClient } from './components/admin-client';
 import { BillingReportClient } from './components/billing-report-client';
 import { PageHeader } from '@/components/common/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,44 +18,24 @@ export default function AdminPage() {
           Esta sección contiene acciones que pueden afectar a múltiples usuarios. Úsela con precaución.
         </AlertDescription>
       </Alert>
-      <div className="space-y-8">
-        <Suspense fallback={<EmailSummarySkeleton />}>
-          <AdminClient />
-        </Suspense>
-        
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center">
-                    <Receipt className="mr-2 h-6 w-6 text-primary" />
-                    Informe de Facturación
-                </CardTitle>
-                <CardDescription>
-                    Genere informes de vuelos a facturar por piloto y rango de fechas.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Suspense fallback={<BillingReportSkeleton />}>
-                    <BillingReportClient />
-                </Suspense>
-            </CardContent>
-        </Card>
-      </div>
+      
+      <Card>
+          <CardHeader>
+              <CardTitle className="flex items-center">
+                  <Receipt className="mr-2 h-6 w-6 text-primary" />
+                  Informe de Facturación
+              </CardTitle>
+              <CardDescription>
+                  Genere informes de vuelos a facturar por piloto y rango de fechas.
+              </CardDescription>
+          </CardHeader>
+          <CardContent>
+              <Suspense fallback={<BillingReportSkeleton />}>
+                  <BillingReportClient />
+              </Suspense>
+          </CardContent>
+      </Card>
     </>
-  );
-}
-
-function EmailSummarySkeleton() {
-  return (
-    <Card>
-      <CardHeader>
-        <Skeleton className="h-6 w-48 mb-2" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-3/4" />
-      </CardHeader>
-      <CardContent>
-        <Skeleton className="h-10 w-56" />
-      </CardContent>
-    </Card>
   );
 }
 
