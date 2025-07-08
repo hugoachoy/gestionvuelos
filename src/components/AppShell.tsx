@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText, Shield } from 'lucide-react';
+import { LayoutDashboard, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText, Shield } from 'lucide-react';
 
 interface NavItemProps {
   href: string;
@@ -63,7 +63,8 @@ function AppShellLayout({ children }: { children: ReactNode }) {
   const sidebar = useSidebar(); 
 
   const navItems = [
-    { href: '/', label: 'Agenda', icon: <CalendarDays /> },
+    { href: '/', label: 'Dashboard', icon: <LayoutDashboard /> },
+    { href: '/schedule', label: 'Agenda', icon: <CalendarDays /> },
     { href: '/logbook', label: 'Libro de Vuelo', icon: <BookOpen /> },
     { href: '/pilots', label: 'Pilotos', icon: <Users /> },
     { href: '/categories', label: 'Categoria Pilotos', icon: <Tags /> },
