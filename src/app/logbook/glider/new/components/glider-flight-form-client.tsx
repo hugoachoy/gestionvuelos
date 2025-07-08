@@ -410,11 +410,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
 
   const filteredGliders = useMemo(() => {
-    return aircraft.filter(ac => ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
+    return aircraft.filter(ac => !ac.is_out_of_service && ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
   const filteredTowPlanes = useMemo(() => {
-    return aircraft.filter(ac => ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
+    return aircraft.filter(ac => !ac.is_out_of_service && ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
   const isAnyPilotInvalidForFlight = useMemo(() => {

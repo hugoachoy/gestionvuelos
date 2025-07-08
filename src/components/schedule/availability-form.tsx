@@ -437,10 +437,12 @@ export function AvailabilityForm({
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.id === 'towage');
     const isFlightTypeRemolque = currentFlightTypeId === towageFlightType?.id;
 
+    const availableAircraft = aircraft.filter(ac => !ac.is_out_of_service);
+
     if (isRemolcadorCategorySelectedForTurn || isFlightTypeRemolque) {
-      return aircraft.filter(ac => ac.type === 'Tow Plane');
+      return availableAircraft.filter(ac => ac.type === 'Tow Plane');
     }
-    return aircraft;
+    return availableAircraft;
   }, [isRemolcadorCategorySelectedForTurn, aircraft, form]);
 
 

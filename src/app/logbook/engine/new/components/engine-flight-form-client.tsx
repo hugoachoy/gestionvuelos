@@ -451,7 +451,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
 
   const filteredEngineAircraft = useMemo(() => {
-    return aircraft.filter(ac => ac.type === 'Tow Plane' || ac.type === 'Avión')
+    return aircraft.filter(ac => !ac.is_out_of_service && (ac.type === 'Tow Plane' || ac.type === 'Avión'))
                    .sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
@@ -526,27 +526,30 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         const flightsToCheckForConflict = allFlightsOnDate?.filter(f => isEditMode ? f.id !== flightIdToLoad : true) || [];
         
-        const overlappingAircraftFlights = flightsToCheckForConflict.filter(existingFlight => {
+        const overlappingFlights = flightsToCheckForConflict.filter(existingFlight => {
             if (existingFlight.engine_aircraft_id !== formData.engine_aircraft_id) return false;
-            
             const existingStart = parse(existingFlight.departure_time, 'HH:mm:ss', new Date(flightDate));
             const existingEnd = parse(existingFlight.arrival_time, 'HH:mm:ss', new Date(flightDate));
             return isTimeOverlap(newFlightStart, newFlightEnd, existingStart, existingEnd);
         });
 
-        if (overlappingAircraftFlights.length > 0) {
-            const isCurrentFlightInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'Instrucción (Impartida)';
+        if (overlappingFlights.length > 0) {
+            const currentIsInstructor = formData.flight_purpose === 'Instrucción (Impartida)';
+            const currentIsStudent = formData.flight_purpose === 'Instrucción (Recibida)';
             
-            const isPotentialInstructionPair = 
-                isCurrentFlightInstruction &&
-                overlappingAircraftFlights.length === 1 &&
-                overlappingAircraftFlights[0].flight_purpose === 'instrucción';
+            const isPotentialInstructionPair =
+                (currentIsInstructor || currentIsStudent) &&
+                overlappingFlights.length === 1 &&
+                overlappingFlights[0].flight_purpose === 'instrucción' &&
+                (
+                    (currentIsStudent && formData.instructor_id === overlappingFlights[0].pilot_id) || // current is student, other is instructor
+                    (currentIsInstructor && formData.pilot_id === overlappingFlights[0].instructor_id) // current is instructor, other is student
+                );
 
             if (isPotentialInstructionPair) {
                 const hasFuelOrOilInNewFlight = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
-                
                 if (hasFuelOrOilInNewFlight) {
-                    const existingFlight = overlappingAircraftFlights[0];
+                    const existingFlight = overlappingFlights[0];
                     const existingFlightHasFuelOrOil = (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
 
                     if (existingFlightHasFuelOrOil) {
@@ -561,7 +564,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     }
                 }
             } else {
-                const conflictingPilotName = getPilotName(overlappingAircraftFlights[0].pilot_id);
+                const conflictingPilotName = getPilotName(overlappingFlights[0].pilot_id);
                 toast({
                     title: "Conflicto de Horario",
                     description: `La aeronave ya tiene un vuelo registrado que se superpone con este horario (Vuelo de ${conflictingPilotName}).`,
