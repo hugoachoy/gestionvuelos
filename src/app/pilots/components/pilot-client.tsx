@@ -4,7 +4,7 @@
 import React from 'react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Pilot } from '@/types';
-import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
+import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, ShieldCheck, UserCheck } from 'lucide-react';
@@ -33,6 +33,7 @@ export function PilotClient() {
   const auth = useAuth();
   const { pilots, addPilot, updatePilot, deletePilot: removePilot, loading, error, fetchPilots } = usePilotsStore();
   const { categories: pilotCategories, getCategoryName, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
+  const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { toast } = useToast();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -88,7 +89,8 @@ export function PilotClient() {
   const handleRefreshAll = useCallback(() => {
     fetchPilots();
     fetchCategories();
-  }, [fetchPilots, fetchCategories]);
+    fetchAircrafts();
+  }, [fetchPilots, fetchCategories, fetchAircrafts]);
 
   useEffect(() => {
     if (!loading && pilots.length === 0) {
@@ -97,11 +99,14 @@ export function PilotClient() {
     if (!categoriesLoading && pilotCategories.length === 0) {
         fetchCategories();
     }
-  }, [fetchPilots, fetchCategories, loading, categoriesLoading, pilots.length, pilotCategories.length]);
+    if (!aircraftLoading && aircraft.length === 0) {
+        fetchAircrafts();
+    }
+  }, [fetchPilots, fetchCategories, fetchAircrafts, loading, categoriesLoading, aircraftLoading, pilots.length, pilotCategories.length, aircraft.length]);
 
 
-  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user;
-  const combinedError = error || categoriesError;
+  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user || aircraftLoading;
+  const combinedError = error || categoriesError || aircraftError;
 
   const sortedPilots = useMemo(() => {
     if (!pilots) return [];
@@ -140,6 +145,7 @@ export function PilotClient() {
             </Button>
             <PilotReportButton
               pilots={pilots} 
+              aircraft={aircraft}
               getCategoryName={getCategoryName}
               disabled={combinedLoading || pilots.length === 0}
             />
@@ -298,5 +304,6 @@ export function PilotClient() {
     </>
   );
 }
+
 
 
