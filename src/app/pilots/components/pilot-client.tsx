@@ -145,7 +145,6 @@ export function PilotClient() {
             </Button>
             <PilotReportButton
               pilots={pilots} 
-              aircraft={aircraft}
               getCategoryName={getCategoryName}
               disabled={combinedLoading || pilots.length === 0}
             />
@@ -304,6 +303,3 @@ export function PilotClient() {
     </>
   );
 }
-
-
-

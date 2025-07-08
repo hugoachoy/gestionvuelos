@@ -25,6 +25,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { AircraftReportButton } from './aircraft-report-button';
 
 const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Tow Plane': 'Avión Remolcador',
@@ -150,10 +151,14 @@ export function AircraftClient() {
       <PageHeader 
         title="Aeronaves"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={() => { fetchAircraft(); fetchCompletedEngineFlights(); }} variant="outline" size="icon" disabled={isLoadingUI}>
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
+            <AircraftReportButton
+              aircraft={aircraft}
+              disabled={isLoadingUI || aircraft.length === 0}
+            />
             {currentUser?.is_admin && ( 
               <Button onClick={handleAddAircraft} disabled={isLoadingUI}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Aeronave

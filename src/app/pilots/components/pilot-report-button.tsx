@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import type { Pilot, PilotCategory, Aircraft } from '@/types';
+import type { Pilot } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -19,12 +19,11 @@ import { es } from 'date-fns/locale';
 
 interface PilotReportButtonProps {
   pilots: Pilot[];
-  aircraft: Aircraft[];
   getCategoryName: (categoryId: string) => string;
   disabled?: boolean;
 }
 
-export function PilotReportButton({ pilots, aircraft, getCategoryName, disabled }: PilotReportButtonProps) {
+export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotReportButtonProps) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
 
@@ -202,95 +201,6 @@ export function PilotReportButton({ pilots, aircraft, getCategoryName, disabled 
     }
   };
 
-  const generateAircraftReportPdf = async () => {
-    if (!aircraft.length) {
-      toast({ title: "Sin Datos", description: "No hay aeronaves para exportar.", variant: "default" });
-      return;
-    }
-    setIsExporting(true);
-
-    try {
-      const { default: jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
-
-      const doc = new jsPDF({ orientation: 'portrait' });
-      const pageTitle = "Informe de Aeronaves y Vencimientos";
-      let currentY = 15;
-
-      doc.setFontSize(16);
-      doc.text(pageTitle, 14, currentY);
-      currentY += 10;
-
-      const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
-        'Tow Plane': 'Avión Remolcador',
-        'Glider': 'Planeador',
-        'Avión': 'Avión',
-      };
-      
-      const aircraftTypeOrder: Record<Aircraft['type'], number> = {
-        'Tow Plane': 1,
-        'Glider': 2,
-        'Avión': 3,
-      };
-
-      const sortedAircraft = [...aircraft].sort((a, b) => {
-        const typeOrderA = aircraftTypeOrder[a.type];
-        const typeOrderB = aircraftTypeOrder[b.type];
-  
-        if (typeOrderA !== typeOrderB) {
-          return typeOrderA - typeOrderB;
-        }
-        return a.name.localeCompare(b.name);
-      });
-
-      const tableColumn = ["Nombre/Matrícula", "Tipo", "Venc. Anual", "Venc. Seguro"];
-      const tableRows: (string | { content: string; styles?: any })[][] = [];
-
-      sortedAircraft.forEach(ac => {
-        let annualReviewDisplay = 'N/A';
-        if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
-          annualReviewDisplay = format(parseISO(ac.annual_review_date), "dd/MM/yyyy", { locale: es });
-        }
-        
-        let insuranceExpiryDisplay = 'N/A';
-        if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
-          insuranceExpiryDisplay = format(parseISO(ac.insurance_expiry_date), "dd/MM/yyyy", { locale: es });
-        }
-        
-        tableRows.push([
-          ac.name,
-          aircraftTypeTranslations[ac.type] || ac.type,
-          annualReviewDisplay,
-          insuranceExpiryDisplay,
-        ]);
-      });
-
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-        styles: { fontSize: 9, cellPadding: 1.5 },
-        columnStyles: {
-          0: { cellWidth: 'auto' },
-          1: { cellWidth: 'auto' },
-          2: { cellWidth: 35 },
-          3: { cellWidth: 35 },
-        },
-      });
-
-      doc.save(`informe_aeronaves_${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: "PDF Exportado", description: "El informe de aeronaves se ha exportado a PDF." });
-
-    } catch (error) {
-      console.error("Error generating aircraft report PDF:", error);
-      toast({ title: "Error de Exportación", description: "No se pudo generar el PDF de aeronaves.", variant: "destructive" });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
 
   return (
     <DropdownMenu>
@@ -310,10 +220,6 @@ export function PilotReportButton({ pilots, aircraft, getCategoryName, disabled 
         <DropdownMenuItem onClick={generateUpcomingExpiriesPdf} disabled={isExporting}>
           <FileText className="mr-2 h-4 w-4" />
           <span>Vencimientos Psicofísicos</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={generateAircraftReportPdf} disabled={isExporting}>
-          <FileText className="mr-2 h-4 w-4" />
-          <span>Informe de Aeronaves</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
