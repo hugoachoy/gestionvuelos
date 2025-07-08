@@ -116,6 +116,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const [instructorMedicalWarning, setInstructorMedicalWarning] = useState<string | null>(null);
   const [towPilotMedicalWarning, setTowPilotMedicalWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
+  const [gliderWarning, setGliderWarning] = useState<string | null>(null);
+  const [towPlaneWarning, setTowPlaneWarning] = useState<string | null>(null);
 
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
   const [flightFetchError, setFlightFetchError] = useState<string | null>(null);
@@ -259,6 +261,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
+  const watchedGliderAircraftId = form.watch("glider_aircraft_id");
+  const watchedTowAircraftId = form.watch("tow_aircraft_id");
 
   const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
   const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación', [watchedFlightPurpose]);
@@ -343,6 +347,25 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     setTowPilotMedicalWarning(checkPilotMedical(watchedTowPilotId, watchedDate, 'Piloto Remolcador'));
   }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedDate, pilots, picOrStudentLabel]);
 
+  useEffect(() => {
+    setGliderWarning(null);
+    if (watchedGliderAircraftId) {
+      const selectedAC = aircraft.find(ac => ac.id === watchedGliderAircraftId);
+      if (selectedAC?.is_out_of_service) {
+        setGliderWarning(`El planeador "${selectedAC.name}" está fuera de servicio.`);
+      }
+    }
+  }, [watchedGliderAircraftId, aircraft]);
+
+  useEffect(() => {
+    setTowPlaneWarning(null);
+    if (watchedTowAircraftId) {
+      const selectedAC = aircraft.find(ac => ac.id === watchedTowAircraftId);
+      if (selectedAC?.is_out_of_service) {
+        setTowPlaneWarning(`El avión remolcador "${selectedAC.name}" está fuera de servicio.`);
+      }
+    }
+  }, [watchedTowAircraftId, aircraft]);
 
   const sortedPilots = useMemo(() => {
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
@@ -410,11 +433,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
 
   const filteredGliders = useMemo(() => {
-    return aircraft.filter(ac => !ac.is_out_of_service && ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
+    return aircraft.filter(ac => ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
   const filteredTowPlanes = useMemo(() => {
-    return aircraft.filter(ac => !ac.is_out_of_service && ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
+    return aircraft.filter(ac => ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
   const isAnyPilotInvalidForFlight = useMemo(() => {
@@ -448,6 +471,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
 
         const selectedGlider = aircraftStore.aircraft.find(ac => ac.id === formData.glider_aircraft_id);
+        if (selectedGlider?.is_out_of_service) {
+          toast({ title: "Error", description: "El planeador seleccionado está fuera de servicio.", variant: "destructive" });
+          setIsSubmittingForm(false);
+          return;
+        }
         if (!selectedGlider || selectedGlider.type !== 'Glider') {
           toast({
             title: "Error de Aeronave",
@@ -458,7 +486,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
           setIsSubmittingForm(false);
           return;
         }
+
         const selectedTowPlane = aircraftStore.aircraft.find(ac => ac.id === formData.tow_aircraft_id);
+        if (selectedTowPlane?.is_out_of_service) {
+          toast({ title: "Error", description: "El avión remolcador seleccionado está fuera de servicio.", variant: "destructive" });
+          setIsSubmittingForm(false);
+          return;
+        }
         if (!selectedTowPlane || selectedTowPlane.type !== 'Tow Plane') {
           toast({
             title: "Error de Aeronave Remolcadora",
@@ -555,7 +589,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
-  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight;
+  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning;
 
   if (authLoading && !user) { 
     return (
@@ -921,8 +955,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     </FormControl>
                     <SelectContent>
                       {filteredGliders.map((ac) => (
-                        <SelectItem key={ac.id} value={ac.id}>
-                          {ac.name}
+                        <SelectItem key={ac.id} value={ac.id} disabled={ac.is_out_of_service}>
+                          {ac.name} {ac.is_out_of_service && "(Fuera de Servicio)"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -931,6 +965,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 </FormItem>
               )}
             />
+             {gliderWarning && (
+                <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Planeador no disponible</AlertTitle>
+                    <AlertDescription>{gliderWarning}</AlertDescription>
+                </Alert>
+            )}
 
             <FormField
               control={form.control}
@@ -946,8 +987,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     </FormControl>
                     <SelectContent>
                       {filteredTowPlanes.map((ac) => (
-                        <SelectItem key={ac.id} value={ac.id}>
-                          {ac.name}
+                        <SelectItem key={ac.id} value={ac.id} disabled={ac.is_out_of_service}>
+                          {ac.name} {ac.is_out_of_service && "(Fuera de Servicio)"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -956,6 +997,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 </FormItem>
               )}
             />
+            {towPlaneWarning && (
+                <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Remolcador no disponible</AlertTitle>
+                    <AlertDescription>{towPlaneWarning}</AlertDescription>
+                </Alert>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField

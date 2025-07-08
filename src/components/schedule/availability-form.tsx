@@ -150,6 +150,7 @@ export function AvailabilityForm({
   const [medicalWarning, setMedicalWarning] = useState<MedicalWarningState | null>(null);
   const [bookingConflictWarning, setBookingConflictWarning] = useState<BookingConflictWarningState | null>(null);
   const [sportFlightAircraftWarning, setSportFlightAircraftWarning] = useState<SportFlightAircraftWarningState | null>(null);
+  const [aircraftWarning, setAircraftWarning] = useState<string | null>(null);
   const [pilotSearchTerm, setPilotSearchTerm] = useState('');
   const [pilotPopoverOpen, setPilotPopoverOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -206,6 +207,7 @@ export function AvailabilityForm({
       setMedicalWarning(null);
       setBookingConflictWarning(null);
       setSportFlightAircraftWarning(null);
+      setAircraftWarning(null);
     }
   }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
 
@@ -228,6 +230,15 @@ export function AvailabilityForm({
     return normalizeCategoryName(cat?.name) === NORMALIZED_REMOLCADOR;
   }, [watchedPilotCategoryId, categories]);
 
+  useEffect(() => {
+    setAircraftWarning(null);
+    if (watchedAircraftId) {
+      const selectedAircraftDetails = aircraft.find(a => a.id === watchedAircraftId);
+      if (selectedAircraftDetails?.is_out_of_service) {
+        setAircraftWarning(`La aeronave seleccionada (${selectedAircraftDetails.name}) está fuera de servicio. No se puede agendar un turno.`);
+      }
+    }
+  }, [watchedAircraftId, aircraft]);
 
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
@@ -437,7 +448,7 @@ export function AvailabilityForm({
     const towageFlightType = FLIGHT_TYPES.find(ft => ft.id === 'towage');
     const isFlightTypeRemolque = currentFlightTypeId === towageFlightType?.id;
 
-    const availableAircraft = aircraft.filter(ac => !ac.is_out_of_service);
+    const availableAircraft = aircraft; // Show all aircraft regardless of service status
 
     if (isRemolcadorCategorySelectedForTurn || isFlightTypeRemolque) {
       return availableAircraft.filter(ac => ac.type === 'Tow Plane');
@@ -523,8 +534,9 @@ export function AvailabilityForm({
   const isSubmitDisabled = useMemo(() => {
     const isMedicalBlocker = medicalWarning?.show && medicalWarning.variant === 'destructive';
     const isBookingBlocker = bookingConflictWarning?.show;
-    return isMedicalBlocker || isBookingBlocker;
-  }, [medicalWarning, bookingConflictWarning]);
+    const isAircraftBlocker = !!aircraftWarning;
+    return isMedicalBlocker || isBookingBlocker || isAircraftBlocker;
+  }, [medicalWarning, bookingConflictWarning, aircraftWarning]);
 
 
   return (
@@ -799,8 +811,11 @@ export function AvailabilityForm({
                     <SelectContent>
                       {filteredAircraftForSelect.length > 0 ? (
                         filteredAircraftForSelect.map(ac => (
-                          <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.type === 'Glider' ? 'Planeador' :
-                                                                          ac.type === 'Tow Plane' ? 'Remolcador' : 'Avión'})</SelectItem>
+                          <SelectItem key={ac.id} value={ac.id} disabled={ac.is_out_of_service}>
+                            {ac.name} ({ac.type === 'Glider' ? 'Planeador' :
+                                                                          ac.type === 'Tow Plane' ? 'Remolcador' : 'Avión'})
+                            {ac.is_out_of_service && " (Fuera de Servicio)"}
+                          </SelectItem>
                         ))
                       ) : (
                         <div className="p-2 text-sm text-muted-foreground text-center">No hay aeronaves que coincidan.</div>
@@ -811,6 +826,13 @@ export function AvailabilityForm({
                 </FormItem>
               )}
             />
+            {aircraftWarning && (
+                <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Aeronave no disponible</AlertTitle>
+                    <AlertDescription>{aircraftWarning}</AlertDescription>
+                </Alert>
+            )}
              {bookingConflictWarning && bookingConflictWarning.show && (
               <Alert variant="destructive" className="mt-2">
                 <PlaneIconLucide className="h-4 w-4" />

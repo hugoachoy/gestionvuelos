@@ -135,6 +135,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const [instructorMedicalWarning, setInstructorMedicalWarning] = useState<string | null>(null);
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
+  const [aircraftWarning, setAircraftWarning] = useState<string | null>(null);
   
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
   const [flightFetchError, setFlightFetchError] = useState<string | null>(null);
@@ -305,6 +306,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
+  const watchedEngineAircraftId = form.watch("engine_aircraft_id");
+
+  useEffect(() => {
+    setAircraftWarning(null);
+    if (watchedEngineAircraftId) {
+      const selectedAC = aircraft.find(ac => ac.id === watchedEngineAircraftId);
+      if (selectedAC?.is_out_of_service) {
+        setAircraftWarning(`La aeronave "${selectedAC.name}" está fuera de servicio y no puede ser registrada en un vuelo.`);
+      }
+    }
+  }, [watchedEngineAircraftId, aircraft]);
   
   useEffect(() => {
     if (watchedFlightPurpose === 'Instrucción (Impartida)' && form.getValues("instructor_id")) {
@@ -451,7 +463,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
 
   const filteredEngineAircraft = useMemo(() => {
-    return aircraft.filter(ac => !ac.is_out_of_service && (ac.type === 'Tow Plane' || ac.type === 'Avión'))
+    return aircraft.filter(ac => ac.type === 'Tow Plane' || ac.type === 'Avión')
                    .sort((a,b) => a.name.localeCompare(b.name));
   }, [aircraft]);
 
@@ -468,6 +480,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
             setIsSubmittingForm(false);
             return;
+        }
+
+        const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === formData.engine_aircraft_id);
+        if (selectedAircraft?.is_out_of_service) {
+          toast({ title: "Error de Aeronave", description: `La aeronave ${selectedAircraft.name} está fuera de servicio.`, variant: "destructive" });
+          setIsSubmittingForm(false);
+          return;
         }
 
         if (isAnyPilotInvalidForFlight) {
@@ -496,7 +515,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
         
-        const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === formData.engine_aircraft_id);
         if (!selectedAircraft || (selectedAircraft.type !== 'Tow Plane' && selectedAircraft.type !== 'Avión')) {
           toast({
             title: "Error de Aeronave",
@@ -537,31 +555,25 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const currentIsInstructor = formData.flight_purpose === 'Instrucción (Impartida)';
             const currentIsStudent = formData.flight_purpose === 'Instrucción (Recibida)';
             
-            const isPotentialInstructionPair =
-                (currentIsInstructor || currentIsStudent) &&
-                overlappingFlights.length === 1 &&
-                overlappingFlights[0].flight_purpose === 'instrucción' &&
-                (
-                    (currentIsStudent && formData.instructor_id === overlappingFlights[0].pilot_id) || // current is student, other is instructor
-                    (currentIsInstructor && formData.pilot_id === overlappingFlights[0].instructor_id) // current is instructor, other is student
-                );
-
-            if (isPotentialInstructionPair) {
+            // Check if the current flight is part of a valid instruction pair with the conflicting one
+            const isInstructionPair = overlappingFlights.length === 1 &&
+              ( (currentIsStudent && overlappingFlights[0].pilot_id === formData.instructor_id) || // Current is student, conflict is their instructor
+                (currentIsInstructor && overlappingFlights[0].instructor_id === formData.pilot_id) ); // Current is instructor, conflict is their student
+                
+            if (isInstructionPair) {
+                const existingFlight = overlappingFlights[0];
                 const hasFuelOrOilInNewFlight = (formData.fuel_added_liters ?? 0) > 0 || (formData.oil_added_liters ?? 0) > 0;
-                if (hasFuelOrOilInNewFlight) {
-                    const existingFlight = overlappingFlights[0];
-                    const existingFlightHasFuelOrOil = (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
-
-                    if (existingFlightHasFuelOrOil) {
-                        toast({
-                            title: "Carga Duplicada Detectada",
-                            description: "El combustible/aceite ya fue registrado en el vuelo de instrucción por la otra persona. Ingrese la carga en un solo registro.",
-                            variant: "destructive",
-                            duration: 8000,
-                        });
-                        setIsSubmittingForm(false);
-                        return;
-                    }
+                const existingFlightHasFuelOrOil = (existingFlight.fuel_added_liters ?? 0) > 0 || (existingFlight.oil_added_liters ?? 0) > 0;
+                
+                if (hasFuelOrOilInNewFlight && existingFlightHasFuelOrOil) {
+                    toast({
+                        title: "Carga Duplicada Detectada",
+                        description: "El combustible/aceite ya fue registrado en el vuelo de instrucción por la otra persona. Ingrese la carga en un solo registro.",
+                        variant: "destructive",
+                        duration: 8000,
+                    });
+                    setIsSubmittingForm(false);
+                    return;
                 }
             } else {
                 const conflictingPilotName = getPilotName(overlappingFlights[0].pilot_id);
@@ -679,7 +691,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const isSubmitDisabled =
     isLoading ||
     isAnyPilotInvalidForFlight ||
-    (categoryWarning != null && !user?.is_admin);
+    (categoryWarning != null && !user?.is_admin) ||
+    !!aircraftWarning;
 
 
   if (authLoading) {
@@ -1012,8 +1025,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     </FormControl>
                     <SelectContent>
                       {filteredEngineAircraft.map((ac) => (
-                        <SelectItem key={ac.id} value={ac.id}>
-                          {ac.name} ({ac.type})
+                        <SelectItem key={ac.id} value={ac.id} disabled={ac.is_out_of_service}>
+                          {ac.name} ({ac.type}) {ac.is_out_of_service && "(Fuera de Servicio)"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1022,6 +1035,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 </FormItem>
               )}
             />
+            {aircraftWarning && (
+                <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Aeronave no disponible</AlertTitle>
+                    <AlertDescription>{aircraftWarning}</AlertDescription>
+                </Alert>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
@@ -1166,5 +1186,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
-    
