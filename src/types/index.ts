@@ -34,7 +34,6 @@ export interface Aircraft {
   out_of_service_reason: string | null;
   annual_review_date: string | null;
   last_oil_change_date: string | null;
-  insurance_expiry_date: string | null;
   created_at?: string;
 }
 

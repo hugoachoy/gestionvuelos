@@ -110,7 +110,6 @@ export function AircraftClient() {
       out_of_service_reason: data.out_of_service_reason ?? null,
       annual_review_date: data.annual_review_date ?? null,
       last_oil_change_date: data.last_oil_change_date ?? null,
-      insurance_expiry_date: data.insurance_expiry_date ?? null,
       ...data,
     };
 
@@ -178,7 +177,6 @@ export function AircraftClient() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Venc. Anual</TableHead>
-                <TableHead>Venc. Seguro</TableHead>
                 <TableHead>Hs. Aceite</TableHead>
                 {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
@@ -186,7 +184,7 @@ export function AircraftClient() {
             <TableBody>
               {sortedAircraft.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={currentUser?.is_admin ? 7 : 6} className="text-center h-24">
+                  <TableCell colSpan={currentUser?.is_admin ? 6 : 5} className="text-center h-24">
                     No hay aeronaves registradas.
                   </TableCell>
                 </TableRow>
@@ -206,23 +204,6 @@ export function AircraftClient() {
                         annualReviewDisplay = <Badge className="bg-yellow-400 text-black hover:bg-yellow-500">Vence en {daysDiff} días</Badge>;
                     } else {
                         annualReviewDisplay = formattedDate;
-                    }
-                  }
-
-                  let insuranceExpiryDisplay: React.ReactNode = 'N/A';
-                  if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
-                    const expiryDate = parseISO(ac.insurance_expiry_date);
-                    const formattedDate = format(expiryDate, "dd/MM/yyyy", { locale: es });
-                    const daysDiff = differenceInDays(expiryDate, startOfDay(new Date()));
-
-                    if (isBefore(expiryDate, startOfDay(new Date()))) {
-                        insuranceExpiryDisplay = <Badge variant="destructive">VENCIDO {formattedDate}</Badge>;
-                    } else if (daysDiff <= 30) {
-                        insuranceExpiryDisplay = <Badge variant="destructive">Vence en {daysDiff} días</Badge>;
-                    } else if (daysDiff <= 60) {
-                        insuranceExpiryDisplay = <Badge className="bg-yellow-400 text-black hover:bg-yellow-500">Vence en {daysDiff} días</Badge>;
-                    } else {
-                        insuranceExpiryDisplay = formattedDate;
                     }
                   }
 
@@ -253,7 +234,6 @@ export function AircraftClient() {
                         )}
                       </TableCell>
                       <TableCell>{annualReviewDisplay}</TableCell>
-                      <TableCell>{insuranceExpiryDisplay}</TableCell>
                       <TableCell>
                         {ac.hours_since_oil_change !== null && ac.hours_since_oil_change !== undefined ? (
                            <div className="flex items-center gap-2">
