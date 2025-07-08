@@ -91,6 +91,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
   });
 
   const watchedIsOutOfService = form.watch('is_out_of_service');
+  const watchedAircraftType = form.watch('type');
 
   const handleSubmit = (data: AircraftFormData) => {
     const dataToSubmit: Omit<Aircraft, 'id' | 'created_at'> = {
@@ -240,38 +241,40 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
                 </FormItem>
               )}
             />
-             <FormField
-              control={form.control}
-              name="last_oil_change_date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha de Último Cambio de Aceite</FormLabel>
-                  <Popover open={isOilPickerOpen} onOpenChange={setOilPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                        >
-                          {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => { field.onChange(date); setOilPickerOpen(false); }}
-                        initialFocus
-                        locale={es}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+             {watchedAircraftType !== 'Glider' && (
+              <FormField
+                control={form.control}
+                name="last_oil_change_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha de Último Cambio de Aceite</FormLabel>
+                    <Popover open={isOilPickerOpen} onOpenChange={setOilPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                          >
+                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={(date) => { field.onChange(date); setOilPickerOpen(false); }}
+                          initialFocus
+                          locale={es}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="is_out_of_service"
