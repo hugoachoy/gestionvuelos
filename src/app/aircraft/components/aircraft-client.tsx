@@ -210,6 +210,8 @@ export function AircraftClient() {
                   }
 
                   let insuranceExpiryDisplay: React.ReactNode = 'N/A';
+                  const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(new Date()));
+
                   if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
                       const expiryDate = parseISO(ac.insurance_expiry_date);
                       const formattedDate = format(expiryDate, "dd/MM/yyyy", { locale: es });
@@ -226,6 +228,10 @@ export function AircraftClient() {
                       }
                   }
 
+                  const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+                  const effectiveOutOfServiceReason = ac.is_out_of_service ? ac.out_of_service_reason : (isInsuranceExpired ? 'Seguro vencido' : null);
+
+
                   return (
                     <TableRow key={ac.id}>
                       <TableCell>{ac.name}</TableCell>
@@ -235,14 +241,14 @@ export function AircraftClient() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {ac.is_out_of_service ? (
+                        {isEffectivelyOutOfService ? (
                           <div className="flex flex-col items-start">
                             <Badge variant="destructive">
                               <XCircle className="mr-1 h-3 w-3" /> Fuera de Servicio
                             </Badge>
-                            {ac.out_of_service_reason && (
-                                <p className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate" title={ac.out_of_service_reason}>
-                                    {ac.out_of_service_reason}
+                            {effectiveOutOfServiceReason && (
+                                <p className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate" title={effectiveOutOfServiceReason}>
+                                    {effectiveOutOfServiceReason}
                                 </p>
                             )}
                           </div>

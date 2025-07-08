@@ -312,8 +312,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     setAircraftWarning(null);
     if (watchedEngineAircraftId) {
       const selectedAC = aircraft.find(ac => ac.id === watchedEngineAircraftId);
-      if (selectedAC?.is_out_of_service) {
-        setAircraftWarning(`La aeronave "${selectedAC.name}" está fuera de servicio y no puede ser registrada en un vuelo.`);
+      if (selectedAC) {
+        const isInsuranceExpired = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), startOfDay(new Date()));
+        if (selectedAC.is_out_of_service) {
+          setAircraftWarning(`La aeronave "${selectedAC.name}" está fuera de servicio.`);
+        } else if (isInsuranceExpired) {
+          setAircraftWarning(`El seguro de la aeronave "${selectedAC.name}" está vencido.`);
+        }
       }
     }
   }, [watchedEngineAircraftId, aircraft]);
@@ -482,11 +487,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
 
-        const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === formData.engine_aircraft_id);
-        if (selectedAircraft?.is_out_of_service) {
-          toast({ title: "Error de Aeronave", description: `La aeronave ${selectedAircraft.name} está fuera de servicio.`, variant: "destructive" });
-          setIsSubmittingForm(false);
-          return;
+        if (aircraftWarning) {
+            toast({ title: "Error de Aeronave", description: aircraftWarning, variant: "destructive" });
+            setIsSubmittingForm(false);
+            return;
         }
 
         if (isAnyPilotInvalidForFlight) {
@@ -515,6 +519,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
         
+        const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === formData.engine_aircraft_id);
         if (!selectedAircraft || (selectedAircraft.type !== 'Tow Plane' && selectedAircraft.type !== 'Avión')) {
           toast({
             title: "Error de Aeronave",
@@ -1024,11 +1029,21 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {filteredEngineAircraft.map((ac) => (
-                        <SelectItem key={ac.id} value={ac.id} disabled={ac.is_out_of_service}>
-                          {ac.name} ({ac.type}) {ac.is_out_of_service && "(Fuera de Servicio)"}
-                        </SelectItem>
-                      ))}
+                      {filteredEngineAircraft.map((ac) => {
+                        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(new Date()));
+                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+                        let outOfServiceReason = "";
+                        if (ac.is_out_of_service) {
+                          outOfServiceReason = "(Fuera de Servicio)";
+                        } else if (isInsuranceExpired) {
+                          outOfServiceReason = "(Seguro Vencido)";
+                        }
+                        return (
+                          <SelectItem key={ac.id} value={ac.id} disabled={isEffectivelyOutOfService}>
+                            {ac.name} ({ac.type}) {isEffectivelyOutOfService && ` ${outOfServiceReason}`}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                   <FormMessage />
