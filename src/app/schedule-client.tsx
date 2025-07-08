@@ -1,8 +1,9 @@
+
 "use client";
 
 import React from 'react'; // Explicit React import
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -20,10 +21,11 @@ import {
   useScheduleStore,
   useDailyObservationsStore,
   useDailyNewsStore,
+  useCompletedEngineFlightsStore,
 } from '@/store/data-hooks';
 import type { ScheduleEntry, PilotCategory, DailyNews, Aircraft } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
-import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +34,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 
 const normalizeCategoryName = (name?: string): string => {
@@ -104,6 +107,7 @@ export function ScheduleClient() {
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
   const { getNewsForDate, addDailyNewsItem, updateDailyNewsItem, deleteDailyNewsItem, loading: newsLoading, error: newsError, fetchDailyNews } = useDailyNewsStore();
+  const { completedEngineFlights, fetchCompletedEngineFlights, loading: engineFlightsLoading } = useCompletedEngineFlightsStore();
 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -146,6 +150,15 @@ export function ScheduleClient() {
   const newsItemsForSelectedDate = useMemo(() => {
     return formattedSelectedDate ? getNewsForDate(formattedSelectedDate) : [];
   }, [formattedSelectedDate, getNewsForDate]);
+
+  useEffect(() => {
+    // This useEffect fetches data that doesn't depend on the selected date.
+    // It runs once when the component mounts.
+    fetchPilots();
+    fetchCategories();
+    fetchAircrafts();
+    fetchCompletedEngineFlights();
+  }, [fetchPilots, fetchCategories, fetchAircrafts, fetchCompletedEngineFlights]);
 
 
   useEffect(() => {
@@ -337,7 +350,7 @@ export function ScheduleClient() {
     }
   }, [selectedDate, fetchPilots, fetchCategories, fetchAircrafts, fetchScheduleEntries, fetchObservations, fetchDailyNews]);
 
-  const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading || newsLoading;
+  const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading || newsLoading || engineFlightsLoading;
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError || newsError;
 
   // Check if "Instructor Avión" category exists
@@ -448,6 +461,100 @@ export function ScheduleClient() {
     }
   };
 
+  const aircraftWithCalculatedData = useMemo(() => {
+    if (!aircraft.length) return [];
+  
+    return aircraft.map(ac => {
+      if (ac.type === 'Glider' || !ac.last_oil_change_date || !isValid(parseISO(ac.last_oil_change_date))) {
+        return { ...ac, hours_since_oil_change: null };
+      }
+  
+      const lastOilChangeDate = parseISO(ac.last_oil_change_date);
+      
+      const relevantFlights = completedEngineFlights.filter(flight =>
+        flight.engine_aircraft_id === ac.id &&
+        isValid(parseISO(flight.date)) &&
+        isAfter(parseISO(flight.date), lastOilChangeDate)
+      );
+      
+      const totalHours = relevantFlights.reduce((sum, flight) => sum + (flight.flight_duration_decimal || 0), 0);
+      
+      return { ...ac, hours_since_oil_change: totalHours };
+    });
+  }, [aircraft, completedEngineFlights]);
+
+  type AircraftWarning = {
+    id: string;
+    aircraftName: string;
+    message: string;
+    severity: 'critical' | 'warning';
+  };
+  
+  const maintenanceWarnings = useMemo<AircraftWarning[]>(() => {
+    if (anyLoading) return [];
+
+    const warnings: AircraftWarning[] = [];
+    const today = startOfDay(new Date());
+
+    aircraftWithCalculatedData.forEach(ac => {
+        // Check annual review
+        if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
+            const reviewDate = parseISO(ac.annual_review_date);
+            const daysDiff = differenceInDays(reviewDate, today);
+
+            if (isBefore(reviewDate, today)) {
+                warnings.push({
+                    id: `${ac.id}-annual-exp`,
+                    aircraftName: ac.name,
+                    message: `Revisión Anual VENCIDA el ${format(reviewDate, 'dd/MM/yyyy', { locale: es })}`,
+                    severity: 'critical',
+                });
+            } else if (daysDiff <= 30) {
+                warnings.push({
+                    id: `${ac.id}-annual-warn`,
+                    aircraftName: ac.name,
+                    message: `Revisión Anual vence en ${daysDiff} día(s)`,
+                    severity: 'warning',
+                });
+            }
+        }
+
+        // Check insurance
+        if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
+            const expiryDate = parseISO(ac.insurance_expiry_date);
+            const daysDiff = differenceInDays(expiryDate, today);
+
+            if (isBefore(expiryDate, today)) {
+                warnings.push({
+                    id: `${ac.id}-insurance-exp`,
+                    aircraftName: ac.name,
+                    message: `Seguro VENCIDO el ${format(expiryDate, 'dd/MM/yyyy', { locale: es })}`,
+                    severity: 'critical',
+                });
+            } else if (daysDiff <= 30) {
+                 warnings.push({
+                    id: `${ac.id}-insurance-warn`,
+                    aircraftName: ac.name,
+                    message: `Seguro vence en ${daysDiff} día(s)`,
+                    severity: 'warning',
+                });
+            }
+        }
+
+        // Check oil hours
+        if (ac.hours_since_oil_change !== null && ac.hours_since_oil_change >= 20) {
+            warnings.push({
+                id: `${ac.id}-oil`,
+                aircraftName: ac.name,
+                message: `Requiere cambio de aceite (${ac.hours_since_oil_change.toFixed(1)} hs acumuladas)`,
+                severity: 'warning',
+            });
+        }
+    });
+
+    return warnings;
+  }, [aircraftWithCalculatedData, anyLoading]);
+
 
   if (anyError) {
     return (
@@ -480,6 +587,34 @@ export function ScheduleClient() {
           </div>
         }
       />
+
+      {maintenanceWarnings.length > 0 && !anyLoading && (
+        <Card className="mb-6 border-orange-400 bg-orange-50 shadow-md">
+            <CardHeader>
+                <CardTitle className="flex items-center text-lg text-orange-800">
+                    <Wrench className="mr-2 h-5 w-5" />
+                    Avisos de Mantenimiento
+                </CardTitle>
+                <CardDescription className="text-orange-700/90">
+                    Las siguientes aeronaves requieren atención. <Link href="/aircraft" className="underline hover:text-orange-800 font-semibold">Ir a Aeronaves</Link> para más detalles.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-2">
+                    {maintenanceWarnings.map(warning => (
+                        <Alert key={warning.id} variant={warning.severity === 'critical' ? 'destructive' : 'default'}
+                            className={cn(warning.severity === 'warning' && 'border-yellow-600 bg-yellow-50 text-yellow-900 [&>svg]:text-yellow-700')}
+                        >
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                                <span className="font-semibold">{warning.aircraftName}:</span> {warning.message}
+                            </AlertDescription>
+                        </Alert>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+      )}
 
       <Card className="mb-6 shadow-sm">
         <CardContent className="pt-6">
