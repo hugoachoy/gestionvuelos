@@ -349,33 +349,35 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   useEffect(() => {
     setGliderWarning(null);
-    if (watchedGliderAircraftId) {
+    if (watchedGliderAircraftId && watchedDate && isValid(watchedDate)) {
       const selectedAC = aircraft.find(ac => ac.id === watchedGliderAircraftId);
       if (selectedAC) {
-        const isInsuranceExpired = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), startOfDay(new Date()));
+        const flightDateStart = startOfDay(watchedDate);
+        const isInsuranceExpiredOnFlightDate = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), flightDateStart);
         if (selectedAC.is_out_of_service) {
           setGliderWarning(`El planeador "${selectedAC.name}" está fuera de servicio.`);
-        } else if (isInsuranceExpired) {
-          setGliderWarning(`El seguro del planeador "${selectedAC.name}" está vencido.`);
+        } else if (isInsuranceExpiredOnFlightDate) {
+          setGliderWarning(`El seguro del planeador "${selectedAC.name}" estaba vencido en la fecha del vuelo.`);
         }
       }
     }
-  }, [watchedGliderAircraftId, aircraft]);
+  }, [watchedGliderAircraftId, aircraft, watchedDate]);
 
   useEffect(() => {
     setTowPlaneWarning(null);
-    if (watchedTowAircraftId) {
+    if (watchedTowAircraftId && watchedDate && isValid(watchedDate)) {
       const selectedAC = aircraft.find(ac => ac.id === watchedTowAircraftId);
       if (selectedAC) {
-        const isInsuranceExpired = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), startOfDay(new Date()));
+        const flightDateStart = startOfDay(watchedDate);
+        const isInsuranceExpiredOnFlightDate = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), flightDateStart);
         if (selectedAC.is_out_of_service) {
           setTowPlaneWarning(`El avión remolcador "${selectedAC.name}" está fuera de servicio.`);
-        } else if (isInsuranceExpired) {
-          setTowPlaneWarning(`El seguro del avión remolcador "${selectedAC.name}" está vencido.`);
+        } else if (isInsuranceExpiredOnFlightDate) {
+          setTowPlaneWarning(`El seguro del avión remolcador "${selectedAC.name}" estaba vencido en la fecha del vuelo.`);
         }
       }
     }
-  }, [watchedTowAircraftId, aircraft]);
+  }, [watchedTowAircraftId, aircraft, watchedDate]);
 
   const sortedPilots = useMemo(() => {
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
@@ -941,13 +943,14 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     </FormControl>
                     <SelectContent>
                       {filteredGliders.map((ac) => {
-                        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(new Date()));
-                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+                        const flightDateStart = watchedDate ? startOfDay(watchedDate) : startOfDay(new Date());
+                        const isInsuranceExpiredOnFlightDate = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), flightDateStart);
+                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpiredOnFlightDate;
                         let outOfServiceReason = "";
                         if (ac.is_out_of_service) {
                           outOfServiceReason = "(Fuera de Servicio)";
-                        } else if (isInsuranceExpired) {
-                          outOfServiceReason = "(Seguro Vencido)";
+                        } else if (isInsuranceExpiredOnFlightDate) {
+                          outOfServiceReason = "(Seguro Vencido en fecha)";
                         }
                         return (
                           <SelectItem key={ac.id} value={ac.id} disabled={isEffectivelyOutOfService}>
@@ -983,13 +986,14 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     </FormControl>
                     <SelectContent>
                       {filteredTowPlanes.map((ac) => {
-                        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(new Date()));
-                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+                        const flightDateStart = watchedDate ? startOfDay(watchedDate) : startOfDay(new Date());
+                        const isInsuranceExpiredOnFlightDate = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), flightDateStart);
+                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpiredOnFlightDate;
                         let outOfServiceReason = "";
                         if (ac.is_out_of_service) {
                           outOfServiceReason = "(Fuera de Servicio)";
-                        } else if (isInsuranceExpired) {
-                          outOfServiceReason = "(Seguro Vencido)";
+                        } else if (isInsuranceExpiredOnFlightDate) {
+                          outOfServiceReason = "(Seguro Vencido en fecha)";
                         }
                         return (
                           <SelectItem key={ac.id} value={ac.id} disabled={isEffectivelyOutOfService}>

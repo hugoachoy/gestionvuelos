@@ -310,18 +310,19 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   useEffect(() => {
     setAircraftWarning(null);
-    if (watchedEngineAircraftId) {
+    if (watchedEngineAircraftId && watchedDate && isValid(watchedDate)) {
       const selectedAC = aircraft.find(ac => ac.id === watchedEngineAircraftId);
       if (selectedAC) {
-        const isInsuranceExpired = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), startOfDay(new Date()));
+        const flightDateStart = startOfDay(watchedDate);
+        const isInsuranceExpired = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), flightDateStart);
         if (selectedAC.is_out_of_service) {
           setAircraftWarning(`La aeronave "${selectedAC.name}" está fuera de servicio.`);
         } else if (isInsuranceExpired) {
-          setAircraftWarning(`El seguro de la aeronave "${selectedAC.name}" está vencido.`);
+          setAircraftWarning(`El seguro de la aeronave "${selectedAC.name}" estaba vencido en la fecha del vuelo.`);
         }
       }
     }
-  }, [watchedEngineAircraftId, aircraft]);
+  }, [watchedEngineAircraftId, aircraft, watchedDate]);
   
   useEffect(() => {
     if (watchedFlightPurpose === 'Instrucción (Impartida)' && form.getValues("instructor_id")) {
@@ -1030,13 +1031,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                     </FormControl>
                     <SelectContent>
                       {filteredEngineAircraft.map((ac) => {
-                        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(new Date()));
-                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+                        const flightDateStart = watchedDate ? startOfDay(watchedDate) : startOfDay(new Date());
+                        const isInsuranceExpiredOnFlightDate = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), flightDateStart);
+                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpiredOnFlightDate;
                         let outOfServiceReason = "";
                         if (ac.is_out_of_service) {
                           outOfServiceReason = "(Fuera de Servicio)";
-                        } else if (isInsuranceExpired) {
-                          outOfServiceReason = "(Seguro Vencido)";
+                        } else if (isInsuranceExpiredOnFlightDate) {
+                          outOfServiceReason = "(Seguro Vencido en fecha)";
                         }
                         return (
                           <SelectItem key={ac.id} value={ac.id} disabled={isEffectivelyOutOfService}>

@@ -232,18 +232,19 @@ export function AvailabilityForm({
 
   useEffect(() => {
     setAircraftWarning(null);
-    if (watchedAircraftId) {
+    if (watchedAircraftId && watchedDate && isValid(watchedDate)) {
       const selectedAircraftDetails = aircraft.find(a => a.id === watchedAircraftId);
       if (selectedAircraftDetails) {
-        const isInsuranceExpired = selectedAircraftDetails.insurance_expiry_date && isValid(parseISO(selectedAircraftDetails.insurance_expiry_date)) && isBefore(parseISO(selectedAircraftDetails.insurance_expiry_date), startOfDay(new Date()));
+        const flightDateStart = startOfDay(watchedDate);
+        const isInsuranceExpiredOnFlightDate = selectedAircraftDetails.insurance_expiry_date && isValid(parseISO(selectedAircraftDetails.insurance_expiry_date)) && isBefore(parseISO(selectedAircraftDetails.insurance_expiry_date), flightDateStart);
         if (selectedAircraftDetails.is_out_of_service) {
           setAircraftWarning(`La aeronave seleccionada (${selectedAircraftDetails.name}) está fuera de servicio.`);
-        } else if (isInsuranceExpired) {
-          setAircraftWarning(`El seguro de la aeronave seleccionada (${selectedAircraftDetails.name}) está vencido.`);
+        } else if (isInsuranceExpiredOnFlightDate) {
+          setAircraftWarning(`El seguro de la aeronave (${selectedAircraftDetails.name}) estará/estaba vencido en la fecha del turno.`);
         }
       }
     }
-  }, [watchedAircraftId, aircraft]);
+  }, [watchedAircraftId, aircraft, watchedDate]);
 
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
@@ -816,13 +817,14 @@ export function AvailabilityForm({
                     <SelectContent>
                       {filteredAircraftForSelect.length > 0 ? (
                         filteredAircraftForSelect.map(ac => {
-                          const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(new Date()));
-                          const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+                          const flightDateStart = watchedDate ? startOfDay(watchedDate) : startOfDay(new Date());
+                          const isInsuranceExpiredOnFlightDate = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), flightDateStart);
+                          const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpiredOnFlightDate;
                           let outOfServiceReason = "";
                           if (ac.is_out_of_service) {
                             outOfServiceReason = "(Fuera de Servicio)";
-                          } else if (isInsuranceExpired) {
-                            outOfServiceReason = "(Seguro Vencido)";
+                          } else if (isInsuranceExpiredOnFlightDate) {
+                            outOfServiceReason = "(Seguro Vencido en fecha)";
                           }
                           
                           return (
