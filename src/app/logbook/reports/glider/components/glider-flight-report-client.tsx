@@ -190,7 +190,7 @@ export function GliderFlightReportClient() {
             csvRows.push(row.join(','));
         });
 
-        const csvContent = "\uFEFF" + csvRows.join('\n'); // Add UTF-8 BOM
+        const csvContent = "ufeff" + csvRows.join('\n'); // Add UTF-8 BOM
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
 

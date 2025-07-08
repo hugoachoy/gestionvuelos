@@ -121,7 +121,7 @@ export function EngineFlightReportClient() {
           flight.departure_time,
           flight.arrival_time,
           `${flight.flight_duration_decimal.toFixed(1)} hs`,
-          flight.flight_purpose !== 'remolque' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
+          flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
           flight.route_from_to || '-',
           flight.landings_count?.toString() ?? '-',
           flight.tows_count?.toString() ?? '-',
@@ -190,7 +190,7 @@ export function EngineFlightReportClient() {
                 flight.departure_time,
                 flight.arrival_time,
                 flight.flight_duration_decimal.toFixed(1),
-                flight.flight_purpose !== 'remolque' && typeof flight.billable_minutes === 'number' ? flight.billable_minutes : '-',
+                flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? flight.billable_minutes : '-',
                 `"${(flight.route_from_to || '-').replace(/"/g, '""')}"`,
                 flight.landings_count?.toString() ?? '-',
                 flight.tows_count?.toString() ?? '-',
@@ -201,7 +201,7 @@ export function EngineFlightReportClient() {
             csvRows.push(row.join(','));
         });
 
-        const csvContent = "\uFEFF" + csvRows.join('\n'); // Add UTF-8 BOM
+        const csvContent = "ufeff" + csvRows.join('\n'); // Add UTF-8 BOM
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
 
@@ -368,7 +368,7 @@ export function EngineFlightReportClient() {
                   <TableCell>{flight.arrival_time}</TableCell>
                   <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                   <TableCell>
-                    {flight.flight_purpose !== 'remolque' && typeof flight.billable_minutes === 'number'
+                    {flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'
                       ? `${flight.billable_minutes} min`
                       : '-'}
                   </TableCell>

@@ -44,6 +44,23 @@ export default function LogbookReportsPage() {
             </Button>
           </CardContent>
         </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Receipt className="mr-2 h-6 w-6 text-primary" />
+              Informe de Facturación
+            </CardTitle>
+            <CardDescription>
+              Genera un detalle de los vuelos y remolques a facturar para un piloto en un rango de fechas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/logbook/reports/billing">Generar Informe de Facturación</Link>
+            </Button>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

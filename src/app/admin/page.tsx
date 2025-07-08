@@ -1,11 +1,10 @@
 
 import { Suspense } from 'react';
-import { BillingReportClient } from './components/billing-report-client';
 import { PageHeader } from '@/components/common/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Shield, Receipt } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Shield } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AdminPage() {
   return (
@@ -15,42 +14,9 @@ export default function AdminPage() {
         <Shield className="h-4 w-4 !text-blue-600" />
         <AlertTitle>Zona Segura</AlertTitle>
         <AlertDescription>
-          Esta sección contiene acciones que pueden afectar a múltiples usuarios. Úsela con precaución.
+          Esta sección contiene herramientas administrativas. Úsela con precaución. El informe de facturación se ha movido a la sección de <Link href="/logbook/reports/billing" className="font-semibold underline hover:text-blue-700">Informes del Libro de Vuelo</Link>.
         </AlertDescription>
       </Alert>
-      
-      <Card>
-          <CardHeader>
-              <CardTitle className="flex items-center">
-                  <Receipt className="mr-2 h-6 w-6 text-primary" />
-                  Informe de Facturación
-              </CardTitle>
-              <CardDescription>
-                  Genere informes de vuelos a facturar por piloto y rango de fechas.
-              </CardDescription>
-          </CardHeader>
-          <CardContent>
-              <Suspense fallback={<BillingReportSkeleton />}>
-                  <BillingReportClient />
-              </Suspense>
-          </CardContent>
-      </Card>
     </>
   );
-}
-
-function BillingReportSkeleton() {
-    return (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <Skeleton className="h-10 w-full sm:w-64" />
-            <Skeleton className="h-10 w-full sm:w-64" />
-            <Skeleton className="h-10 w-full sm:w-48" />
-          </div>
-          <Skeleton className="h-12 w-full" /> {/* Table Header */}
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      );
 }

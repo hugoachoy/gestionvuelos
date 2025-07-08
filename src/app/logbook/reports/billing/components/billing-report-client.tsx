@@ -48,7 +48,7 @@ type BillableItem = {
 export function BillingReportClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
+  const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } from usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
@@ -70,6 +70,16 @@ export function BillingReportClient() {
     fetchPilots();
     fetchAircraft();
   }, [fetchPilots, fetchAircraft]);
+
+  // Auto-select pilot for non-admins
+  useEffect(() => {
+      if (currentUser && !currentUser.is_admin && pilots.length > 0) {
+          const userPilot = pilots.find(p => p.auth_user_id === currentUser.id);
+          if (userPilot) {
+              setSelectedPilotId(userPilot.id);
+          }
+      }
+  }, [currentUser, pilots]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!startDate || !endDate || !selectedPilotId) {
@@ -133,7 +143,6 @@ export function BillingReportClient() {
         });
       
       gliderFlights
-        .filter(flight => flight.flight_purpose !== 'Instrucción (Impartida)')
         .forEach((flight) => {
           if (flight.instructor_id === selectedPilotId) {
             billableItems.push({
@@ -276,7 +285,7 @@ export function BillingReportClient() {
     setIsGenerating(true);
     try {
         const headers = ["Fecha", "Tipo", "Aeronave", "Notas_Proposito", "Minutos_Facturables", "Cantidad_Remolques"];
-        let csvContent = "\uFEFF" + headers.join(',') + "\n"; // Add UTF-8 BOM
+        let csvContent = "ufeff" + headers.join(',') + "\n"; // Add UTF-8 BOM
 
         reportData.forEach(item => {
             const row = [
@@ -321,16 +330,6 @@ export function BillingReportClient() {
 
 
   const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
-  
-  if (!currentUser?.is_admin && !authLoading) {
-    return (
-       <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Acceso Denegado</AlertTitle>
-            <AlertDescription>Esta sección está disponible solo para administradores.</AlertDescription>
-        </Alert>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -361,7 +360,7 @@ export function BillingReportClient() {
         
         <Popover open={isPilotPickerOpen} onOpenChange={setIsPilotPickerOpen}>
           <PopoverTrigger asChild>
-              <Button variant="outline" role="combobox" className={cn("w-full sm:w-auto md:w-[240px] justify-between", !selectedPilotId && "text-muted-foreground")} disabled={isLoadingUI || isGenerating}>
+              <Button variant="outline" role="combobox" className={cn("w-full sm:w-auto md:w-[240px] justify-between", !selectedPilotId && "text-muted-foreground")} disabled={isLoadingUI || isGenerating || !currentUser?.is_admin}>
               {selectedPilotId ? getPilotName(selectedPilotId) : "Seleccionar Piloto"}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
