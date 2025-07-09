@@ -119,6 +119,9 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             {navItems.map((item) => (
               <NavItem key={item.href} {...item} pathname={pathname} />
             ))}
+             {user?.is_admin && (
+              <NavItem href="/admin" icon={<Shield />} label="Admin" pathname={pathname} />
+            )}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">

@@ -50,7 +50,7 @@ export function BillingReportClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } from usePilotsStore();
-  const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } from useAircraftStore();
   const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
 
