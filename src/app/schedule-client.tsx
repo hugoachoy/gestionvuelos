@@ -11,7 +11,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AvailabilityForm } from '@/components/schedule/availability-form';
 import { ScheduleDisplay } from '@/components/schedule/schedule-display';
-import { ShareButton } from '@/components/schedule/share-button';
 import { DeleteDialog } from '@/components/common/delete-dialog';
 import {
   usePilotsStore,
@@ -506,11 +505,6 @@ export function ScheduleClient() {
             <Button onClick={handleRefreshAll} variant="outline" size="icon" disabled={uiDisabled} className="h-10 w-10">
               <RefreshCw className={cn("h-4 w-4", uiDisabled && "animate-spin")} />
             </Button>
-            {selectedDate && (
-              <ShareButton
-                scheduleDate={selectedDate}
-              />
-            )}
             <Button onClick={handleAddEntry} disabled={uiDisabled || !auth.user} className="flex-grow">
               <PlusCircle className="mr-2 h-4 w-4" /> Agregar Turno
             </Button>
@@ -690,3 +684,5 @@ export function ScheduleClient() {
     </>
   );
 }
+
+    
