@@ -55,51 +55,61 @@ export function MaintenanceWarnings() {
     aircraftWithCalculatedData.forEach(ac => {
         const initialWarningCount = warnings.length;
 
-        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), today);
-        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+        // Determine if the aircraft is effectively out of service from ALL possible critical conditions
+        const isManuallyOOS = ac.is_out_of_service;
+        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
+        const isAnnualExpired = ac.annual_review_date && isValid(parseISO(ac.annual_review_date)) ? isBefore(parseISO(ac.annual_review_date), today) : false;
+        
+        const isEffectivelyOutOfService = isManuallyOOS || isInsuranceExpired || isAnnualExpired;
         const aircraftDisplayName = isEffectivelyOutOfService ? `${ac.name} (Fuera de Servicio)` : ac.name;
 
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
             const reviewDate = parseISO(ac.annual_review_date);
-            const daysDiff = differenceInDays(reviewDate, today);
-
-            if (isBefore(reviewDate, today)) {
+            
+            if (isAnnualExpired) {
                 warnings.push({
                     id: `${ac.id}-annual-exp`,
                     aircraftName: aircraftDisplayName,
                     message: `Revisión Anual VENCIDA el ${format(reviewDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
-            } else if (daysDiff <= 30) {
-                warnings.push({
-                    id: `${ac.id}-annual-warn`,
-                    aircraftName: aircraftDisplayName,
-                    message: `Revisión Anual vence en ${daysDiff} día(s)`,
-                    severity: 'warning',
-                });
+            } else {
+                const daysDiff = differenceInDays(reviewDate, today);
+                if (daysDiff <= 30) {
+                    warnings.push({
+                        id: `${ac.id}-annual-warn`,
+                        aircraftName: aircraftDisplayName,
+                        message: `Revisión Anual vence en ${daysDiff} día(s)`,
+                        severity: 'warning',
+                    });
+                }
             }
         }
 
         // Check insurance
         if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
             const expiryDate = parseISO(ac.insurance_expiry_date);
-            const daysDiff = differenceInDays(expiryDate, today);
-
+            
             if (isInsuranceExpired) {
+                // This specific check might be redundant if the isEffectivelyOutOfService already covers it,
+                // but it's good for creating the specific warning message.
                 warnings.push({
                     id: `${ac.id}-insurance-exp`,
                     aircraftName: aircraftDisplayName,
                     message: `Seguro VENCIDO el ${format(expiryDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
-            } else if (daysDiff <= 30) {
-                 warnings.push({
-                    id: `${ac.id}-insurance-warn`,
-                    aircraftName: aircraftDisplayName,
-                    message: `Seguro vence en ${daysDiff} día(s)`,
-                    severity: 'warning',
-                });
+            } else {
+                const daysDiff = differenceInDays(expiryDate, today);
+                if (daysDiff <= 30) {
+                     warnings.push({
+                        id: `${ac.id}-insurance-warn`,
+                        aircraftName: aircraftDisplayName,
+                        message: `Seguro vence en ${daysDiff} día(s)`,
+                        severity: 'warning',
+                    });
+                }
             }
         }
 
@@ -113,8 +123,8 @@ export function MaintenanceWarnings() {
             });
         }
         
-        // Add a generic OOS warning if the aircraft is marked OOS but has no other warnings
-        if (ac.is_out_of_service && warnings.length === initialWarningCount) {
+        // Add a generic OOS warning if the aircraft is manually marked OOS but has no other specific expired/upcoming warnings
+        if (isManuallyOOS && warnings.length === initialWarningCount) {
             warnings.push({
                 id: `${ac.id}-oos`,
                 aircraftName: aircraftDisplayName,
@@ -124,7 +134,12 @@ export function MaintenanceWarnings() {
         }
     });
 
-    return warnings;
+    // Sort warnings to show critical ones first, then by aircraft name
+    return warnings.sort((a, b) => {
+      if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+      if (a.severity !== 'critical' && b.severity === 'critical') return 1;
+      return a.aircraftName.localeCompare(b.aircraftName);
+    });
   }, [aircraftWithCalculatedData, anyLoading, anyError]);
 
   if (anyLoading || anyError || maintenanceWarnings.length === 0) {
