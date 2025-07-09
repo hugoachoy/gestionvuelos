@@ -53,6 +53,12 @@ export function MaintenanceWarnings() {
     const today = startOfDay(new Date());
 
     aircraftWithCalculatedData.forEach(ac => {
+        const initialWarningCount = warnings.length;
+
+        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), today);
+        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
+        const aircraftDisplayName = isEffectivelyOutOfService ? `${ac.name} (Fuera de Servicio)` : ac.name;
+
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
             const reviewDate = parseISO(ac.annual_review_date);
@@ -61,14 +67,14 @@ export function MaintenanceWarnings() {
             if (isBefore(reviewDate, today)) {
                 warnings.push({
                     id: `${ac.id}-annual-exp`,
-                    aircraftName: ac.name,
+                    aircraftName: aircraftDisplayName,
                     message: `Revisión Anual VENCIDA el ${format(reviewDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
             } else if (daysDiff <= 30) {
                 warnings.push({
                     id: `${ac.id}-annual-warn`,
-                    aircraftName: ac.name,
+                    aircraftName: aircraftDisplayName,
                     message: `Revisión Anual vence en ${daysDiff} día(s)`,
                     severity: 'warning',
                 });
@@ -80,17 +86,17 @@ export function MaintenanceWarnings() {
             const expiryDate = parseISO(ac.insurance_expiry_date);
             const daysDiff = differenceInDays(expiryDate, today);
 
-            if (isBefore(expiryDate, today)) {
+            if (isInsuranceExpired) {
                 warnings.push({
                     id: `${ac.id}-insurance-exp`,
-                    aircraftName: ac.name,
+                    aircraftName: aircraftDisplayName,
                     message: `Seguro VENCIDO el ${format(expiryDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
             } else if (daysDiff <= 30) {
                  warnings.push({
                     id: `${ac.id}-insurance-warn`,
-                    aircraftName: ac.name,
+                    aircraftName: aircraftDisplayName,
                     message: `Seguro vence en ${daysDiff} día(s)`,
                     severity: 'warning',
                 });
@@ -101,9 +107,19 @@ export function MaintenanceWarnings() {
         if (ac.hours_since_oil_change !== null && ac.hours_since_oil_change >= 20) {
             warnings.push({
                 id: `${ac.id}-oil`,
-                aircraftName: ac.name,
+                aircraftName: aircraftDisplayName,
                 message: `Requiere cambio de aceite (${ac.hours_since_oil_change.toFixed(1)} hs acumuladas)`,
                 severity: 'warning',
+            });
+        }
+        
+        // Add a generic OOS warning if the aircraft is marked OOS but has no other warnings
+        if (ac.is_out_of_service && warnings.length === initialWarningCount) {
+            warnings.push({
+                id: `${ac.id}-oos`,
+                aircraftName: aircraftDisplayName,
+                message: ac.out_of_service_reason || 'Razón no especificada.',
+                severity: 'critical'
             });
         }
     });
