@@ -45,24 +45,6 @@ export default function LogbookPage() {
             </Button>
           </CardContent>
         </Card>
-        
-        <Card className="md:col-span-2 lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <FileText className="mr-2 h-6 w-6 text-primary" />
-              Informes y Resúmenes
-            </CardTitle>
-            <CardDescription>Genera informes y visualiza estadísticas de vuelos.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full" asChild>
-              <Link href="/logbook/reports">Acceder a Informes</Link>
-            </Button>
-            <p className="mt-2 text-xs text-muted-foreground text-center">
-              Genera informes detallados de vuelos por rango de fechas.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </>
   );
