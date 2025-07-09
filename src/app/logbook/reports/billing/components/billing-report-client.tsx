@@ -48,7 +48,7 @@ type BillableItem = {
 export function BillingReportClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } from usePilotsStore();
+  const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();

@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plane, Feather, FileText } from 'lucide-react';
+import { Plane, Feather, BarChart3 } from 'lucide-react';
 
 export default function LogbookPage() {
   return (
@@ -42,6 +42,23 @@ export default function LogbookPage() {
             </Button>
             <Button variant="outline" asChild>
               <Link href="/logbook/engine/list">Ver Historial de Vuelos a Motor</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <BarChart3 className="mr-2 h-6 w-6 text-primary" />
+              Informes y Resúmenes
+            </CardTitle>
+            <CardDescription>
+              Genera informes, resúmenes y estadísticas de tus vuelos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/logbook/reports">Ir a Informes</Link>
             </Button>
           </CardContent>
         </Card>
