@@ -40,8 +40,8 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
-import React, { useState } from 'react';
-import { format, parseISO, isValid } from 'date-fns';
+import React, { useState, useEffect } from 'react';
+import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -92,6 +92,23 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
 
   const watchedIsOutOfService = form.watch('is_out_of_service');
   const watchedAircraftType = form.watch('type');
+  const watchedInsuranceExpiry = form.watch('insurance_expiry_date');
+
+  // Automatically re-enable aircraft if insurance date is updated to be valid
+  React.useEffect(() => {
+    const isOutOfService = form.getValues('is_out_of_service');
+    const reason = form.getValues('out_of_service_reason');
+    
+    // Check if it was out of service specifically due to insurance
+    if (isOutOfService && reason?.toLowerCase().includes('seguro')) {
+        // Check if the new insurance date is valid and not in the past
+        if (watchedInsuranceExpiry && isValid(watchedInsuranceExpiry) && !isBefore(watchedInsuranceExpiry, startOfDay(new Date()))) {
+            // Automatically re-enable the aircraft by unchecking the box and clearing the reason
+            form.setValue('is_out_of_service', false, { shouldValidate: true });
+            form.setValue('out_of_service_reason', null, { shouldValidate: true });
+        }
+    }
+  }, [watchedInsuranceExpiry, form]);
 
   const handleSubmit = (data: AircraftFormData) => {
     const dataToSubmit: Omit<Aircraft, 'id' | 'created_at'> = {
@@ -128,6 +145,15 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
             insurance_expiry_date: null,
           };
       form.reset(defaultValues);
+
+      // If the form opens for an aircraft with expired insurance, reflect this state in the form.
+      if (aircraft && !aircraft.is_out_of_service) {
+          const insuranceDate = defaultValues.insurance_expiry_date;
+          if (insuranceDate && isValid(insuranceDate) && isBefore(insuranceDate, startOfDay(new Date()))) {
+              form.setValue('is_out_of_service', true);
+              form.setValue('out_of_service_reason', 'Seguro vencido');
+          }
+      }
     }
   }, [open, aircraft, form]);
 
