@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from 'react';
@@ -6,7 +7,7 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAf
 import { es } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Wrench, AlertTriangle } from 'lucide-react';
+import { Wrench, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -53,15 +54,23 @@ export function MaintenanceWarnings() {
     const today = startOfDay(new Date());
 
     aircraftWithCalculatedData.forEach(ac => {
+        // Determine if the aircraft is effectively out of service based on any critical condition
+        const isAnnualExpired = ac.annual_review_date && isValid(parseISO(ac.annual_review_date)) ? isBefore(parseISO(ac.annual_review_date), today) : false;
+        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
+        const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
+        
+        // Helper to format the aircraft name with its status
+        const formatAircraftName = (aircraftName: string) => {
+             return isEffectivelyOutOfService ? `${aircraftName} (Fuera de Servicio)` : aircraftName;
+        };
+
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
             const reviewDate = parseISO(ac.annual_review_date);
-            const isAnnualExpired = isBefore(reviewDate, today);
-
             if (isAnnualExpired) {
                 warnings.push({
                     id: `${ac.id}-annual-exp`,
-                    aircraftName: `${ac.name} (Fuera de Servicio)`,
+                    aircraftName: formatAircraftName(ac.name),
                     message: `Revisión Anual VENCIDA el ${format(reviewDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -70,7 +79,7 @@ export function MaintenanceWarnings() {
                 if (daysDiff <= 30) {
                     warnings.push({
                         id: `${ac.id}-annual-warn`,
-                        aircraftName: ac.name,
+                        aircraftName: formatAircraftName(ac.name),
                         message: `Revisión Anual vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -81,12 +90,10 @@ export function MaintenanceWarnings() {
         // Check insurance
         if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
             const expiryDate = parseISO(ac.insurance_expiry_date);
-            const isInsuranceExpired = isBefore(expiryDate, today);
-            
             if (isInsuranceExpired) {
                 warnings.push({
                     id: `${ac.id}-insurance-exp`,
-                    aircraftName: `${ac.name} (Fuera de Servicio)`,
+                    aircraftName: formatAircraftName(ac.name),
                     message: `Seguro VENCIDO el ${format(expiryDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -95,7 +102,7 @@ export function MaintenanceWarnings() {
                 if (daysDiff <= 30) {
                      warnings.push({
                         id: `${ac.id}-insurance-warn`,
-                        aircraftName: ac.name,
+                        aircraftName: formatAircraftName(ac.name),
                         message: `Seguro vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -107,28 +114,29 @@ export function MaintenanceWarnings() {
         if (ac.hours_since_oil_change !== null && ac.hours_since_oil_change >= 20) {
             warnings.push({
                 id: `${ac.id}-oil`,
-                aircraftName: ac.name,
+                aircraftName: formatAircraftName(ac.name),
                 message: `Requiere cambio de aceite (${ac.hours_since_oil_change.toFixed(1)} hs acumuladas)`,
                 severity: 'warning',
             });
         }
         
-        // Add a generic OOS warning if manually marked and no other CRITICAL date-based warning was added for this aircraft
+        // Add a generic OOS warning if manually marked
         if (ac.is_out_of_service) {
-            const hasExistingDateBasedCriticalWarning = warnings.some(w => w.id.startsWith(ac.id) && (w.id.includes('-annual-exp') || w.id.includes('-insurance-exp')));
-             if (!hasExistingDateBasedCriticalWarning) {
-                warnings.push({
-                    id: `${ac.id}-oos`,
-                    aircraftName: `${ac.name} (Fuera de Servicio)`,
-                    message: ac.out_of_service_reason || 'Razón no especificada.',
-                    severity: 'critical'
-                });
-             }
+            warnings.push({
+                id: `${ac.id}-oos`,
+                aircraftName: formatAircraftName(ac.name),
+                message: ac.out_of_service_reason || 'Razón no especificada.',
+                severity: 'critical'
+            });
         }
     });
 
+    // Remove duplicates by ID before sorting
+    const uniqueWarnings = Array.from(new Map(warnings.map(item => [item.id, item])).values());
+
+
     // Sort warnings to show critical ones first, then by aircraft name
-    return warnings.sort((a, b) => {
+    return uniqueWarnings.sort((a, b) => {
       if (a.severity === 'critical' && b.severity !== 'critical') return -1;
       if (a.severity !== 'critical' && b.severity === 'critical') return 1;
       return a.aircraftName.localeCompare(b.aircraftName);
@@ -154,9 +162,9 @@ export function MaintenanceWarnings() {
             <div className="space-y-2">
                 {maintenanceWarnings.map(warning => (
                     <Alert key={warning.id} variant={warning.severity === 'critical' ? 'destructive' : 'default'}
-                        className={cn(warning.severity === 'warning' && 'border-yellow-600 bg-yellow-50 text-yellow-900 [&>svg]:text-yellow-700')}
+                        className={cn(warning.severity === 'warning' && 'border-blue-400 bg-blue-50 text-blue-900 [&>svg]:text-blue-700')}
                     >
-                        <AlertTriangle className="h-4 w-4" />
+                        {warning.severity === 'critical' ? <AlertTriangle className="h-4 w-4" /> : <Info className="h-4 w-4" />}
                         <AlertDescription>
                             <span className="font-semibold">{warning.aircraftName}:</span> {warning.message}
                         </AlertDescription>
