@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { RefreshCw, Trash2, Edit, CalendarIcon, Check, ChevronsUpDown, Download, Loader2 } from 'lucide-react';
+import { RefreshCw, Trash2, Edit, CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
 import { format, parseISO, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { usePilotsStore, useAircraftStore } from '@/store/data-hooks';
@@ -47,7 +47,6 @@ export function GliderFlightListClient() {
   const [filteredFlights, setFilteredFlights] = useState<CompletedGliderFlight[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [flightToDelete, setFlightToDelete] = useState<CompletedGliderFlight | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     fetchPilots();
@@ -105,7 +104,7 @@ export function GliderFlightListClient() {
   }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, handleFetchAndFilter]);
 
 
-  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading || isGenerating;
+  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading;
 
   const handleDeleteRequest = (flight: CompletedGliderFlight) => {
     setFlightToDelete(flight);
@@ -129,85 +128,6 @@ export function GliderFlightListClient() {
   const handleEditRequest = (flight: CompletedGliderFlight) => {
     router.push(`/logbook/glider/edit/${flight.id}`);
   };
-
-  const handleExportPdf = async () => {
-    if (sortedFlights.length === 0) {
-      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
-      return;
-    }
-    setIsGenerating(true);
-    try {
-      const { default: jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
-      
-      const doc = new jsPDF({ orientation: 'landscape' });
-      
-      const pilotIdForTitle = currentUser?.is_admin ? selectedPilotId : currentUserPilotId;
-      const pilotNameForTitle = pilotIdForTitle === 'all' 
-          ? 'de Todos los Pilotos' 
-          : (getPilotName(pilotIdForTitle) ? `de ${getPilotName(pilotIdForTitle)}` : '');
-
-      const pageTitle = `Historial de Vuelos en Planeador ${pilotNameForTitle} (${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''})`;
-      let currentY = 15;
-
-      doc.setFontSize(16);
-      doc.text(pageTitle, 14, currentY);
-      currentY += 10;
-
-      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Notas"];
-      const tableRows: (string | null)[][] = [];
-
-      sortedFlights.forEach(flight => {
-        tableRows.push([
-          format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-          getPilotName(flight.pilot_id),
-          getAircraftName(flight.glider_aircraft_id),
-          flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
-          flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
-          flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
-          flight.departure_time,
-          flight.arrival_time,
-          `${flight.flight_duration_decimal.toFixed(1)} hs`,
-          flight.flight_purpose,
-          flight.notes || '-',
-        ]);
-      });
-
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [30, 100, 160], textColor: 255 },
-        styles: { fontSize: 8, cellPadding: 1.5 },
-        columnStyles: {
-            0: { cellWidth: 20 },
-            1: { cellWidth: 'auto' },
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 'auto' },
-            4: { cellWidth: 'auto' },
-            5: { cellWidth: 'auto' },
-            6: { cellWidth: 15 },
-            7: { cellWidth: 15 },
-            8: { cellWidth: 18 },
-            9: { cellWidth: 25 },
-            10: { cellWidth: 25 },
-        },
-      });
-      
-      const pilotFileNamePart = pilotIdForTitle === 'all' ? 'todos' : (getPilotName(pilotIdForTitle)?.replace(/, /g, '_').replace(/ /g, '_').toLowerCase() || 'mi_historial');
-      const fileName = `historial_planeador_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
-      doc.save(fileName);
-      toast({ title: "PDF Exportado", description: `El historial se ha guardado como ${fileName}.` });
-
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast({ title: "Error de Exportación", description: "No se pudo generar el PDF.", variant: "destructive" });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
 
   const sortedFlights = useMemo(() => {
     if (!filteredFlights) return [];
@@ -302,12 +222,6 @@ export function GliderFlightListClient() {
           <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingUI && "animate-spin")} />
           Filtrar / Refrescar
         </Button>
-        {sortedFlights.length > 0 && (
-          <Button onClick={handleExportPdf} variant="outline" disabled={isLoadingUI}>
-            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Exportar a PDF
-          </Button>
-        )}
       </div>
 
       {isLoadingUI && !sortedFlights.length ? (
