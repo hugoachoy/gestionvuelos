@@ -15,6 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
 import { CalendarIcon, Download, FileText, Loader2, Check, ChevronsUpDown, FileSpreadsheet } from 'lucide-react';
@@ -41,6 +42,11 @@ export function EngineFlightReportClient() {
   const [reportData, setReportData] = useState<CompletedEngineFlight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentUserPilotId, setCurrentUserPilotId] = useState<string | null>(null);
+
+  const [totalDuration, setTotalDuration] = useState(0);
+  const [totalBillableMinutes, setTotalBillableMinutes] = useState(0);
+  const [totalLandings, setTotalLandings] = useState(0);
+
 
   useEffect(() => {
     fetchPilots();
@@ -73,9 +79,29 @@ export function EngineFlightReportClient() {
 
     setIsGenerating(true);
     setReportData([]);
+    setTotalDuration(0);
+    setTotalBillableMinutes(0);
+    setTotalLandings(0);
+
     const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
+    
     if (data) {
+      let duration = 0;
+      let billableMins = 0;
+      let landings = 0;
+      data.forEach(flight => {
+        duration += flight.flight_duration_decimal || 0;
+        if (flight.flight_purpose !== 'Remolque planeador') {
+            billableMins += flight.billable_minutes || 0;
+        }
+        landings += flight.landings_count || 0;
+      });
+
+      setTotalDuration(duration);
+      setTotalBillableMinutes(billableMins);
+      setTotalLandings(landings);
       setReportData(data);
+
       if (data.length === 0) {
         toast({ title: "Sin Resultados", description: "No se encontraron vuelos a motor para los filtros seleccionados." });
       }
@@ -134,6 +160,14 @@ export function EngineFlightReportClient() {
       autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
+        foot: [[
+            { content: 'TOTALES', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: `${totalDuration.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
+            { content: `${totalBillableMinutes} min`, styles: { fontStyle: 'bold' } },
+            { content: '' }, // Ruta
+            { content: totalLandings.toString(), styles: { fontStyle: 'bold' } },
+            { content: '' }, { content: '' }, { content: '' }, { content: '' },
+        ]],
         startY: currentY,
         theme: 'grid',
         headStyles: { fillColor: [30, 100, 160], textColor: 255 },
@@ -201,6 +235,18 @@ export function EngineFlightReportClient() {
             csvRows.push(row.join(','));
         });
 
+        csvRows.push('\n');
+        const totalsRow = [
+            "TOTALES", "", "", "", "", "", "",
+            totalDuration.toFixed(1),
+            totalBillableMinutes.toString(),
+            "",
+            totalLandings.toString(),
+            "", "", "", ""
+        ];
+        csvRows.push(totalsRow.join(','));
+
+
         const csvContent = "ufeff" + csvRows.join('\n'); // Add UTF-8 BOM
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
@@ -228,7 +274,7 @@ export function EngineFlightReportClient() {
     } finally {
       setIsGenerating(false);
     }
-  }, [reportData, toast, getPilotName, getAircraftName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate]);
+  }, [reportData, toast, getPilotName, getAircraftName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate, totalDuration, totalBillableMinutes, totalLandings]);
 
 
   const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || isGenerating;
@@ -381,6 +427,16 @@ export function EngineFlightReportClient() {
                 </TableRow>
               ))}
             </TableBody>
+            <TableFooter>
+                <TableRow>
+                    <TableCell colSpan={7} className="text-right font-bold">TOTALES</TableCell>
+                    <TableCell className="font-bold">{totalDuration.toFixed(1)} hs</TableCell>
+                    <TableCell className="font-bold">{totalBillableMinutes} min</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell className="font-bold">{totalLandings}</TableCell>
+                    <TableCell colSpan={4}></TableCell>
+                </TableRow>
+            </TableFooter>
           </Table>
         </div>
       )}

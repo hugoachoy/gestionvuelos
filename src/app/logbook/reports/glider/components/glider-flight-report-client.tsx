@@ -14,6 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
 import { CalendarIcon, Download, FileText, Loader2, Check, ChevronsUpDown, FileSpreadsheet } from 'lucide-react';
@@ -41,6 +42,10 @@ export function GliderFlightReportClient() {
   const [reportData, setReportData] = useState<CompletedGliderFlight[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentUserPilotId, setCurrentUserPilotId] = useState<string | null>(null);
+
+  const [totalDuration, setTotalDuration] = useState(0);
+  const [totalLandings, setTotalLandings] = useState(0);
+  const [totalTows, setTotalTows] = useState(0);
 
   useEffect(() => {
     fetchPilots();
@@ -74,8 +79,15 @@ export function GliderFlightReportClient() {
 
     setIsGenerating(true);
     setReportData([]);
+    setTotalDuration(0);
+    setTotalLandings(0);
+    setTotalTows(0);
     const data = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     if (data) {
+      const duration = data.reduce((sum, flight) => sum + (flight.flight_duration_decimal || 0), 0);
+      setTotalDuration(duration);
+      setTotalLandings(data.length); // Assume 1 landing per flight
+      setTotalTows(data.length);     // Assume 1 tow per flight
       setReportData(data);
       if (data.length === 0) {
         toast({ title: "Sin Resultados", description: "No se encontraron vuelos de planeador para los filtros seleccionados." });
@@ -109,7 +121,7 @@ export function GliderFlightReportClient() {
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Notas"];
+      const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Aterrizajes", "Remolques", "Notas"];
       const tableRows: (string | null)[][] = [];
 
       reportData.forEach(flight => {
@@ -124,6 +136,8 @@ export function GliderFlightReportClient() {
           flight.arrival_time,
           `${flight.flight_duration_decimal.toFixed(1)} hs`,
           flight.flight_purpose,
+          '1',
+          '1',
           flight.notes || '-',
         ]);
       });
@@ -131,22 +145,32 @@ export function GliderFlightReportClient() {
       autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
+        foot: [[
+            { content: 'TOTALES', colSpan: 8, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: `${totalDuration.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
+            { content: '' }, // Propósito
+            { content: totalLandings.toString(), styles: { fontStyle: 'bold', halign: 'center' } },
+            { content: totalTows.toString(), styles: { fontStyle: 'bold', halign: 'center' } },
+            { content: '' }, // Notas
+        ]],
         startY: currentY,
         theme: 'grid',
         headStyles: { fillColor: [30, 100, 160], textColor: 255 },
         styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
-            0: { cellWidth: 20 },
+            0: { cellWidth: 18 },
             1: { cellWidth: 'auto' },
             2: { cellWidth: 'auto' },
             3: { cellWidth: 'auto' },
             4: { cellWidth: 'auto' },
             5: { cellWidth: 'auto' },
-            6: { cellWidth: 15 },
-            7: { cellWidth: 15 },
-            8: { cellWidth: 18 },
+            6: { cellWidth: 14 },
+            7: { cellWidth: 14 },
+            8: { cellWidth: 16 },
             9: { cellWidth: 25 },
-            10: { cellWidth: 'auto' },
+            10: { cellWidth: 18, halign: 'center' },
+            11: { cellWidth: 18, halign: 'center' },
+            12: { cellWidth: 'auto' },
         },
       });
       
@@ -170,7 +194,7 @@ export function GliderFlightReportClient() {
     }
     setIsGenerating(true);
     try {
-        const headers = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Remolcador", "Avion Remolcador", "Salida", "Llegada", "Duracion (hs)", "Proposito", "Notas"];
+        const headers = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Remolcador", "Avion Remolcador", "Salida", "Llegada", "Duracion (hs)", "Proposito", "Aterrizajes", "Remolques", "Notas"];
         const csvRows = [headers.join(',')];
 
         reportData.forEach(flight => {
@@ -185,10 +209,23 @@ export function GliderFlightReportClient() {
                 flight.arrival_time,
                 flight.flight_duration_decimal.toFixed(1),
                 `"${flight.flight_purpose}"`,
+                '1',
+                '1',
                 `"${(flight.notes || '-').replace(/"/g, '""')}"`,
             ];
             csvRows.push(row.join(','));
         });
+
+        csvRows.push('\n');
+        const totalsRow = [
+            "TOTALES", "", "", "", "", "", "", "",
+            totalDuration.toFixed(1),
+            "",
+            totalLandings.toString(),
+            totalTows.toString(),
+            ""
+        ];
+        csvRows.push(totalsRow.join(','));
 
         const csvContent = "ufeff" + csvRows.join('\n'); // Add UTF-8 BOM
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -217,7 +254,7 @@ export function GliderFlightReportClient() {
     } finally {
       setIsGenerating(false);
     }
-  }, [reportData, toast, getPilotName, getAircraftName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate]);
+  }, [reportData, toast, getPilotName, getAircraftName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate, totalDuration, totalLandings, totalTows]);
 
   const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || categoriesLoading || isGenerating;
 
@@ -337,6 +374,8 @@ export function GliderFlightReportClient() {
                 <TableHead>Llegada</TableHead>
                 <TableHead>Duración</TableHead>
                 <TableHead>Propósito</TableHead>
+                <TableHead className="text-center">Aterrizajes</TableHead>
+                <TableHead className="text-center">Remolques</TableHead>
                 <TableHead>Notas</TableHead>
               </TableRow>
             </TableHeader>
@@ -353,10 +392,22 @@ export function GliderFlightReportClient() {
                   <TableCell>{flight.arrival_time}</TableCell>
                   <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                   <TableCell>{flight.flight_purpose}</TableCell>
+                  <TableCell className="text-center">1</TableCell>
+                  <TableCell className="text-center">1</TableCell>
                   <TableCell>{flight.notes || '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
+            <TableFooter>
+                <TableRow>
+                    <TableCell colSpan={8} className="text-right font-bold">TOTALES</TableCell>
+                    <TableCell className="font-bold">{totalDuration.toFixed(1)} hs</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell className="text-center font-bold">{totalLandings}</TableCell>
+                    <TableCell className="text-center font-bold">{totalTows}</TableCell>
+                    <TableCell></TableCell>
+                </TableRow>
+            </TableFooter>
           </Table>
         </div>
       )}
