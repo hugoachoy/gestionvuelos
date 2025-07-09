@@ -28,7 +28,6 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 
 // Local helper for logging errors
 function logSupabaseError(context: string, error: any) {
@@ -49,8 +48,8 @@ type BillableItem = {
 export function BillingReportClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } from usePilotsStore();
-  const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } from useAircraftStore();
+  const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
+  const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
 
