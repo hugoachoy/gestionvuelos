@@ -1,31 +1,11 @@
 
-import { Suspense } from 'react';
 import { PageHeader } from '@/components/common/page-header';
-import { BillingReportClient } from './components/billing-report-client';
-import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminPage() {
   return (
     <>
-      <PageHeader title="Informe de Facturación" />
-      <Suspense fallback={<ReportSkeleton />}>
-        <BillingReportClient />
-      </Suspense>
+      <PageHeader title="Administración" />
+      <p>Esta sección ha sido desactivada temporalmente para corregir un error.</p>
     </>
-  );
-}
-
-function ReportSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-center">
-        <Skeleton className="h-10 w-full sm:w-64" />
-        <Skeleton className="h-10 w-full sm:w-64" />
-        <Skeleton className="h-10 w-full sm:w-48" />
-      </div>
-      <Skeleton className="h-12 w-full" />
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-10 w-full" />
-    </div>
   );
 }
