@@ -53,24 +53,15 @@ export function MaintenanceWarnings() {
     const today = startOfDay(new Date());
 
     aircraftWithCalculatedData.forEach(ac => {
-        const initialWarningCount = warnings.length;
-
-        // Determine if the aircraft is effectively out of service from ALL possible critical conditions
-        const isManuallyOOS = ac.is_out_of_service;
-        const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
-        const isAnnualExpired = ac.annual_review_date && isValid(parseISO(ac.annual_review_date)) ? isBefore(parseISO(ac.annual_review_date), today) : false;
-        
-        const isEffectivelyOutOfService = isManuallyOOS || isInsuranceExpired || isAnnualExpired;
-        const aircraftDisplayName = isEffectivelyOutOfService ? `${ac.name} (Fuera de Servicio)` : ac.name;
-
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
             const reviewDate = parseISO(ac.annual_review_date);
-            
+            const isAnnualExpired = isBefore(reviewDate, today);
+
             if (isAnnualExpired) {
                 warnings.push({
                     id: `${ac.id}-annual-exp`,
-                    aircraftName: aircraftDisplayName,
+                    aircraftName: `${ac.name} (Fuera de Servicio)`,
                     message: `Revisión Anual VENCIDA el ${format(reviewDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -79,7 +70,7 @@ export function MaintenanceWarnings() {
                 if (daysDiff <= 30) {
                     warnings.push({
                         id: `${ac.id}-annual-warn`,
-                        aircraftName: aircraftDisplayName,
+                        aircraftName: ac.name,
                         message: `Revisión Anual vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -90,13 +81,12 @@ export function MaintenanceWarnings() {
         // Check insurance
         if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
             const expiryDate = parseISO(ac.insurance_expiry_date);
+            const isInsuranceExpired = isBefore(expiryDate, today);
             
             if (isInsuranceExpired) {
-                // This specific check might be redundant if the isEffectivelyOutOfService already covers it,
-                // but it's good for creating the specific warning message.
                 warnings.push({
                     id: `${ac.id}-insurance-exp`,
-                    aircraftName: aircraftDisplayName,
+                    aircraftName: `${ac.name} (Fuera de Servicio)`,
                     message: `Seguro VENCIDO el ${format(expiryDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -105,7 +95,7 @@ export function MaintenanceWarnings() {
                 if (daysDiff <= 30) {
                      warnings.push({
                         id: `${ac.id}-insurance-warn`,
-                        aircraftName: aircraftDisplayName,
+                        aircraftName: ac.name,
                         message: `Seguro vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -117,20 +107,23 @@ export function MaintenanceWarnings() {
         if (ac.hours_since_oil_change !== null && ac.hours_since_oil_change >= 20) {
             warnings.push({
                 id: `${ac.id}-oil`,
-                aircraftName: aircraftDisplayName,
+                aircraftName: ac.name,
                 message: `Requiere cambio de aceite (${ac.hours_since_oil_change.toFixed(1)} hs acumuladas)`,
                 severity: 'warning',
             });
         }
         
-        // Add a generic OOS warning if the aircraft is manually marked OOS but has no other specific expired/upcoming warnings
-        if (isManuallyOOS && warnings.length === initialWarningCount) {
-            warnings.push({
-                id: `${ac.id}-oos`,
-                aircraftName: aircraftDisplayName,
-                message: ac.out_of_service_reason || 'Razón no especificada.',
-                severity: 'critical'
-            });
+        // Add a generic OOS warning if manually marked and no other CRITICAL date-based warning was added for this aircraft
+        if (ac.is_out_of_service) {
+            const hasExistingDateBasedCriticalWarning = warnings.some(w => w.id.startsWith(ac.id) && (w.id.includes('-annual-exp') || w.id.includes('-insurance-exp')));
+             if (!hasExistingDateBasedCriticalWarning) {
+                warnings.push({
+                    id: `${ac.id}-oos`,
+                    aircraftName: `${ac.name} (Fuera de Servicio)`,
+                    message: ac.out_of_service_reason || 'Razón no especificada.',
+                    severity: 'critical'
+                });
+             }
         }
     });
 
