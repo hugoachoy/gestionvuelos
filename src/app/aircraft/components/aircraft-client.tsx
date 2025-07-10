@@ -198,12 +198,14 @@ export function AircraftClient() {
               ) : (
                 sortedAircraft.map((ac) => {
                   let annualReviewDisplay: React.ReactNode = 'N/A';
+                  const isAnnualExpired = ac.annual_review_date && isValid(parseISO(ac.annual_review_date)) ? isBefore(parseISO(ac.annual_review_date), startOfDay(new Date())) : false;
+                  
                   if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
                     const reviewDate = parseISO(ac.annual_review_date);
                     const formattedDate = format(reviewDate, "dd/MM/yyyy", { locale: es });
                     const daysDiff = differenceInDays(reviewDate, startOfDay(new Date()));
 
-                    if (isBefore(reviewDate, startOfDay(new Date()))) {
+                    if (isAnnualExpired) {
                         annualReviewDisplay = <Badge variant="destructive">VENCIDA {formattedDate}</Badge>;
                     } else if (daysDiff <= 30) {
                         annualReviewDisplay = <Badge variant="destructive">Vence en {daysDiff} días</Badge>;
@@ -222,7 +224,7 @@ export function AircraftClient() {
                       const formattedDate = format(expiryDate, "dd/MM/yyyy", { locale: es });
                       const daysDiff = differenceInDays(expiryDate, startOfDay(new Date()));
 
-                      if (isBefore(expiryDate, startOfDay(new Date()))) {
+                      if (isInsuranceExpired) {
                           insuranceExpiryDisplay = <Badge variant="destructive">VENCIDO {formattedDate}</Badge>;
                       } else if (daysDiff <= 30) {
                           insuranceExpiryDisplay = <Badge variant="destructive">Vence en {daysDiff} días</Badge>;
@@ -233,8 +235,15 @@ export function AircraftClient() {
                       }
                   }
 
-                  const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired;
-                  const effectiveOutOfServiceReason = ac.is_out_of_service ? ac.out_of_service_reason : (isInsuranceExpired ? 'Seguro vencido' : null);
+                  const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired || isAnnualExpired;
+                  let effectiveOutOfServiceReason = ac.is_out_of_service ? ac.out_of_service_reason : null;
+                  if (!effectiveOutOfServiceReason) {
+                    if (isAnnualExpired) {
+                        effectiveOutOfServiceReason = 'Revisión Anual vencida';
+                    } else if (isInsuranceExpired) {
+                        effectiveOutOfServiceReason = 'Seguro vencido';
+                    }
+                  }
 
 
                   return (

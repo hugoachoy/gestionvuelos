@@ -93,22 +93,34 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
   const watchedIsOutOfService = form.watch('is_out_of_service');
   const watchedAircraftType = form.watch('type');
   const watchedInsuranceExpiry = form.watch('insurance_expiry_date');
+  const watchedAnnualReview = form.watch('annual_review_date');
 
-  // Automatically re-enable aircraft if insurance date is updated to be valid
+  // Automatically re-enable aircraft if relevant dates are updated to be valid
   React.useEffect(() => {
     const isOutOfService = form.getValues('is_out_of_service');
     const reason = form.getValues('out_of_service_reason');
     
-    // Check if it was out of service specifically due to insurance
-    if (isOutOfService && reason?.toLowerCase().includes('seguro')) {
-        // Check if the new insurance date is valid and not in the past
-        if (watchedInsuranceExpiry && isValid(watchedInsuranceExpiry) && !isBefore(watchedInsuranceExpiry, startOfDay(new Date()))) {
-            // Automatically re-enable the aircraft by unchecking the box and clearing the reason
-            form.setValue('is_out_of_service', false, { shouldValidate: true });
-            form.setValue('out_of_service_reason', null, { shouldValidate: true });
+    const insuranceIsNowValid = watchedInsuranceExpiry && isValid(watchedInsuranceExpiry) && !isBefore(watchedInsuranceExpiry, startOfDay(new Date()));
+    const annualIsNowValid = watchedAnnualReview && isValid(watchedAnnualReview) && !isBefore(watchedAnnualReview, startOfDay(new Date()));
+
+    // Check if it was out of service specifically due to insurance or annual review
+    if (isOutOfService && (reason?.toLowerCase().includes('seguro') || reason?.toLowerCase().includes('anual'))) {
+        // If it was OOS for insurance, and insurance is now valid, check if annual is also valid
+        if (reason?.toLowerCase().includes('seguro') && insuranceIsNowValid) {
+            if (annualIsNowValid || !watchedAnnualReview) { // Also valid if no annual date is set
+                 form.setValue('is_out_of_service', false, { shouldValidate: true });
+                 form.setValue('out_of_service_reason', null, { shouldValidate: true });
+            }
+        }
+        // If it was OOS for annual, and annual is now valid, check if insurance is also valid
+        if (reason?.toLowerCase().includes('anual') && annualIsNowValid) {
+            if (insuranceIsNowValid || !watchedInsuranceExpiry) { // Also valid if no insurance date is set
+                form.setValue('is_out_of_service', false, { shouldValidate: true });
+                form.setValue('out_of_service_reason', null, { shouldValidate: true });
+            }
         }
     }
-  }, [watchedInsuranceExpiry, form]);
+  }, [watchedInsuranceExpiry, watchedAnnualReview, form]);
 
   const handleSubmit = (data: AircraftFormData) => {
     const dataToSubmit: Omit<Aircraft, 'id' | 'created_at'> = {
@@ -146,12 +158,17 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
           };
       form.reset(defaultValues);
 
-      // If the form opens for an aircraft with expired insurance, reflect this state in the form.
+      // If the form opens for an aircraft with an expired date, reflect this state in the form.
       if (aircraft && !aircraft.is_out_of_service) {
           const insuranceDate = defaultValues.insurance_expiry_date;
           if (insuranceDate && isValid(insuranceDate) && isBefore(insuranceDate, startOfDay(new Date()))) {
               form.setValue('is_out_of_service', true);
               form.setValue('out_of_service_reason', 'Seguro vencido');
+          }
+          const annualDate = defaultValues.annual_review_date;
+           if (annualDate && isValid(annualDate) && isBefore(annualDate, startOfDay(new Date()))) {
+              form.setValue('is_out_of_service', true);
+              form.setValue('out_of_service_reason', 'Revisión Anual vencida');
           }
       }
     }
