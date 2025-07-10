@@ -6,7 +6,7 @@ import type { Aircraft } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface AircraftReportButtonProps {
@@ -30,7 +30,8 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
       const { default: autoTable } = await import('jspdf-autotable');
 
       const doc = new jsPDF({ orientation: 'portrait' });
-      const pageTitle = "Informe de Aeronaves y Vencimientos";
+      const generationDate = format(new Date(), "dd/MM/yyyy HH:mm");
+      const pageTitle = `Informe de Aeronaves (Generado el ${generationDate})`;
       let currentY = 15;
 
       doc.setFontSize(16);
@@ -59,8 +60,10 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
         return a.name.localeCompare(b.name);
       });
 
-      const tableColumn = ["Nombre/Matrícula", "Tipo", "Venc. Anual", "Venc. Seguro"];
+      const tableColumn = ["Nombre/Matrícula", "Tipo", "Estado", "Venc. Anual", "Venc. Seguro"];
       const tableRows: (string | { content: string; styles?: any })[][] = [];
+
+      const today = startOfDay(new Date());
 
       sortedAircraft.forEach(ac => {
         let annualReviewDisplay = 'N/A';
@@ -72,10 +75,28 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
         if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
           insuranceExpiryDisplay = format(parseISO(ac.insurance_expiry_date), "dd/MM/yyyy", { locale: es });
         }
+
+        const isAnnualExpired = ac.annual_review_date ? isBefore(parseISO(ac.annual_review_date), today) : false;
+        const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
+        const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
+        
+        let statusText = 'En Servicio';
+        let statusStyles: any = { textColor: [34, 139, 34] }; // Verde oscuro
+
+        if (isEffectivelyOutOfService) {
+            let reason = ac.out_of_service_reason || '';
+            if (!reason) {
+                if (isAnnualExpired) reason = 'Anual Vencida';
+                else if (isInsuranceExpired) reason = 'Seguro Vencido';
+            }
+            statusText = `Fuera de Servicio${reason ? ` (${reason})` : ''}`;
+            statusStyles = { textColor: [220, 20, 60], fontStyle: 'bold' }; // Rojo
+        }
         
         tableRows.push([
           ac.name,
           aircraftTypeTranslations[ac.type] || ac.type,
+          { content: statusText, styles: statusStyles },
           annualReviewDisplay,
           insuranceExpiryDisplay,
         ]);
@@ -91,8 +112,15 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
         columnStyles: {
           0: { cellWidth: 'auto' },
           1: { cellWidth: 'auto' },
-          2: { cellWidth: 35 },
+          2: { cellWidth: 'auto' },
           3: { cellWidth: 35 },
+          4: { cellWidth: 35 },
+        },
+        didParseCell: function (data) {
+          if (data.column.dataKey === 2 && data.cell.raw && typeof data.cell.raw === 'object' && data.cell.raw !== null && 'styles' in data.cell.raw) {
+            Object.assign(data.cell.styles, (data.cell.raw as any).styles);
+            data.cell.text = (data.cell.raw as any).content;
+          }
         },
       });
 
