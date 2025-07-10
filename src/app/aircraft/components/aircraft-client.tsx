@@ -120,6 +120,7 @@ export function AircraftClient() {
   }
 
   const isLoadingUI = loading || authLoading || !currentUser;
+  const safeAircraftData = aircraftWithCalculatedData || [];
 
   return (
     <TooltipProvider>
@@ -131,8 +132,8 @@ export function AircraftClient() {
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
             <AircraftReportButton
-              aircraft={aircraftWithCalculatedData}
-              disabled={isLoadingUI || aircraftWithCalculatedData.length === 0}
+              aircraft={safeAircraftData}
+              disabled={isLoadingUI || safeAircraftData.length === 0}
             />
             {currentUser?.is_admin && ( 
               <Button onClick={handleAddAircraft} disabled={isLoadingUI}>
