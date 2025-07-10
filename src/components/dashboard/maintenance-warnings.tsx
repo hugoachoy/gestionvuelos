@@ -29,7 +29,7 @@ export function MaintenanceWarnings() {
   const anyError = aircraftError;
 
   const groupedMaintenanceWarnings = useMemo<GroupedWarning[]>(() => {
-    if (anyLoading || anyError) return [];
+    if (anyLoading || anyError || !aircraftWithCalculatedData) return []; // <-- Added check for undefined
 
     const groupedWarnings: GroupedWarning[] = [];
     const today = startOfDay(new Date());
@@ -135,7 +135,7 @@ export function MaintenanceWarnings() {
         </CardHeader>
         <CardContent className="space-y-4">
             {groupedMaintenanceWarnings.map(group => {
-                const isCritical = group.warnings.some(w => w.severity === 'critical');
+                const isCritical = group.isOutOfService;
                 const titleText = isCritical ? 'Fuera de Servicio' : 'Requiere Atención';
                 const titleColor = isCritical ? 'text-destructive' : 'text-blue-800';
                 const cardBorderColor = isCritical ? 'border-destructive bg-destructive/10' : 'border-blue-400 bg-blue-50';
