@@ -29,7 +29,8 @@ export function MaintenanceWarnings() {
   const anyError = aircraftError;
 
   const groupedMaintenanceWarnings = useMemo<GroupedWarning[]>(() => {
-    if (anyLoading || anyError || !aircraftWithCalculatedData) return []; // <-- Added check for undefined
+    // Return empty array if data is not ready, preventing runtime errors.
+    if (!aircraftWithCalculatedData) return [];
 
     const groupedWarnings: GroupedWarning[] = [];
     const today = startOfDay(new Date());
@@ -41,20 +42,14 @@ export function MaintenanceWarnings() {
         const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
         
         const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
-
-        if (ac.is_out_of_service && !ac.out_of_service_reason) {
-             warnings.push({
-                message: 'Marcado manualmente como Fuera de Servicio.',
-                severity: 'critical',
-            });
-        }
-        else if (ac.is_out_of_service && ac.out_of_service_reason && !isAnnualExpired && !isInsuranceExpired) {
+        
+        // Show manual out-of-service reason ONLY if there isn't an automated reason for it.
+        if (ac.is_out_of_service && ac.out_of_service_reason && !isAnnualExpired && !isInsuranceExpired) {
              warnings.push({
                 message: ac.out_of_service_reason,
                 severity: 'critical',
             });
         }
-
 
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
@@ -117,7 +112,7 @@ export function MaintenanceWarnings() {
       if (!a.isOutOfService && b.isOutOfService) return 1;
       return a.aircraftName.localeCompare(b.aircraftName);
     });
-  }, [aircraftWithCalculatedData, anyLoading, anyError]);
+  }, [aircraftWithCalculatedData]);
 
   if (anyLoading || anyError || groupedMaintenanceWarnings.length === 0) {
     return null; // Don't render anything if loading, error, or no warnings
