@@ -57,6 +57,9 @@ export function MaintenanceWarnings() {
         const isAnnualExpired = ac.annual_review_date ? isBefore(parseISO(ac.annual_review_date), today) : false;
         const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
         
+        // Determine if the aircraft is effectively out of service due to *any* critical reason for naming purposes.
+        const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
+
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
             const reviewDate = parseISO(ac.annual_review_date);
@@ -110,16 +113,6 @@ export function MaintenanceWarnings() {
                 aircraftName: ac.name,
                 message: `Requiere cambio de aceite (${ac.hours_since_oil_change.toFixed(1)} hs acumuladas)`,
                 severity: 'warning',
-            });
-        }
-        
-        // Add a generic OOS warning if manually marked
-        if (ac.is_out_of_service) {
-            warnings.push({
-                id: `${ac.id}-oos`,
-                aircraftName: `${ac.name} (Fuera de Servicio)`,
-                message: ac.out_of_service_reason || 'Razón no especificada.',
-                severity: 'critical'
             });
         }
     });
