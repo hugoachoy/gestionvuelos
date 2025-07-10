@@ -57,8 +57,18 @@ export function MaintenanceWarnings() {
         const isAnnualExpired = ac.annual_review_date ? isBefore(parseISO(ac.annual_review_date), today) : false;
         const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
         
-        // Determine if the aircraft is effectively out of service due to *any* critical reason for naming purposes.
         const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
+        const aircraftDisplayName = `${ac.name}${isEffectivelyOutOfService ? ' (Fuera de Servicio)' : ''}`;
+
+        // Add warning for manual out of service, ONLY if it's not already out for expired dates
+        if (ac.is_out_of_service && !isAnnualExpired && !isInsuranceExpired) {
+             warnings.push({
+                id: `${ac.id}-manual-oos`,
+                aircraftName: aircraftDisplayName,
+                message: ac.out_of_service_reason || 'Marcado como Fuera de Servicio sin motivo específico.',
+                severity: 'critical',
+            });
+        }
 
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
@@ -66,7 +76,7 @@ export function MaintenanceWarnings() {
             if (isAnnualExpired) {
                 warnings.push({
                     id: `${ac.id}-annual-exp`,
-                    aircraftName: `${ac.name} (Fuera de Servicio)`,
+                    aircraftName: aircraftDisplayName,
                     message: `Revisión Anual VENCIDA el ${format(reviewDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -75,7 +85,7 @@ export function MaintenanceWarnings() {
                 if (daysDiff <= 30) {
                     warnings.push({
                         id: `${ac.id}-annual-warn`,
-                        aircraftName: ac.name,
+                        aircraftName: ac.name, // No "Fuera de Servicio" tag if it's just a warning
                         message: `Revisión Anual vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -89,7 +99,7 @@ export function MaintenanceWarnings() {
             if (isInsuranceExpired) {
                 warnings.push({
                     id: `${ac.id}-insurance-exp`,
-                    aircraftName: `${ac.name} (Fuera de Servicio)`,
+                    aircraftName: aircraftDisplayName,
                     message: `Seguro VENCIDO el ${format(expiryDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -98,7 +108,7 @@ export function MaintenanceWarnings() {
                 if (daysDiff <= 30) {
                      warnings.push({
                         id: `${ac.id}-insurance-warn`,
-                        aircraftName: ac.name,
+                        aircraftName: ac.name, // No "Fuera de Servicio" tag if it's just a warning
                         message: `Seguro vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -110,18 +120,15 @@ export function MaintenanceWarnings() {
         if (ac.hours_since_oil_change !== null && ac.hours_since_oil_change >= 20) {
             warnings.push({
                 id: `${ac.id}-oil`,
-                aircraftName: ac.name,
+                aircraftName: ac.name, // Oil change is a warning, not an out-of-service event by itself
                 message: `Requiere cambio de aceite (${ac.hours_since_oil_change.toFixed(1)} hs acumuladas)`,
                 severity: 'warning',
             });
         }
     });
 
-    // Remove duplicates by ID before sorting
     const uniqueWarnings = Array.from(new Map(warnings.map(item => [item.id, item])).values());
 
-
-    // Sort warnings to show critical ones first, then by aircraft name
     return uniqueWarnings.sort((a, b) => {
       if (a.severity === 'critical' && b.severity !== 'critical') return -1;
       if (a.severity !== 'critical' && b.severity === 'critical') return 1;
@@ -138,7 +145,7 @@ export function MaintenanceWarnings() {
         <CardHeader>
             <CardTitle className="flex items-center text-lg text-orange-800">
                 <Wrench className="mr-2 h-5 w-5" />
-                Avisos de Mantenimiento
+                Avisos de Mantenimiento y Estado
             </CardTitle>
             <CardDescription className="text-orange-700/90">
                 Las siguientes aeronaves requieren atención. <Link href="/aircraft" className="underline hover:text-orange-800 font-semibold">Ir a Aeronaves</Link> para más detalles.
