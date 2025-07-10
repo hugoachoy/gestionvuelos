@@ -297,36 +297,24 @@ export function useAircraftStore() {
   const [aircraft, setAircraft] = useState<BaseAircraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
-  const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
+  const { completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
   const fetchingRef = useRef(false);
 
-  const fetchAircraftAndFlights = useCallback(async () => {
+  const fetchAircraft = useCallback(async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
     try {
-      const [aircraftRes, flightsRes] = await Promise.all([
-        supabase.from('aircraft').select('*').order('name'),
-        supabase.from('completed_engine_flights').select('engine_aircraft_id, date, flight_duration_decimal').order('date', { ascending: false })
-      ]);
-
-      if (aircraftRes.error) {
-        logSupabaseError('Error fetching aircraft', aircraftRes.error);
-        setError(aircraftRes.error);
+      const { data, error: fetchError } = await supabase.from('aircraft').select('*').order('name');
+      if (fetchError) {
+        logSupabaseError('Error fetching aircraft', fetchError);
+        setError(fetchError);
       } else {
-        setAircraft(aircraftRes.data || []);
+        setAircraft(data || []);
       }
-
-      if (flightsRes.error) {
-        logSupabaseError('Error fetching engine flights for aircraft store', flightsRes.error);
-        setError(prev => prev || flightsRes.error); // Keep first error
-      } else {
-        setCompletedEngineFlights(flightsRes.data || []);
-      }
-
     } catch (e) {
-      logSupabaseError('Unexpected error in fetchAircraftAndFlights', e);
+      logSupabaseError('Unexpected error in fetchAircraft', e);
       setError(e);
     } finally {
       setLoading(false);
@@ -335,8 +323,9 @@ export function useAircraftStore() {
   }, []);
 
   useEffect(() => {
-    fetchAircraftAndFlights();
-  }, [fetchAircraftAndFlights]);
+    fetchAircraft();
+    fetchCompletedEngineFlights(); // Fetch flights on initial load
+  }, [fetchAircraft, fetchCompletedEngineFlights]);
 
   const aircraftWithCalculatedData = useMemo<Aircraft[]>(() => {
     if (!aircraft.length) return [];
@@ -379,7 +368,7 @@ export function useAircraftStore() {
         return null;
         }
         if (newAircraft) {
-          await fetchAircraftAndFlights();
+          await fetchAircraft();
         }
         return newAircraft;
     } catch (e) {
@@ -389,7 +378,7 @@ export function useAircraftStore() {
     } finally {
         setLoading(false);
     }
-  }, [fetchAircraftAndFlights]);
+  }, [fetchAircraft]);
 
   const updateAircraft = useCallback(async (updatedAircraftData: BaseAircraft) => {
     setError(null);
@@ -408,7 +397,7 @@ export function useAircraftStore() {
         return null;
         }
         if (updatedAircraft) {
-          await fetchAircraftAndFlights();
+          await fetchAircraft();
         }
         return updatedAircraft;
     } catch (e) {
@@ -418,7 +407,7 @@ export function useAircraftStore() {
     } finally {
         setLoading(false);
     }
-  }, [fetchAircraftAndFlights]);
+  }, [fetchAircraft]);
 
   const deleteAircraft = useCallback(async (aircraftId: string) => {
     setError(null);
@@ -430,7 +419,7 @@ export function useAircraftStore() {
         setError(deleteError);
         return false;
         }
-        await fetchAircraftAndFlights();
+        await fetchAircraft();
         return true;
     } catch (e) {
         logSupabaseError('Unexpected error deleting aircraft', e);
@@ -439,7 +428,7 @@ export function useAircraftStore() {
     } finally {
         setLoading(false);
     }
-  }, [fetchAircraftAndFlights]);
+  }, [fetchAircraft]);
 
   const getAircraftName = useCallback((aircraftId?: string | null): string => {
     if (!aircraftId) return 'N/A';
@@ -447,7 +436,7 @@ export function useAircraftStore() {
     return ac ? ac.name : 'Aeronave no encontrada';
   }, [aircraft]);
 
-  return { aircraft, aircraftWithCalculatedData, loading, error, addAircraft, updateAircraft, deleteAircraft, getAircraftName, fetchAircraft: fetchAircraftAndFlights };
+  return { aircraft, aircraftWithCalculatedData, loading, error, addAircraft, updateAircraft, deleteAircraft, getAircraftName, fetchAircraft };
 }
 
 // Schedule Store
