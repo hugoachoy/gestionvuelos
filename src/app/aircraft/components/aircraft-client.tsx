@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react'; 
-import { useState, useEffect, useMemo } from 'react'; 
+import { useState, useEffect, useMemo, useCallback } from 'react'; 
 import type { Aircraft } from '@/types';
 import { useAircraftStore, useCompletedEngineFlightsStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext'; 
@@ -123,6 +123,11 @@ export function AircraftClient() {
     setIsFormOpen(false);
   };
 
+  const handleRefreshData = useCallback(() => {
+    fetchAircraft();
+    fetchCompletedEngineFlights();
+  }, [fetchAircraft, fetchCompletedEngineFlights]);
+
   const sortedAircraft = useMemo(() => {
     return [...aircraftWithCalculatedData].sort((a, b) => {
       const typeOrderA = aircraftTypeOrder[a.type];
@@ -152,7 +157,7 @@ export function AircraftClient() {
         title="Aeronaves"
         action={
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => { fetchAircraft(); fetchCompletedEngineFlights(); }} variant="outline" size="icon" disabled={isLoadingUI}>
+            <Button onClick={handleRefreshData} variant="outline" size="icon" disabled={isLoadingUI}>
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
             <AircraftReportButton

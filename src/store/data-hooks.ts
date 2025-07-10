@@ -1030,8 +1030,7 @@ export function useCompletedEngineFlightsStore() {
       } else {
         result = newFlight;
         if (newFlight) {
-          // Update local state after adding
-          setCompletedEngineFlights(prev => [newFlight, ...prev].sort((a,b) => b.date.localeCompare(a.date) || b.departure_time.localeCompare(a.departure_time)));
+          await fetchCompletedEngineFlights();
         }
       }
     } catch (e) {
@@ -1041,7 +1040,7 @@ export function useCompletedEngineFlightsStore() {
       setLoading(false);
     }
     return result;
-  }, []);
+  }, [fetchCompletedEngineFlights]);
 
   const updateCompletedEngineFlight = useCallback(async (flightId: string, flightData: Partial<Omit<CompletedEngineFlight, 'id' | 'created_at' | 'logbook_type' | 'auth_user_id'>>) => {
     let result = null;
@@ -1060,7 +1059,6 @@ export function useCompletedEngineFlightsStore() {
       } else {
         result = updatedFlight;
         if (updatedFlight) {
-          // After a successful update, refetch all flights to ensure consistency everywhere.
           await fetchCompletedEngineFlights();
         }
       }
