@@ -298,7 +298,6 @@ export function useAircraftStore() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
-
   const { completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
 
   const fetchAircraft = useCallback(async () => {
@@ -332,6 +331,7 @@ export function useAircraftStore() {
 
   const aircraftWithCalculatedData = useMemo<Aircraft[]>(() => {
     if (!aircraft || !completedEngineFlights) return [];
+    
     return aircraft.map(ac => {
       if (ac.type === 'Glider' || !ac.last_oil_change_date) {
         return { ...ac, hours_since_oil_change: null };
@@ -346,7 +346,7 @@ export function useAircraftStore() {
         .filter(flight => 
           flight.engine_aircraft_id === ac.id &&
           isValidDate(parseISO(flight.date)) &&
-          isAfter(startOfDay(parseISO(flight.date)), startOfDay(lastOilChangeDate))
+          !isBefore(startOfDay(parseISO(flight.date)), startOfDay(lastOilChangeDate))
         );
 
       const hours = relevantFlights.reduce((sum, flight) => sum + flight.flight_duration_decimal, 0);
