@@ -96,6 +96,9 @@ export function AircraftClient() {
   }, [fetchAircraft]);
 
   const sortedAircraft = useMemo(() => {
+    if (!aircraftWithCalculatedData || !Array.isArray(aircraftWithCalculatedData)) {
+      return [];
+    }
     return [...aircraftWithCalculatedData].sort((a, b) => {
       const typeOrderA = aircraftTypeOrder[a.type];
       const typeOrderB = aircraftTypeOrder[b.type];
