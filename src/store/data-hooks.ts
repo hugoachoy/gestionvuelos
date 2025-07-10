@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -959,7 +960,7 @@ export function useCompletedGliderFlightsStore() {
 // --- Completed Engine Flights Store ---
 export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
-  const [loading, setLoading] = useState(false);  // Changed initial state to false
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
 
   const fetchCompletedEngineFlights = useCallback(async () => {
@@ -1028,6 +1029,10 @@ export function useCompletedEngineFlightsStore() {
         setError(insertError);
       } else {
         result = newFlight;
+        if (newFlight) {
+          // Update local state after adding
+          setCompletedEngineFlights(prev => [newFlight, ...prev].sort((a,b) => b.date.localeCompare(a.date) || b.departure_time.localeCompare(a.departure_time)));
+        }
       }
     } catch (e) {
       logSupabaseError('Unexpected error adding completed engine flight', e);
@@ -1054,6 +1059,10 @@ export function useCompletedEngineFlightsStore() {
         setError(updateError);
       } else {
         result = updatedFlight;
+        if (updatedFlight) {
+          // After a successful update, refetch all flights to ensure consistency everywhere.
+          await fetchCompletedEngineFlights();
+        }
       }
     } catch (e) {
       logSupabaseError('Unexpected error updating completed engine flight', e);
@@ -1062,7 +1071,7 @@ export function useCompletedEngineFlightsStore() {
       setLoading(false);
     }
     return result;
-  }, []);
+  }, [fetchCompletedEngineFlights]);
 
 
   const deleteCompletedEngineFlight = useCallback(async (flightId: string) => {
@@ -1075,6 +1084,8 @@ export function useCompletedEngineFlightsStore() {
         setError(deleteError);
         return false;
       }
+      // After a successful delete, refetch all flights.
+      await fetchCompletedEngineFlights();
       return true;
     } catch (e) {
       logSupabaseError('Unexpected error deleting completed engine flight', e);
@@ -1083,7 +1094,7 @@ export function useCompletedEngineFlightsStore() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchCompletedEngineFlights]);
 
   return { completedEngineFlights, loading, error, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange, fetchCompletedEngineFlights };
 }

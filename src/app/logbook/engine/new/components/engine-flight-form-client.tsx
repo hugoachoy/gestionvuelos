@@ -679,7 +679,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            router.push('/logbook/engine/list');
+            router.push('/aircraft');
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
         }
