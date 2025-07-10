@@ -197,13 +197,24 @@ export function AircraftClient() {
                 </TableRow>
               ) : (
                 sortedAircraft.map((ac) => {
+                  const today = startOfDay(new Date());
+                  const isAnnualExpired = ac.annual_review_date ? isBefore(parseISO(ac.annual_review_date), today) : false;
+                  const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
+
+                  // --- Overall Status Logic ---
+                  const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
+                  let effectiveOutOfServiceReason = ac.is_out_of_service ? ac.out_of_service_reason : null;
+                  if (!effectiveOutOfServiceReason) {
+                    if (isAnnualExpired) effectiveOutOfServiceReason = 'Revisión Anual vencida';
+                    else if (isInsuranceExpired) effectiveOutOfServiceReason = 'Seguro vencido';
+                  }
+
+                  // --- Individual Date Warning Logic ---
                   let annualReviewDisplay: React.ReactNode = 'N/A';
-                  const isAnnualExpired = ac.annual_review_date && isValid(parseISO(ac.annual_review_date)) ? isBefore(parseISO(ac.annual_review_date), startOfDay(new Date())) : false;
-                  
                   if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
                     const reviewDate = parseISO(ac.annual_review_date);
                     const formattedDate = format(reviewDate, "dd/MM/yyyy", { locale: es });
-                    const daysDiff = differenceInDays(reviewDate, startOfDay(new Date()));
+                    const daysDiff = differenceInDays(reviewDate, today);
 
                     if (isAnnualExpired) {
                         annualReviewDisplay = <Badge variant="destructive">VENCIDA {formattedDate}</Badge>;
@@ -217,12 +228,10 @@ export function AircraftClient() {
                   }
 
                   let insuranceExpiryDisplay: React.ReactNode = 'N/A';
-                  const isInsuranceExpired = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(new Date()));
-
                   if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
                       const expiryDate = parseISO(ac.insurance_expiry_date);
                       const formattedDate = format(expiryDate, "dd/MM/yyyy", { locale: es });
-                      const daysDiff = differenceInDays(expiryDate, startOfDay(new Date()));
+                      const daysDiff = differenceInDays(expiryDate, today);
 
                       if (isInsuranceExpired) {
                           insuranceExpiryDisplay = <Badge variant="destructive">VENCIDO {formattedDate}</Badge>;
@@ -234,18 +243,7 @@ export function AircraftClient() {
                           insuranceExpiryDisplay = formattedDate;
                       }
                   }
-
-                  const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpired || isAnnualExpired;
-                  let effectiveOutOfServiceReason = ac.is_out_of_service ? ac.out_of_service_reason : null;
-                  if (!effectiveOutOfServiceReason) {
-                    if (isAnnualExpired) {
-                        effectiveOutOfServiceReason = 'Revisión Anual vencida';
-                    } else if (isInsuranceExpired) {
-                        effectiveOutOfServiceReason = 'Seguro vencido';
-                    }
-                  }
-
-
+                  
                   return (
                     <TableRow key={ac.id}>
                       <TableCell>{ac.name}</TableCell>
