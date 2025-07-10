@@ -297,8 +297,9 @@ export function useAircraftStore() {
   const [aircraft, setAircraft] = useState<BaseAircraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
-  const { completedEngineFlights } = useCompletedEngineFlightsStore.getState();
   const fetchingRef = useRef(false);
+
+  const { completedEngineFlights } = useCompletedEngineFlightsStore();
 
   const fetchAircraft = useCallback(async () => {
     if (fetchingRef.current) return;
