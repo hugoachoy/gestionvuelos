@@ -6,7 +6,7 @@ import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, Dai
 import { supabase } from '@/lib/supabaseClient';
 import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours } from 'date-fns';
 
-type Aircraft = BaseAircraft & { hours_since_oil_change?: number };
+type Aircraft = BaseAircraft & { hours_since_oil_change?: number | null };
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -299,7 +299,7 @@ export function useAircraftStore() {
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
-  const { completedEngineFlights } = useCompletedEngineFlightsStore();
+  const { completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
 
   const fetchAircraft = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -307,6 +307,9 @@ export function useAircraftStore() {
     setLoading(true);
     setError(null);
     try {
+      // First, ensure the latest flights are available for calculation
+      await fetchCompletedEngineFlights();
+      
       const { data, error: fetchError } = await supabase.from('aircraft').select('*').order('name');
       if (fetchError) {
         logSupabaseError('Error fetching aircraft', fetchError);
@@ -321,13 +324,14 @@ export function useAircraftStore() {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, []);
+  }, [fetchCompletedEngineFlights]);
 
   useEffect(() => {
     fetchAircraft();
   }, [fetchAircraft]);
 
   const aircraftWithCalculatedData = useMemo<Aircraft[]>(() => {
+    if (!aircraft || !completedEngineFlights) return [];
     return aircraft.map(ac => {
       if (ac.type === 'Glider' || !ac.last_oil_change_date) {
         return { ...ac, hours_since_oil_change: null };
@@ -1018,6 +1022,10 @@ export function useCompletedEngineFlightsStore() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchCompletedEngineFlights();
+  },[fetchCompletedEngineFlights]);
 
   const fetchCompletedEngineFlightsForRange = useCallback(async (startDate: string, endDate: string, pilotId?: string): Promise<CompletedEngineFlight[] | null> => {
     try {
