@@ -53,14 +53,6 @@ const aircraftSchema = z.object({
   annual_review_date: z.date().nullable().optional(),
   last_oil_change_date: z.date().nullable().optional(),
   insurance_expiry_date: z.date().nullable().optional(),
-}).refine(data => {
-  if (data.is_out_of_service && (!data.out_of_service_reason || data.out_of_service_reason.trim() === '')) {
-    return false;
-  }
-  return true;
-}, {
-  message: "El motivo es obligatorio si la aeronave está fuera de servicio.",
-  path: ["out_of_service_reason"],
 });
 
 type AircraftFormData = z.infer<typeof aircraftSchema>;
