@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { useAircraftStore, useCompletedEngineFlightsStore } from '@/store/data-hooks';
+import { useAircraftStore } from '@/store/data-hooks';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -23,34 +23,11 @@ type GroupedWarning = {
 };
 
 export function MaintenanceWarnings() {
-  const { aircraft, loading: aircraftLoading, error: aircraftError } = useAircraftStore();
-  const { completedEngineFlights, loading: engineFlightsLoading, error: engineFlightsError } = useCompletedEngineFlightsStore();
+  const { aircraftWithCalculatedData, loading: aircraftLoading, error: aircraftError } = useAircraftStore();
 
-  const anyLoading = aircraftLoading || engineFlightsLoading;
-  const anyError = aircraftError || engineFlightsError;
+  const anyLoading = aircraftLoading;
+  const anyError = aircraftError;
 
-  const aircraftWithCalculatedData = useMemo(() => {
-    if (!aircraft.length || anyError) return [];
-  
-    return aircraft.map(ac => {
-      if (ac.type === 'Glider' || !ac.last_oil_change_date || !isValid(parseISO(ac.last_oil_change_date))) {
-        return { ...ac, hours_since_oil_change: null };
-      }
-  
-      const lastOilChangeDate = parseISO(ac.last_oil_change_date);
-      
-      const relevantFlights = completedEngineFlights.filter(flight =>
-        flight.engine_aircraft_id === ac.id &&
-        isValid(parseISO(flight.date)) &&
-        isAfter(parseISO(flight.date), lastOilChangeDate)
-      );
-      
-      const totalHours = relevantFlights.reduce((sum, flight) => sum + (flight.flight_duration_decimal || 0), 0);
-      
-      return { ...ac, hours_since_oil_change: totalHours };
-    });
-  }, [aircraft, completedEngineFlights, anyError]);
-  
   const groupedMaintenanceWarnings = useMemo<GroupedWarning[]>(() => {
     if (anyLoading || anyError) return [];
 
@@ -65,13 +42,19 @@ export function MaintenanceWarnings() {
         
         const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
 
-        // Add warning for manual out of service, ONLY if it's not already out for expired dates
-        if (ac.is_out_of_service && !isAnnualExpired && !isInsuranceExpired) {
+        if (ac.is_out_of_service && !ac.out_of_service_reason) {
              warnings.push({
-                message: ac.out_of_service_reason || 'Marcado como Fuera de Servicio sin motivo específico.',
+                message: 'Marcado manualmente como Fuera de Servicio.',
                 severity: 'critical',
             });
         }
+        else if (ac.is_out_of_service && ac.out_of_service_reason && !isAnnualExpired && !isInsuranceExpired) {
+             warnings.push({
+                message: ac.out_of_service_reason,
+                severity: 'critical',
+            });
+        }
+
 
         // Check annual review
         if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
@@ -152,13 +135,18 @@ export function MaintenanceWarnings() {
         </CardHeader>
         <CardContent className="space-y-4">
             {groupedMaintenanceWarnings.map(group => {
-                const isCritical = group.isOutOfService;
+                const isCritical = group.warnings.some(w => w.severity === 'critical');
+                const titleText = isCritical ? 'Fuera de Servicio' : 'Requiere Atención';
+                const titleColor = isCritical ? 'text-destructive' : 'text-blue-800';
+                const cardBorderColor = isCritical ? 'border-destructive bg-destructive/10' : 'border-blue-400 bg-blue-50';
+                const icon = isCritical ? <AlertTriangle className="mr-2 h-4 w-4" /> : <Info className="mr-2 h-4 w-4" />;
+
                 return (
-                    <Card key={group.aircraftId} className={cn(isCritical ? 'border-destructive bg-destructive/10' : 'border-blue-400 bg-blue-50')}>
+                    <Card key={group.aircraftId} className={cn(cardBorderColor)}>
                         <CardHeader className="p-4">
-                            <CardTitle className={cn("text-base flex items-center", isCritical ? 'text-destructive' : 'text-blue-800')}>
-                                {isCritical ? <AlertTriangle className="mr-2 h-4 w-4" /> : <Info className="mr-2 h-4 w-4" />}
-                                {group.aircraftName} - {isCritical ? 'Fuera de Servicio' : 'Requiere Atención'}
+                            <CardTitle className={cn("text-base flex items-center", titleColor)}>
+                                {icon}
+                                {group.aircraftName} - {titleText}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0 text-sm">

@@ -679,7 +679,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            router.push('/aircraft');
+            router.push('/aircraft'); // Redirect to allow the aircraft list to show updated oil hours
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
         }
@@ -853,7 +853,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        onSelect={(date) => { field.onChange(date); setIsCalendarOpen(false); }}
+                        onSelect={(date) => { if(date) field.onChange(date); setIsCalendarOpen(false); }}
                         disabled={(date) => date > new Date() || isLoading}
                         initialFocus
                         locale={es}

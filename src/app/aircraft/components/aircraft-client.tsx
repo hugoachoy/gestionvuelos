@@ -4,7 +4,7 @@
 import React from 'react'; 
 import { useState, useEffect, useMemo, useCallback } from 'react'; 
 import type { Aircraft } from '@/types';
-import { useAircraftStore, useCompletedEngineFlightsStore } from '@/store/data-hooks';
+import { useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext'; 
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
@@ -39,48 +39,16 @@ const aircraftTypeOrder: Record<Aircraft['type'], number> = {
   'Avión': 3,
 };
 
-type AircraftWithCalculatedData = Aircraft & {
-  hours_since_oil_change?: number | null;
-};
-
 export function AircraftClient() {
   const { user: currentUser, loading: authLoading } = useAuth(); 
-  const { aircraft, addAircraft, updateAircraft, deleteAircraft: removeAircraft, loading, error, fetchAircraft } = useAircraftStore();
-  const { completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
+  const { aircraftWithCalculatedData, loading, error, fetchAircraft, deleteAircraft: removeAircraft } = useAircraftStore();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingAircraft, setEditingAircraft] = useState<Aircraft | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
 
-  useEffect(() => {
-    fetchCompletedEngineFlights();
-  }, [fetchCompletedEngineFlights]);
-
-  const aircraftWithCalculatedData: AircraftWithCalculatedData[] = useMemo(() => {
-    if (!aircraft.length) {
-      return [];
-    }
-  
-    return aircraft.map(ac => {
-      if (ac.type === 'Glider' || !ac.last_oil_change_date || !isValid(parseISO(ac.last_oil_change_date))) {
-        return { ...ac, hours_since_oil_change: null };
-      }
-  
-      const lastOilChangeDate = parseISO(ac.last_oil_change_date);
-      
-      const relevantFlights = completedEngineFlights.filter(flight =>
-        flight.engine_aircraft_id === ac.id &&
-        isValid(parseISO(flight.date)) &&
-        isAfter(parseISO(flight.date), lastOilChangeDate)
-      );
-      
-      const totalHours = relevantFlights.reduce((sum, flight) => sum + (flight.flight_duration_decimal || 0), 0);
-      
-      return { ...ac, hours_since_oil_change: totalHours };
-    });
-  }, [aircraft, completedEngineFlights]);
-
+  const { addAircraft, updateAircraft } = useAircraftStore();
 
   const handleAddAircraft = () => {
     setEditingAircraft(undefined);
@@ -124,9 +92,8 @@ export function AircraftClient() {
   };
 
   const handleRefreshData = useCallback(() => {
-    fetchAircraft();
-    fetchCompletedEngineFlights();
-  }, [fetchAircraft, fetchCompletedEngineFlights]);
+    fetchAircraft(); // This will trigger all dependent fetches in the store
+  }, [fetchAircraft]);
 
   const sortedAircraft = useMemo(() => {
     return [...aircraftWithCalculatedData].sort((a, b) => {
@@ -161,8 +128,8 @@ export function AircraftClient() {
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
             <AircraftReportButton
-              aircraft={aircraft}
-              disabled={isLoadingUI || aircraft.length === 0}
+              aircraft={aircraftWithCalculatedData}
+              disabled={isLoadingUI || aircraftWithCalculatedData.length === 0}
             />
             {currentUser?.is_admin && ( 
               <Button onClick={handleAddAircraft} disabled={isLoadingUI}>
