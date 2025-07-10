@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react'; 
-import { useState, useEffect, useMemo, useCallback } from 'react'; 
+import { useState, useMemo, useCallback } from 'react'; 
 import type { Aircraft } from '@/types';
 import { useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext'; 
@@ -41,14 +41,12 @@ const aircraftTypeOrder: Record<Aircraft['type'], number> = {
 
 export function AircraftClient() {
   const { user: currentUser, loading: authLoading } = useAuth(); 
-  const { aircraftWithCalculatedData, loading, error, fetchAircraft, deleteAircraft: removeAircraft } = useAircraftStore();
+  const { aircraftWithCalculatedData, loading, error, fetchAircraft, deleteAircraft: removeAircraft, addAircraft, updateAircraft } = useAircraftStore();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingAircraft, setEditingAircraft] = useState<Aircraft | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
-
-  const { addAircraft, updateAircraft } = useAircraftStore();
 
   const handleAddAircraft = () => {
     setEditingAircraft(undefined);
