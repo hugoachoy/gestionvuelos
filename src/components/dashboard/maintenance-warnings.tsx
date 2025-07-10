@@ -6,16 +6,20 @@ import { useAircraftStore, useCompletedEngineFlightsStore } from '@/store/data-h
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Wrench, AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
-type AircraftWarning = {
-  id: string;
-  aircraftName: string;
+type WarningMessage = {
   message: string;
   severity: 'critical' | 'warning';
+};
+
+type GroupedWarning = {
+  aircraftId: string;
+  aircraftName: string;
+  isOutOfService: boolean;
+  warnings: WarningMessage[];
 };
 
 export function MaintenanceWarnings() {
@@ -47,24 +51,23 @@ export function MaintenanceWarnings() {
     });
   }, [aircraft, completedEngineFlights, anyError]);
   
-  const maintenanceWarnings = useMemo<AircraftWarning[]>(() => {
+  const groupedMaintenanceWarnings = useMemo<GroupedWarning[]>(() => {
     if (anyLoading || anyError) return [];
 
-    const warnings: AircraftWarning[] = [];
+    const groupedWarnings: GroupedWarning[] = [];
     const today = startOfDay(new Date());
 
     aircraftWithCalculatedData.forEach(ac => {
+        const warnings: WarningMessage[] = [];
+
         const isAnnualExpired = ac.annual_review_date ? isBefore(parseISO(ac.annual_review_date), today) : false;
         const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
         
         const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
-        const aircraftDisplayName = `${ac.name}${isEffectivelyOutOfService ? ' (Fuera de Servicio)' : ''}`;
 
         // Add warning for manual out of service, ONLY if it's not already out for expired dates
         if (ac.is_out_of_service && !isAnnualExpired && !isInsuranceExpired) {
              warnings.push({
-                id: `${ac.id}-manual-oos`,
-                aircraftName: aircraftDisplayName,
                 message: ac.out_of_service_reason || 'Marcado como Fuera de Servicio sin motivo específico.',
                 severity: 'critical',
             });
@@ -75,8 +78,6 @@ export function MaintenanceWarnings() {
             const reviewDate = parseISO(ac.annual_review_date);
             if (isAnnualExpired) {
                 warnings.push({
-                    id: `${ac.id}-annual-exp`,
-                    aircraftName: aircraftDisplayName,
                     message: `Revisión Anual VENCIDA el ${format(reviewDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -84,8 +85,6 @@ export function MaintenanceWarnings() {
                 const daysDiff = differenceInDays(reviewDate, today);
                 if (daysDiff <= 30) {
                     warnings.push({
-                        id: `${ac.id}-annual-warn`,
-                        aircraftName: ac.name, // No "Fuera de Servicio" tag if it's just a warning
                         message: `Revisión Anual vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -98,8 +97,6 @@ export function MaintenanceWarnings() {
             const expiryDate = parseISO(ac.insurance_expiry_date);
             if (isInsuranceExpired) {
                 warnings.push({
-                    id: `${ac.id}-insurance-exp`,
-                    aircraftName: aircraftDisplayName,
                     message: `Seguro VENCIDO el ${format(expiryDate, 'dd/MM/yyyy', { locale: es })}`,
                     severity: 'critical',
                 });
@@ -107,8 +104,6 @@ export function MaintenanceWarnings() {
                 const daysDiff = differenceInDays(expiryDate, today);
                 if (daysDiff <= 30) {
                      warnings.push({
-                        id: `${ac.id}-insurance-warn`,
-                        aircraftName: ac.name, // No "Fuera de Servicio" tag if it's just a warning
                         message: `Seguro vence en ${daysDiff} día(s)`,
                         severity: 'warning',
                     });
@@ -119,51 +114,65 @@ export function MaintenanceWarnings() {
         // Check oil hours
         if (ac.hours_since_oil_change !== null && ac.hours_since_oil_change >= 20) {
             warnings.push({
-                id: `${ac.id}-oil`,
-                aircraftName: ac.name, // Oil change is a warning, not an out-of-service event by itself
                 message: `Requiere cambio de aceite (${ac.hours_since_oil_change.toFixed(1)} hs acumuladas)`,
                 severity: 'warning',
             });
         }
+        
+        if (warnings.length > 0) {
+            groupedWarnings.push({
+                aircraftId: ac.id,
+                aircraftName: ac.name,
+                isOutOfService: isEffectivelyOutOfService,
+                warnings: warnings
+            });
+        }
     });
 
-    const uniqueWarnings = Array.from(new Map(warnings.map(item => [item.id, item])).values());
-
-    return uniqueWarnings.sort((a, b) => {
-      if (a.severity === 'critical' && b.severity !== 'critical') return -1;
-      if (a.severity !== 'critical' && b.severity === 'critical') return 1;
+    return groupedWarnings.sort((a, b) => {
+      if (a.isOutOfService && !b.isOutOfService) return -1;
+      if (!a.isOutOfService && b.isOutOfService) return 1;
       return a.aircraftName.localeCompare(b.aircraftName);
     });
   }, [aircraftWithCalculatedData, anyLoading, anyError]);
 
-  if (anyLoading || anyError || maintenanceWarnings.length === 0) {
+  if (anyLoading || anyError || groupedMaintenanceWarnings.length === 0) {
     return null; // Don't render anything if loading, error, or no warnings
   }
 
   return (
-    <Card className="mb-6 border-orange-400 bg-orange-50 shadow-md">
+    <Card className="mb-6 shadow-md">
         <CardHeader>
-            <CardTitle className="flex items-center text-lg text-orange-800">
-                <Wrench className="mr-2 h-5 w-5" />
+            <CardTitle className="text-lg">
                 Avisos de Mantenimiento y Estado
             </CardTitle>
-            <CardDescription className="text-orange-700/90">
-                Las siguientes aeronaves requieren atención. <Link href="/aircraft" className="underline hover:text-orange-800 font-semibold">Ir a Aeronaves</Link> para más detalles.
+            <CardDescription>
+                Las siguientes aeronaves requieren atención. <Link href="/aircraft" className="underline hover:text-primary font-semibold">Ir a Aeronaves</Link> para más detalles.
             </CardDescription>
         </CardHeader>
-        <CardContent>
-            <div className="space-y-2">
-                {maintenanceWarnings.map(warning => (
-                    <Alert key={warning.id} variant={warning.severity === 'critical' ? 'destructive' : 'default'}
-                        className={cn(warning.severity === 'warning' && 'border-blue-400 bg-blue-50 text-blue-900 [&>svg]:text-blue-700')}
-                    >
-                        {warning.severity === 'critical' ? <AlertTriangle className="h-4 w-4" /> : <Info className="h-4 w-4" />}
-                        <AlertDescription>
-                            <span className="font-semibold">{warning.aircraftName}:</span> {warning.message}
-                        </AlertDescription>
-                    </Alert>
-                ))}
-            </div>
+        <CardContent className="space-y-4">
+            {groupedMaintenanceWarnings.map(group => {
+                const isCritical = group.isOutOfService;
+                return (
+                    <Card key={group.aircraftId} className={cn(isCritical ? 'border-destructive bg-destructive/10' : 'border-blue-400 bg-blue-50')}>
+                        <CardHeader className="p-4">
+                            <CardTitle className={cn("text-base flex items-center", isCritical ? 'text-destructive' : 'text-blue-800')}>
+                                {isCritical ? <AlertTriangle className="mr-2 h-4 w-4" /> : <Info className="mr-2 h-4 w-4" />}
+                                {group.aircraftName} - {isCritical ? 'Fuera de Servicio' : 'Requiere Atención'}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0 text-sm">
+                            <ul className="list-disc pl-5 space-y-1">
+                                {group.warnings.map((warning, index) => (
+                                    <li key={index} className={cn(warning.severity === 'critical' ? 'font-semibold text-destructive' : 'text-blue-900')}>
+                                        {warning.message}
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
+                );
+            })}
         </CardContent>
     </Card>
   );
