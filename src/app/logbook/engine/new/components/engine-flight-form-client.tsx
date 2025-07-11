@@ -210,10 +210,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 let instructionMode: 'recibida' | 'impartida' | 'ninguna' = 'ninguna';
                 if (data.flight_purpose === 'instrucción') {
-                  // If there is an instructor, assume the pilot_id is receiving instruction
-                  // The creator of the flight (auth_user_id) could be either.
-                  // This heuristic is tricky but a reasonable starting point.
-                  if (data.instructor_id) {
+                  if (data.instructor_id === null) {
+                    instructionMode = 'ninguna'; 
+                  } else if (data.pilot_id === user.id) {
+                    instructionMode = 'recibida';
+                  } else if (data.instructor_id === user.id) {
+                    instructionMode = 'impartida';
+                  } else {
                      instructionMode = 'recibida';
                   }
                 }
@@ -689,7 +692,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
             await fetchCompletedEngineFlights();
-            await fetchAircraft();
+            await fetchAircraft(); // Forzar la actualización de datos de la aeronave
             router.push('/logbook/engine/list'); 
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
