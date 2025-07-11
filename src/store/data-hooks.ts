@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours } from 'date-fns';
-import { create } from 'zustand';
 
 type Aircraft = BaseAircraft & { hours_since_oil_change?: number | null };
 
@@ -296,13 +295,17 @@ export function usePilotCategoriesStore() {
 
 // AIRCRAFT STORE
 export function useAircraftStore() {
-    const [aircraftWithCalculatedData, setAircraftWithCalculatedData] = useState<Aircraft[]>([]);
+    const [aircraft, setAircraft] = useState<Aircraft[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<any>(null);
     const fetchingRef = useRef(false);
+    const lastFetchTimeRef = useRef(0);
 
-    const fetchAircraft = useCallback(async () => {
-        if (fetchingRef.current) return;
+    const fetchAircraft = useCallback(async (force = false) => {
+        const now = Date.now();
+        if (fetchingRef.current || (!force && now - lastFetchTimeRef.current < 5000)) {
+            return;
+        }
         fetchingRef.current = true;
         setLoading(true);
         setError(null);
@@ -337,7 +340,8 @@ export function useAircraftStore() {
                 return { ...ac, hours_since_oil_change: hours };
             });
 
-            setAircraftWithCalculatedData(calculatedAircraft);
+            setAircraft(calculatedAircraft);
+            lastFetchTimeRef.current = now;
         } catch (e: any) {
             logSupabaseError('Error fetching aircraft data', e);
             setError(e);
@@ -346,6 +350,10 @@ export function useAircraftStore() {
             fetchingRef.current = false;
         }
     }, []);
+
+    useEffect(() => {
+        fetchAircraft();
+    }, [fetchAircraft]);
 
     const addAircraft = useCallback(async (aircraftData: Omit<BaseAircraft, 'id' | 'created_at'>) => {
         setLoading(true);
@@ -356,7 +364,7 @@ export function useAircraftStore() {
             setLoading(false);
             return null;
         }
-        await fetchAircraft(); // Refetch after adding
+        await fetchAircraft(true); // Force refetch after adding
         return data;
     }, [fetchAircraft]);
 
@@ -370,7 +378,7 @@ export function useAircraftStore() {
             setLoading(false);
             return null;
         }
-        await fetchAircraft(); // Refetch after updating
+        await fetchAircraft(true); // Force refetch after updating
         return data;
     }, [fetchAircraft]);
 
@@ -383,17 +391,17 @@ export function useAircraftStore() {
             setLoading(false);
             return false;
         }
-        await fetchAircraft(); // Refetch after deleting
+        await fetchAircraft(true); // Force refetch after deleting
         return true;
     }, [fetchAircraft]);
 
     const getAircraftName = useCallback((aircraftId?: string | null): string => {
         if (!aircraftId) return 'N/A';
-        const ac = aircraftWithCalculatedData.find(a => a.id === aircraftId);
+        const ac = aircraft.find(a => a.id === aircraftId);
         return ac ? ac.name : 'Aeronave no encontrada';
-    }, [aircraftWithCalculatedData]);
+    }, [aircraft]);
 
-    return { aircraftWithCalculatedData, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
+    return { aircraftWithCalculatedData: aircraft, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
 }
 
 
