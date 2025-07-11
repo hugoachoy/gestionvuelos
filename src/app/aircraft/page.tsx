@@ -1,4 +1,5 @@
-import { AircraftClient } from './components/aircraft-client';
+
+import { AircraftClient } from './client';
 import { Suspense } from 'react';
 
 export default function AircraftPage() {

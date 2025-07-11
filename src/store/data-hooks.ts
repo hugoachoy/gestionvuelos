@@ -295,29 +295,21 @@ export function usePilotCategoriesStore() {
 
 
 // AIRCRAFT STORE
-interface AircraftState {
-    aircraft: BaseAircraft[];
-    aircraftWithCalculatedData: Aircraft[];
-    loading: boolean;
-    error: any;
-    fetchAircraft: () => Promise<void>;
-    addAircraft: (data: Omit<BaseAircraft, 'id' | 'created_at'>) => Promise<BaseAircraft | null>;
-    updateAircraft: (data: BaseAircraft) => Promise<BaseAircraft | null>;
-    deleteAircraft: (id: string) => Promise<boolean>;
-    getAircraftName: (id?: string | null) => string;
-}
+export function useAircraftStore() {
+    const [aircraftWithCalculatedData, setAircraftWithCalculatedData] = useState<Aircraft[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<any>(null);
+    const fetchingRef = useRef(false);
 
-export const useAircraftStore = create<AircraftState>((set, get) => ({
-    aircraft: [],
-    aircraftWithCalculatedData: [],
-    loading: true,
-    error: null,
-    fetchAircraft: async () => {
-        set({ loading: true, error: null });
+    const fetchAircraft = useCallback(async () => {
+        if (fetchingRef.current) return;
+        fetchingRef.current = true;
+        setLoading(true);
+        setError(null);
         try {
             const { data: flightsData, error: flightsError } = await supabase
                 .from('completed_engine_flights')
-                .select('*');
+                .select('engine_aircraft_id, date, flight_duration_decimal');
             
             if (flightsError) throw flightsError;
 
@@ -345,52 +337,64 @@ export const useAircraftStore = create<AircraftState>((set, get) => ({
                 return { ...ac, hours_since_oil_change: hours };
             });
 
-            set({ aircraft: aircraftData || [], aircraftWithCalculatedData: calculatedAircraft, loading: false });
+            setAircraftWithCalculatedData(calculatedAircraft);
         } catch (e: any) {
             logSupabaseError('Error fetching aircraft data', e);
-            set({ error: e, loading: false });
+            setError(e);
+        } finally {
+            setLoading(false);
+            fetchingRef.current = false;
         }
-    },
-    addAircraft: async (aircraftData) => {
-        set({ loading: true });
+    }, []);
+
+    const addAircraft = useCallback(async (aircraftData: Omit<BaseAircraft, 'id' | 'created_at'>) => {
+        setLoading(true);
         const { data, error } = await supabase.from('aircraft').insert([aircraftData]).select().single();
         if (error) {
             logSupabaseError('Error adding aircraft', error);
-            set({ error, loading: false });
+            setError(error);
+            setLoading(false);
             return null;
         }
-        await get().fetchAircraft();
+        await fetchAircraft(); // Refetch after adding
         return data;
-    },
-    updateAircraft: async (updatedData) => {
-        set({ loading: true });
+    }, [fetchAircraft]);
+
+    const updateAircraft = useCallback(async (updatedData: BaseAircraft) => {
+        setLoading(true);
         const { id, ...updatePayload } = updatedData;
         const { data, error } = await supabase.from('aircraft').update(updatePayload).eq('id', id).select().single();
         if (error) {
             logSupabaseError('Error updating aircraft', error);
-            set({ error, loading: false });
+            setError(error);
+            setLoading(false);
             return null;
         }
-        await get().fetchAircraft();
+        await fetchAircraft(); // Refetch after updating
         return data;
-    },
-    deleteAircraft: async (id) => {
-        set({ loading: true });
+    }, [fetchAircraft]);
+
+    const deleteAircraft = useCallback(async (id: string) => {
+        setLoading(true);
         const { error } = await supabase.from('aircraft').delete().eq('id', id);
         if (error) {
             logSupabaseError('Error deleting aircraft', error);
-            set({ error, loading: false });
+            setError(error);
+            setLoading(false);
             return false;
         }
-        await get().fetchAircraft();
+        await fetchAircraft(); // Refetch after deleting
         return true;
-    },
-    getAircraftName: (aircraftId) => {
+    }, [fetchAircraft]);
+
+    const getAircraftName = useCallback((aircraftId?: string | null): string => {
         if (!aircraftId) return 'N/A';
-        const ac = get().aircraft.find(a => a.id === aircraftId);
+        const ac = aircraftWithCalculatedData.find(a => a.id === aircraftId);
         return ac ? ac.name : 'Aeronave no encontrada';
-    },
-}));
+    }, [aircraftWithCalculatedData]);
+
+    return { aircraftWithCalculatedData, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
+}
 
 
 // Schedule Store
@@ -850,7 +854,7 @@ export function useCompletedGliderFlightsStore() {
         .order('departure_time', { ascending: true });
       
       if (pilotId) {
-        query = query.eq('pilot_id', pilotId);
+        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
       }
 
       const { data, error: fetchError } = await query;
@@ -986,7 +990,7 @@ export function useCompletedEngineFlightsStore() {
         .order('departure_time', { ascending: true });
         
       if (pilotId) {
-        query = query.eq('pilot_id', pilotId);
+        query = query.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
       }
 
       const { data, error: fetchError } = await query;
@@ -1017,10 +1021,6 @@ export function useCompletedEngineFlightsStore() {
         setError(insertError);
       } else {
         result = newFlight;
-        if (newFlight) {
-          await fetchCompletedEngineFlights();
-          useAircraftStore.getState().fetchAircraft();
-        }
       }
     } catch (e) {
       logSupabaseError('Unexpected error adding completed engine flight', e);
@@ -1029,7 +1029,7 @@ export function useCompletedEngineFlightsStore() {
       setLoading(false);
     }
     return result;
-  }, [fetchCompletedEngineFlights]);
+  }, []);
 
   const updateCompletedEngineFlight = useCallback(async (flightId: string, flightData: Partial<Omit<CompletedEngineFlight, 'id' | 'created_at' | 'logbook_type' | 'auth_user_id'>>) => {
     let result = null;
@@ -1047,10 +1047,6 @@ export function useCompletedEngineFlightsStore() {
         setError(updateError);
       } else {
         result = updatedFlight;
-        if (updatedFlight) {
-          await fetchCompletedEngineFlights();
-          useAircraftStore.getState().fetchAircraft();
-        }
       }
     } catch (e) {
       logSupabaseError('Unexpected error updating completed engine flight', e);
@@ -1059,7 +1055,7 @@ export function useCompletedEngineFlightsStore() {
       setLoading(false);
     }
     return result;
-  }, [fetchCompletedEngineFlights]);
+  }, []);
 
 
   const deleteCompletedEngineFlight = useCallback(async (flightId: string) => {
@@ -1072,8 +1068,6 @@ export function useCompletedEngineFlightsStore() {
         setError(deleteError);
         return false;
       }
-      await fetchCompletedEngineFlights();
-      useAircraftStore.getState().fetchAircraft();
       return true;
     } catch (e) {
       logSupabaseError('Unexpected error deleting completed engine flight', e);
@@ -1082,7 +1076,7 @@ export function useCompletedEngineFlightsStore() {
     } finally {
       setLoading(false);
     }
-  }, [fetchCompletedEngineFlights]);
+  }, []);
 
   return { completedEngineFlights, loading, error, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange, fetchCompletedEngineFlights };
 }
