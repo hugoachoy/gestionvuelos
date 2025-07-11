@@ -105,7 +105,7 @@ export function PilotClient() {
   }, [fetchPilots, fetchCategories, fetchAircrafts, loading, categoriesLoading, aircraftLoading, pilots.length, pilotCategories.length, aircraft.length]);
 
 
-  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user || aircraftLoading;
+  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user || aircraftLoading || !aircraft;
   const combinedError = error || categoriesError || aircraftError;
 
   const sortedPilots = useMemo(() => {
