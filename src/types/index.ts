@@ -106,23 +106,21 @@ export const GLIDER_FLIGHT_PURPOSES = [
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
-// Mirroring the glider logic for engine flights for consistency.
+// Reverted to original simpler structure to match DB constraints
 export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
   'Remolque planeador',
   'local',
   'viaje',
-  'Instrucción (Recibida)',
-  'Instrucción (Impartida)'
+  'instrucción'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
 
 // This constant remains for the UI form dropdown, but the underlying type is now more explicit.
 export const ENGINE_FLIGHT_PURPOSE_OPTIONS = [
-  { value: 'Instrucción (Recibida)', label: 'Instrucción (Recibida)' },
-  { value: 'Instrucción (Impartida)', label: 'Instrucción (Impartida)' },
+  { value: 'instrucción', label: 'Instrucción' },
   { value: 'Remolque planeador', label: 'Remolque' },
   { value: 'entrenamiento', label: 'Entrenamiento' },
   { value: 'readaptación', label: 'Readaptación' },
@@ -141,8 +139,8 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'viaje': 'Travesía',
   'local': 'Local',
   
-  // Engine-specific DB value - 'instrucción' is now deprecated in favor of explicit types
-  'instrucción': 'Instrucción', // Kept for backwards compatibility if old data exists
+  // Engine-specific DB value
+  'instrucción': 'Instrucción',
   'Remolque planeador': 'Remolque',
 
   // Glider-specific / UI specific / New Engine specific
