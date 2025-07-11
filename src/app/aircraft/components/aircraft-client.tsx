@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react'; 
-import { useState, useMemo, useCallback } from 'react'; 
+import { useState, useMemo, useCallback, useEffect } from 'react'; 
 import type { Aircraft } from '@/types';
 import { useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext'; 
@@ -48,6 +48,10 @@ export function AircraftClient() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
 
+  useEffect(() => {
+    fetchAircraft();
+  }, [fetchAircraft]);
+
   const handleAddAircraft = () => {
     setEditingAircraft(undefined);
     setIsFormOpen(true);
@@ -90,7 +94,7 @@ export function AircraftClient() {
   };
 
   const handleRefreshData = useCallback(() => {
-    fetchAircraft(); // This will trigger all dependent fetches in the store
+    fetchAircraft();
   }, [fetchAircraft]);
 
   const sortedAircraft = useMemo(() => {
@@ -112,7 +116,7 @@ export function AircraftClient() {
     return (
       <div className="text-destructive">
         Error al cargar aeronaves: {error.message}
-        <Button onClick={() => fetchAircraft()} className="ml-2">Reintentar</Button>
+        <Button onClick={handleRefreshData} className="ml-2">Reintentar</Button>
       </div>
     );
   }
@@ -281,7 +285,6 @@ export function AircraftClient() {
         <AircraftForm
             open={isFormOpen}
             onOpenChange={setIsFormOpen}
-            onSubmit={handleSubmitForm}
             aircraft={editingAircraft}
         />
       )}
