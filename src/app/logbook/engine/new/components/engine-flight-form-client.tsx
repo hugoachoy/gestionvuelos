@@ -186,7 +186,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (isEditMode && flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '' && user) {
+      if (isEditMode && flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '' && user && currentUserLinkedPilotId) {
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
         setInitialFlightData(null);
@@ -204,15 +204,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setFlightFetchError(error.message || "Error al cargar los detalles del vuelo.");
             }
           } else if (data) {
-            if (data.auth_user_id === user.id || user.is_admin) {
+            if (data.pilot_id === currentUserLinkedPilotId || data.instructor_id === currentUserLinkedPilotId || user.is_admin) {
                 setInitialFlightData(data);
                 
                 let uiFlightPurpose: string = data.flight_purpose;
                  if (data.flight_purpose === 'instrucción') {
-                    if (data.pilot_id === user.id) {
-                      uiFlightPurpose = 'Instrucción (Impartida)';
+                    if (data.instructor_id === currentUserLinkedPilotId) {
+                        uiFlightPurpose = 'Instrucción (Impartida)';
                     } else {
-                       uiFlightPurpose = 'Instrucción (Recibida)';
+                        uiFlightPurpose = 'Instrucción (Recibida)';
                     }
                 }
 
@@ -245,7 +245,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       }
     };
 
-    if (user && pilots.length > 0 && categories.length > 0) {
+    if (user && pilots.length > 0 && categories.length > 0 && currentUserLinkedPilotId) {
         if (isEditMode) {
             loadFlightDetails();
         } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && aircraft.length > 0) {
@@ -605,14 +605,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             finalInstructorIdForSave = formData.instructor_id;
         } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
             dbFlightPurpose = 'instrucción';
-            // The person giving instruction is the 'pilot_id', so instructor_id is the student
-            finalInstructorIdForSave = formData.pilot_id; // The logged-in instructor becomes the instructor_id
-            finalPilotId = formData.pilot_id; // The student is the pilot_id
-            // This is complex. A better model would have PIC, SIC, Student fields.
-            // Let's adjust based on who is logged in.
             if (currentUserLinkedPilotId) {
                 finalInstructorIdForSave = currentUserLinkedPilotId;
                 finalPilotId = formData.pilot_id; // The selected pilot from combobox is the student
+            } else {
+                finalInstructorIdForSave = null; // Should not happen if UI logic is correct
             }
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
@@ -668,7 +665,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 return;
             }
             const { id, created_at, logbook_type, auth_user_id, ...restOfInitialData } = initialFlightData;
-            const updatePayload = { ...restOfInitialData, ...submissionData };
+            
+            // Explicitly use the new times from submissionData, not from the original data
+            const updatePayload = {
+                ...restOfInitialData, 
+                ...submissionData,
+                departure_time: submissionData.departure_time,
+                arrival_time: submissionData.arrival_time,
+            };
 
             result = await updateCompletedEngineFlight(flightIdToLoad, updatePayload);
         } else if (!isEditMode) {
@@ -693,9 +697,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            await fetchCompletedEngineFlights();
             await fetchAircraft(); 
-            router.push('/aircraft'); 
+            router.push('/logbook/engine/list'); 
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
         }
@@ -815,7 +818,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     <Card className="max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>{isEditMode ? 'Editar Vuelo a Motor' : 'Detalles del Vuelo a Motor'}</CardTitle>
-         {isEditMode && initialFlightData?.auth_user_id !== user?.id && user?.is_admin && (
+         {isEditMode && initialFlightData?.pilot_id !== currentUserLinkedPilotId && initialFlightData?.instructor_id !== currentUserLinkedPilotId && user?.is_admin && (
             <Alert variant="default" className="mt-2 border-blue-500 bg-blue-50">
                 <Info className="h-4 w-4 text-blue-600" />
                 <AlertTitle className="text-blue-700">Modo Administrador</AlertTitle>
