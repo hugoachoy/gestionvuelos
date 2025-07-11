@@ -68,6 +68,7 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
+  // Now, 'Instrucción (Recibida)' is the only UI value that strictly requires an instructor.
   if (data.flight_purpose === 'Instrucción (Recibida)') {
     return !!data.instructor_id;
   }
@@ -122,7 +123,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate } = useCompletedEngineFlightsStore();
+  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -143,7 +144,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
 
   const isEditMode = !!flightIdToLoad;
-  const picOrStudentLabel = 'Piloto';
 
   const form = useForm<EngineFlightFormData>({
     resolver: zodResolver(engineFlightSchema),
@@ -209,13 +209,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 let uiFlightPurpose: string = data.flight_purpose;
                  if (data.flight_purpose === 'instrucción') {
-                    // If the logged-in user is the one who created the flight log (auth_user_id) AND they are the pilot_id of the flight,
-                    // it is implied they were the instructor giving the class (since the other person would be the instructor_id).
-                    if (data.auth_user_id && data.auth_user_id === user.id && data.pilot_id === data.auth_user_id) {
+                    if (data.pilot_id === user.id) {
                       uiFlightPurpose = 'Instrucción (Impartida)';
-                    } else if (data.instructor_id) { // It's an instructional flight, but the user is not the instructor
-                      uiFlightPurpose = 'Instrucción (Recibida)';
-                    } else { // Fallback, assume student if unclear
+                    } else {
                        uiFlightPurpose = 'Instrucción (Recibida)';
                     }
                 }
@@ -305,6 +301,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
   const watchedEngineAircraftId = form.watch("engine_aircraft_id");
+  
+  const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
+  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
+  const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto';
 
   useEffect(() => {
     setAircraftWarning(null);
@@ -323,11 +323,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [watchedEngineAircraftId, aircraft, watchedDate]);
   
   useEffect(() => {
-    if (watchedFlightPurpose === 'Instrucción (Impartida)' && form.getValues("instructor_id")) {
+    // If user is giving instruction, they cannot be their own instructor. Clear if set.
+    if (isInstructionGivenMode && form.getValues("instructor_id")) {
         form.setValue("instructor_id", null, { shouldValidate: true });
         setInstructorSearchTerm('');
     }
-  }, [watchedFlightPurpose, form]);
+  }, [isInstructionGivenMode, form]);
 
   useEffect(() => {
     if (watchedFlightPurpose === 'Remolque planeador') {
@@ -459,11 +460,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const sortedInstructors = useMemo(() => {
     if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
+    // If the main pilot is giving instruction, the instructor list should be empty.
+    const instructorPilotId = isInstructionGivenMode ? watchedPilotId : null;
+
     return pilots.filter(pilot =>
       pilot.category_ids.includes(instructorAvionCategoryId) &&
-      pilot.id !== watchedPilotId
+      pilot.id !== watchedPilotId && // Instructor cannot be the PIC/Student
+      (!instructorPilotId || pilot.id !== instructorPilotId) // Failsafe check
     ).sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, pilotsLoading, instructorAvionCategoryId, watchedPilotId]);
+  }, [pilots, pilotsLoading, instructorAvionCategoryId, watchedPilotId, isInstructionGivenMode]);
 
 
   const filteredEngineAircraft = useMemo(() => {
@@ -559,10 +564,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const currentIsInstructor = formData.flight_purpose === 'Instrucción (Impartida)';
             const currentIsStudent = formData.flight_purpose === 'Instrucción (Recibida)';
             
-            // Check if the current flight is part of a valid instruction pair with the conflicting one
             const isInstructionPair = overlappingFlights.length === 1 &&
-              ( (currentIsStudent && overlappingFlights[0].pilot_id === formData.instructor_id) || // Current is student, conflict is their instructor
-                (currentIsInstructor && overlappingFlights[0].instructor_id === formData.pilot_id) ); // Current is instructor, conflict is their student
+              ( (currentIsStudent && overlappingFlights[0].pilot_id === formData.instructor_id) ||
+                (currentIsInstructor && overlappingFlights[0].instructor_id === formData.pilot_id) );
                 
             if (isInstructionPair) {
                 const existingFlight = overlappingFlights[0];
@@ -593,6 +597,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
         
         let dbFlightPurpose: EngineFlightPurpose;
+        let finalPilotId = formData.pilot_id;
         let finalInstructorIdForSave: string | null | undefined = null;
         
         if (formData.flight_purpose === 'Instrucción (Recibida)') {
@@ -600,7 +605,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             finalInstructorIdForSave = formData.instructor_id;
         } else if (formData.flight_purpose === 'Instrucción (Impartida)') {
             dbFlightPurpose = 'instrucción';
-            finalInstructorIdForSave = null;
+            // The person giving instruction is the 'pilot_id', so instructor_id is the student
+            finalInstructorIdForSave = formData.pilot_id; // The logged-in instructor becomes the instructor_id
+            finalPilotId = formData.pilot_id; // The student is the pilot_id
+            // This is complex. A better model would have PIC, SIC, Student fields.
+            // Let's adjust based on who is logged in.
+            if (currentUserLinkedPilotId) {
+                finalInstructorIdForSave = currentUserLinkedPilotId;
+                finalPilotId = formData.pilot_id; // The selected pilot from combobox is the student
+            }
         } else {
             dbFlightPurpose = formData.flight_purpose as EngineFlightPurpose;
             finalInstructorIdForSave = null;
@@ -626,6 +639,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         
         const submissionData = {
             ...formData,
+            pilot_id: finalPilotId,
             instructor_id: finalInstructorIdForSave,
             flight_purpose: dbFlightPurpose,
             date: format(formData.date, 'yyyy-MM-dd'),
@@ -653,7 +667,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setIsSubmittingForm(false);
                 return;
             }
-            // Use the new submissionData which has the updated times, not the old initialFlightData
             const { id, created_at, logbook_type, auth_user_id, ...restOfInitialData } = initialFlightData;
             const updatePayload = { ...restOfInitialData, ...submissionData };
 
@@ -680,7 +693,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            await fetchAircraft(); // Force a refresh of aircraft data
+            await fetchCompletedEngineFlights();
+            await fetchAircraft(); 
             router.push('/aircraft'); 
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
@@ -946,7 +960,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               )}
             />
 
-            {watchedFlightPurpose === 'Instrucción (Recibida)' && (
+            {isInstructionTakenMode && (
               <FormField
                   control={form.control}
                   name="instructor_id"
