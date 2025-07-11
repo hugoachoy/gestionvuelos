@@ -119,8 +119,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const aircraftStore = useAircraftStore();
-  const { aircraft, loading: aircraftLoading, fetchAircraft } = aircraftStore;
+  const { aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
   const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate } = useCompletedEngineFlightsStore();
@@ -210,15 +209,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 let uiFlightPurpose: string = data.flight_purpose;
                  if (data.flight_purpose === 'instrucción') {
-                    if (data.instructor_id && data.auth_user_id && pilots.length > 0) {
-                        const instructorPilot = pilots.find(p => p.id === data.instructor_id);
-                        if (instructorPilot && instructorPilot.auth_user_id === data.auth_user_id) {
-                           uiFlightPurpose = 'Instrucción (Impartida)';
-                        } else {
-                           uiFlightPurpose = 'Instrucción (Recibida)';
-                        }
-                    } else {
-                        uiFlightPurpose = 'Instrucción (Recibida)';
+                    // If the logged-in user is the one who created the flight log (auth_user_id) AND they are the pilot_id of the flight,
+                    // it is implied they were the instructor giving the class (since the other person would be the instructor_id).
+                    if (data.auth_user_id && data.auth_user_id === user.id && data.pilot_id === data.auth_user_id) {
+                      uiFlightPurpose = 'Instrucción (Impartida)';
+                    } else if (data.instructor_id) { // It's an instructional flight, but the user is not the instructor
+                      uiFlightPurpose = 'Instrucción (Recibida)';
+                    } else { // Fallback, assume student if unclear
+                       uiFlightPurpose = 'Instrucción (Recibida)';
                     }
                 }
 
@@ -520,7 +518,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
         
-        const selectedAircraft = aircraftStore.aircraft.find(ac => ac.id === formData.engine_aircraft_id);
+        const selectedAircraft = aircraft.find(ac => ac.id === formData.engine_aircraft_id);
         if (!selectedAircraft || (selectedAircraft.type !== 'Tow Plane' && selectedAircraft.type !== 'Avión')) {
           toast({
             title: "Error de Aeronave",
