@@ -309,7 +309,7 @@ export function ScheduleClient() {
   };
 
   const filteredAndSortedEntries = useMemo(() => {
-    if (!selectedDate || !scheduleEntries || categoriesLoading || !categories.length || aircraftLoading || !aircraft.length) {
+    if (!selectedDate || !scheduleEntries || categoriesLoading || aircraftLoading || !pilots?.length || !categories?.length || !aircraft?.length) {
       return [];
     }
 
@@ -324,7 +324,7 @@ export function ScheduleClient() {
       // Secondary sort by time if priorities are equal
       return a.start_time.localeCompare(b.start_time);
     });
-  }, [selectedDate, scheduleEntries, categories, categoriesLoading, aircraft, aircraftLoading]);
+  }, [selectedDate, scheduleEntries, categories, categoriesLoading, aircraft, aircraftLoading, pilots]);
 
 
   const handleRefreshAll = useCallback(() => {
