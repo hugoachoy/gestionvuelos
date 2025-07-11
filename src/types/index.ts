@@ -106,19 +106,20 @@ export const GLIDER_FLIGHT_PURPOSES = [
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
-// These are the values the ENGINE flight log table in the database accepts.
+// Mirroring the glider logic for engine flights for consistency.
 export const ENGINE_FLIGHT_PURPOSES = [
   'entrenamiento',
   'readaptación',
   'Remolque planeador',
-  'instrucción',
   'local',
-  'viaje'
+  'viaje',
+  'Instrucción (Recibida)',
+  'Instrucción (Impartida)'
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
 
-// New constant for the ENGINE form dropdown options, providing a better UX
-// We map these UI-friendly values to the single 'instrucción' value expected by the DB.
+
+// This constant remains for the UI form dropdown, but the underlying type is now more explicit.
 export const ENGINE_FLIGHT_PURPOSE_OPTIONS = [
   { value: 'Instrucción (Recibida)', label: 'Instrucción (Recibida)' },
   { value: 'Instrucción (Impartida)', label: 'Instrucción (Impartida)' },
@@ -140,16 +141,16 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'viaje': 'Travesía',
   'local': 'Local',
   
-  // Engine-specific DB value
-  'instrucción': 'Instrucción',
+  // Engine-specific DB value - 'instrucción' is now deprecated in favor of explicit types
+  'instrucción': 'Instrucción', // Kept for backwards compatibility if old data exists
   'Remolque planeador': 'Remolque',
 
-  // Glider-specific / UI specific
+  // Glider-specific / UI specific / New Engine specific
   'Instrucción (Recibida)': 'Instrucción (Recibida)',
   'Instrucción (Impartida)': 'Instrucción (Impartida)',
 
   // Schedule IDs for mapping in forms
-  'instruction_taken': 'Instrucción',
+  'instruction_taken': 'Instrucción (Recibida)',
   'instruction_given': 'Instrucción (Impartida)',
   'towage': 'Remolque',
   'trip': 'Travesía',

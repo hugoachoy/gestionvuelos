@@ -197,7 +197,7 @@ export function FlightStatsClient() {
               newStats.engineTowFlights += tows;
           } else {
               newStats.engineTotalFlights += 1;
-              if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
+              if (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
                   newStats.engineInstructionTakenHours += flight.flight_duration_decimal;
                   newStats.engineInstructionTakenFlights += 1;
               } else {
@@ -205,7 +205,7 @@ export function FlightStatsClient() {
                   newStats.engineOtherFlights += 1;
               }
           }
-        } else if (flight.instructor_id === pilotIdToFetch && (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación')) {
+        } else if (flight.instructor_id === pilotIdToFetch && (flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'Instrucción (Recibida)')) {
             newStats.engineInstructionGivenHours += flight.flight_duration_decimal;
             newStats.engineInstructionGivenFlights += 1;
         }
@@ -221,7 +221,7 @@ export function FlightStatsClient() {
               newStats.engineTowFlights += tows;
           } else {
               newStats.engineTotalFlights += 1;
-              if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
+              if (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
                   newStats.engineInstructionTotalHours += flight.flight_duration_decimal;
                   newStats.engineInstructionTotalFlights += 1;
               } else {
