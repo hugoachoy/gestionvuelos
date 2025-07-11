@@ -8,7 +8,7 @@ import { useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext'; 
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, RefreshCw, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import { AircraftForm } from './aircraft-form';
+import { AircraftForm } from './components/aircraft-form';
 import { PageHeader } from '@/components/common/page-header';
 import { DeleteDialog } from '@/components/common/delete-dialog';
 import {
@@ -25,7 +25,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { AircraftReportButton } from './aircraft-report-button';
+import { AircraftReportButton } from './components/aircraft-report-button';
 
 const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Tow Plane': 'Avión Remolcador',
