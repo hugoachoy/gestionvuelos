@@ -655,7 +655,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 setIsSubmittingForm(false);
                 return;
             }
-            const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
+            // Use the new submissionData which has the updated times, not the old initialFlightData
+            const { id, created_at, logbook_type, auth_user_id, ...restOfInitialData } = initialFlightData;
+            const updatePayload = { ...restOfInitialData, ...submissionData };
+
             result = await updateCompletedEngineFlight(flightIdToLoad, updatePayload);
         } else if (!isEditMode) {
              if (!flightIdToLoad || flightIdToLoad.trim() === '') {

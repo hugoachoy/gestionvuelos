@@ -538,7 +538,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 setIsSubmittingForm(false);
                 return;
             }
-            const { id, created_at, logbook_type, auth_user_id, ...updatePayload } = { ...initialFlightData, ...submissionData };
+            const { id, created_at, logbook_type, auth_user_id, ...restOfInitialData } = initialFlightData;
+            const updatePayload = { ...restOfInitialData, ...submissionData };
             result = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
         } else if (!isEditMode) {
              if (!flightIdToLoad || flightIdToLoad.trim() === '') {
