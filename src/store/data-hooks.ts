@@ -320,16 +320,8 @@ export function useAircraftStore() {
                     return { ...ac, hours_since_oil_change: null, total_oil_added_since_review: null };
                 }
 
-                const oilChangeDate = ac.last_oil_change_date ? parseISO(ac.last_oil_change_date) : null;
-                const reviewDate = ac.last_25_50_hour_review_date ? parseISO(ac.last_25_50_hour_review_date) : null;
+                const effectiveStartDate = ac.last_oil_change_date ? parseISO(ac.last_oil_change_date) : null;
                 
-                let effectiveStartDate: Date | null = null;
-                if (oilChangeDate && reviewDate) {
-                    effectiveStartDate = oilChangeDate > reviewDate ? oilChangeDate : reviewDate;
-                } else {
-                    effectiveStartDate = oilChangeDate || reviewDate;
-                }
-
                 if (!effectiveStartDate || !isValidDate(effectiveStartDate)) {
                      return { ...ac, hours_since_oil_change: 0, total_oil_added_since_review: 0 };
                 }

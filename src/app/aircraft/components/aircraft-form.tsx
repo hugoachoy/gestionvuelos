@@ -54,7 +54,6 @@ const aircraftSchema = z.object({
   annual_review_date: z.date().nullable().optional(),
   last_oil_change_date: z.date().nullable().optional(),
   insurance_expiry_date: z.date().nullable().optional(),
-  last_25_50_hour_review_date: z.date().nullable().optional(),
 });
 
 type AircraftFormData = z.infer<typeof aircraftSchema>;
@@ -70,7 +69,6 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
   const [isAnnualPickerOpen, setAnnualPickerOpen] = useState(false);
   const [isOilPickerOpen, setOilPickerOpen] = useState(false);
   const [isInsurancePickerOpen, setInsurancePickerOpen] = useState(false);
-  const [isReviewPickerOpen, setReviewPickerOpen] = useState(false);
 
   const form = useForm<AircraftFormData>({
     resolver: zodResolver(aircraftSchema),
@@ -82,7 +80,6 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
       annual_review_date: null,
       last_oil_change_date: null,
       insurance_expiry_date: null,
-      last_25_50_hour_review_date: null,
     },
   });
 
@@ -122,7 +119,6 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
       annual_review_date: data.annual_review_date ? format(data.annual_review_date, 'yyyy-MM-dd') : null,
       last_oil_change_date: data.last_oil_change_date ? format(data.last_oil_change_date, 'yyyy-MM-dd') : null,
       insurance_expiry_date: data.insurance_expiry_date ? format(data.insurance_expiry_date, 'yyyy-MM-dd') : null,
-      last_25_50_hour_review_date: data.last_25_50_hour_review_date ? format(data.last_25_50_hour_review_date, 'yyyy-MM-dd') : null,
       out_of_service_reason: data.is_out_of_service ? data.out_of_service_reason : null,
     };
     if (aircraft?.id) {
@@ -145,7 +141,6 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
             annual_review_date: aircraft.annual_review_date && isValid(parseISO(aircraft.annual_review_date)) ? parseISO(aircraft.annual_review_date) : null,
             last_oil_change_date: aircraft.last_oil_change_date && isValid(parseISO(aircraft.last_oil_change_date)) ? parseISO(aircraft.last_oil_change_date) : null,
             insurance_expiry_date: aircraft.insurance_expiry_date && isValid(parseISO(aircraft.insurance_expiry_date)) ? parseISO(aircraft.insurance_expiry_date) : null,
-            last_25_50_hour_review_date: aircraft.last_25_50_hour_review_date && isValid(parseISO(aircraft.last_25_50_hour_review_date)) ? parseISO(aircraft.last_25_50_hour_review_date) : null,
           }
         : {
             name: '',
@@ -155,7 +150,6 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
             annual_review_date: null,
             last_oil_change_date: null,
             insurance_expiry_date: null,
-            last_25_50_hour_review_date: null,
           };
       form.reset(defaultValues);
 
@@ -314,40 +308,8 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
                           />
                         </PopoverContent>
                       </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="last_25_50_hour_review_date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Fecha de Revisión (25/50 hs)</FormLabel>
-                      <Popover open={isReviewPickerOpen} onOpenChange={setReviewPickerOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                            >
-                              {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={(date) => { field.onChange(date); setReviewPickerOpen(false); }}
-                            initialFocus
-                            locale={es}
-                          />
-                        </PopoverContent>
-                      </Popover>
                       <FormDescription className="text-xs">
-                        Esta fecha reinicia el contador de horas de aceite.
+                        Esta fecha reinicia el contador de horas y el total de aceite agregado.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
