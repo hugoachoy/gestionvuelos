@@ -35,6 +35,7 @@ export interface Aircraft {
   annual_review_date: string | null;
   last_oil_change_date: string | null;
   insurance_expiry_date: string | null;
+  last_25_50_hour_review_date: string | null; // New field for review date
   created_at?: string;
 }
 

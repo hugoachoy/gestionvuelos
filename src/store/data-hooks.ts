@@ -6,7 +6,7 @@ import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, Dai
 import { supabase } from '@/lib/supabaseClient';
 import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours } from 'date-fns';
 
-type Aircraft = BaseAircraft & { hours_since_oil_change?: number | null };
+type Aircraft = BaseAircraft & { hours_since_oil_change?: number | null, total_oil_added_since_review?: number | null };
 
 // Helper function for more detailed error logging
 function logSupabaseError(context: string, error: any) {
@@ -304,7 +304,7 @@ export function useAircraftStore() {
         try {
             const { data: flightsData, error: flightsError } = await supabase
                 .from('completed_engine_flights')
-                .select('engine_aircraft_id, date, flight_duration_decimal');
+                .select('engine_aircraft_id, date, flight_duration_decimal, oil_added_liters');
             
             if (flightsError) throw flightsError;
 
@@ -316,20 +316,34 @@ export function useAircraftStore() {
             if (aircraftError) throw aircraftError;
 
             const calculatedAircraft = (aircraftData || []).map(ac => {
-                if (ac.type === 'Glider' || !ac.last_oil_change_date) {
-                    return { ...ac, hours_since_oil_change: null };
+                if (ac.type === 'Glider') {
+                    return { ...ac, hours_since_oil_change: null, total_oil_added_since_review: null };
                 }
-                const lastOilChangeDate = parseISO(ac.last_oil_change_date);
-                if (!isValidDate(lastOilChangeDate)) {
-                    return { ...ac, hours_since_oil_change: 0 };
+
+                const oilChangeDate = ac.last_oil_change_date ? parseISO(ac.last_oil_change_date) : null;
+                const reviewDate = ac.last_25_50_hour_review_date ? parseISO(ac.last_25_50_hour_review_date) : null;
+                
+                let effectiveStartDate: Date | null = null;
+                if (oilChangeDate && reviewDate) {
+                    effectiveStartDate = oilChangeDate > reviewDate ? oilChangeDate : reviewDate;
+                } else {
+                    effectiveStartDate = oilChangeDate || reviewDate;
                 }
+
+                if (!effectiveStartDate || !isValidDate(effectiveStartDate)) {
+                     return { ...ac, hours_since_oil_change: 0, total_oil_added_since_review: 0 };
+                }
+                
                 const relevantFlights = (flightsData || []).filter(flight => 
                     flight.engine_aircraft_id === ac.id &&
                     isValidDate(parseISO(flight.date)) &&
-                    !isBefore(startOfDay(parseISO(flight.date)), startOfDay(lastOilChangeDate))
+                    !isBefore(startOfDay(parseISO(flight.date)), startOfDay(effectiveStartDate))
                 );
+
                 const hours = relevantFlights.reduce((sum, flight) => sum + flight.flight_duration_decimal, 0);
-                return { ...ac, hours_since_oil_change: hours };
+                const totalOilAdded = relevantFlights.reduce((sum, flight) => sum + (flight.oil_added_liters || 0), 0);
+
+                return { ...ac, hours_since_oil_change: hours, total_oil_added_since_review: totalOilAdded };
             });
 
             setAircraft(calculatedAircraft);

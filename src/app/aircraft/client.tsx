@@ -75,26 +75,8 @@ export function AircraftClient() {
     setAircraftToDelete(null);
   };
 
-  const handleSubmitForm = async (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => {
-    const dataWithDefaults = {
-      is_out_of_service: data.is_out_of_service ?? false,
-      out_of_service_reason: data.out_of_service_reason ?? null,
-      annual_review_date: data.annual_review_date ?? null,
-      last_oil_change_date: data.last_oil_change_date ?? null,
-      insurance_expiry_date: data.insurance_expiry_date ?? null,
-      ...data,
-    };
-
-    if (aircraftId) {
-      await updateAircraft({ ...dataWithDefaults, id: aircraftId } as Aircraft);
-    } else {
-      await addAircraft(dataWithDefaults);
-    }
-    setIsFormOpen(false);
-  };
-
   const handleRefreshData = useCallback(() => {
-    fetchAircraft();
+    fetchAircraft(true);
   }, [fetchAircraft]);
 
   const sortedAircraft = useMemo(() => {
@@ -163,13 +145,14 @@ export function AircraftClient() {
                 <TableHead>Venc. Anual</TableHead>
                 <TableHead>Venc. Seguro</TableHead>
                 <TableHead>Hs. Aceite</TableHead>
+                <TableHead>Aceite Agregado (Lts)</TableHead>
                 {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedAircraft.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={currentUser?.is_admin ? 7 : 6} className="text-center h-24">
+                  <TableCell colSpan={currentUser?.is_admin ? 8 : 7} className="text-center h-24">
                     No hay aeronaves registradas.
                   </TableCell>
                 </TableRow>
@@ -179,7 +162,6 @@ export function AircraftClient() {
                   const isAnnualExpired = ac.annual_review_date ? isBefore(parseISO(ac.annual_review_date), today) : false;
                   const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
 
-                  // --- Overall Status Logic ---
                   const isEffectivelyOutOfService = ac.is_out_of_service || isAnnualExpired || isInsuranceExpired;
                   let effectiveOutOfServiceReason = ac.is_out_of_service ? ac.out_of_service_reason : null;
                   if (!effectiveOutOfServiceReason) {
@@ -187,7 +169,6 @@ export function AircraftClient() {
                     else if (isInsuranceExpired) effectiveOutOfServiceReason = 'Seguro vencido';
                   }
 
-                  // --- Individual Date Warning Logic ---
                   let annualReviewDisplay: React.ReactNode = 'N/A';
                   if (ac.annual_review_date && isValid(parseISO(ac.annual_review_date))) {
                     const reviewDate = parseISO(ac.annual_review_date);
@@ -251,14 +232,19 @@ export function AircraftClient() {
                       <TableCell>{annualReviewDisplay}</TableCell>
                       <TableCell>{insuranceExpiryDisplay}</TableCell>
                       <TableCell>
-                        {ac.hours_since_oil_change !== null && ac.hours_since_oil_change !== undefined ? (
+                        {(ac as any).hours_since_oil_change !== null && (ac as any).hours_since_oil_change !== undefined ? (
                            <div className="flex items-center gap-2">
-                            <span>{ac.hours_since_oil_change.toFixed(1)} hs</span>
-                            {ac.hours_since_oil_change >= 20 && (
+                            <span>{(ac as any).hours_since_oil_change.toFixed(1)} hs</span>
+                            {(ac as any).hours_since_oil_change >= 20 && (
                                 <Badge variant="destructive" className="text-xs"><AlertTriangle className="h-3 w-3 mr-1" />Revisar</Badge>
                             )}
                            </div>
                         ) : '-'}
+                      </TableCell>
+                       <TableCell>
+                        {(ac.type !== 'Glider' && (ac as any).total_oil_added_since_review !== null && (ac as any).total_oil_added_since_review !== undefined) ? 
+                            `${(ac as any).total_oil_added_since_review} Lts` : '-'
+                        }
                       </TableCell>
                       {currentUser?.is_admin && ( 
                         <TableCell className="text-right">
