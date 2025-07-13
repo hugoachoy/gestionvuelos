@@ -144,6 +144,7 @@ export function AircraftClient() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Venc. Anual</TableHead>
                 <TableHead>Venc. Seguro</TableHead>
+                <TableHead>Últ. Cambio Aceite</TableHead>
                 <TableHead>Hs. Aceite</TableHead>
                 <TableHead>Aceite Agregado (Lts)</TableHead>
                 {currentUser?.is_admin && <TableHead className="text-right">Acciones</TableHead>}
@@ -152,7 +153,7 @@ export function AircraftClient() {
             <TableBody>
               {sortedAircraft.length === 0 && !isLoadingUI ? (
                 <TableRow>
-                  <TableCell colSpan={currentUser?.is_admin ? 8 : 7} className="text-center h-24">
+                  <TableCell colSpan={currentUser?.is_admin ? 9 : 8} className="text-center h-24">
                     No hay aeronaves registradas.
                   </TableCell>
                 </TableRow>
@@ -202,6 +203,11 @@ export function AircraftClient() {
                           insuranceExpiryDisplay = formattedDate;
                       }
                   }
+
+                  let lastOilChangeDateDisplay: React.ReactNode = '-';
+                  if (ac.last_oil_change_date && isValid(parseISO(ac.last_oil_change_date))) {
+                     lastOilChangeDateDisplay = format(parseISO(ac.last_oil_change_date), "dd/MM/yyyy", { locale: es });
+                  }
                   
                   return (
                     <TableRow key={ac.id}>
@@ -231,6 +237,7 @@ export function AircraftClient() {
                       </TableCell>
                       <TableCell>{annualReviewDisplay}</TableCell>
                       <TableCell>{insuranceExpiryDisplay}</TableCell>
+                      <TableCell>{lastOilChangeDateDisplay}</TableCell>
                       <TableCell>
                         {(ac as any).hours_since_oil_change !== null && (ac as any).hours_since_oil_change !== undefined ? (
                            <div className="flex items-center gap-2">
