@@ -173,12 +173,6 @@ export function usePilotCategoriesStore() {
   const [error, setError] = useState<any>(null);
   const fetchingRef = useRef(false);
 
-  const DEFAULT_CATEGORIES: PilotCategory[] = [
-    { id: 'static-cat-instructor', name: 'Instructor', created_at: new Date().toISOString() },
-    { id: 'static-cat-tow-pilot', name: 'Remolcador', created_at: new Date().toISOString() },
-    { id: 'static-cat-glider-pilot', name: 'Piloto planeador', created_at: new Date().toISOString() },
-  ];
-
   const fetchCategories = useCallback(async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
@@ -189,14 +183,12 @@ export function usePilotCategoriesStore() {
       if (fetchError) {
         logSupabaseError('Error fetching pilot categories', fetchError);
         setError(fetchError);
-        setCategories(DEFAULT_CATEGORIES);
       } else {
-         setCategories(data && data.length > 0 ? data : DEFAULT_CATEGORIES);
+         setCategories(data || []);
       }
     } catch (e) {
       logSupabaseError('Unexpected error in fetchCategories', e);
       setError(e);
-      setCategories(DEFAULT_CATEGORIES);
     } finally {
       setLoading(false);
       fetchingRef.current = false;

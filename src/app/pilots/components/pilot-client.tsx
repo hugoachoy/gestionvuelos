@@ -93,24 +93,19 @@ export function PilotClient() {
   }, [fetchPilots, fetchCategories, fetchAircrafts]);
 
   useEffect(() => {
-    if (!loading && pilots.length === 0) {
-        fetchPilots();
-    }
-    if (!categoriesLoading && pilotCategories.length === 0) {
-        fetchCategories();
-    }
-    if (!aircraftLoading && aircraft.length === 0) {
-        fetchAircrafts();
-    }
-  }, [fetchPilots, fetchCategories, fetchAircrafts, loading, categoriesLoading, aircraftLoading, pilots.length, pilotCategories.length, aircraft.length]);
+    fetchPilots();
+    fetchCategories();
+    fetchAircrafts();
+  }, [fetchPilots, fetchCategories, fetchAircrafts]);
 
 
-  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user || aircraftLoading || !aircraft;
+  const combinedLoading = loading || categoriesLoading || auth.loading || !auth.user || aircraftLoading;
   const combinedError = error || categoriesError || aircraftError;
 
   const sortedPilots = useMemo(() => {
-    if (!pilots) return [];
-    return [...pilots].sort((a, b) => {
+    // Ensure pilots is an array before trying to sort it.
+    const safePilots = pilots || [];
+    return [...safePilots].sort((a, b) => {
       const currentUserAuthId = auth.user?.id;
       const aIsCurrentUser = a.auth_user_id === currentUserAuthId;
       const bIsCurrentUser = b.auth_user_id === currentUserAuthId;
@@ -144,9 +139,9 @@ export function PilotClient() {
                <span className="sr-only">Refrescar datos</span>
             </Button>
             <PilotReportButton
-              pilots={pilots} 
+              pilots={pilots || []} 
               getCategoryName={getCategoryName}
-              disabled={combinedLoading || pilots.length === 0}
+              disabled={combinedLoading || !pilots || pilots.length === 0}
             />
             {auth.user?.is_admin && (
                 <Button onClick={handleAddPilot} disabled={combinedLoading}>
