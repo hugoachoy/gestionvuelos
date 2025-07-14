@@ -1,33 +1,35 @@
+
 "use client";
 
 import { Suspense } from 'react';
 import { PageHeader } from '@/components/common/page-header';
-import { BillingReportClient } from './components/billing-report-client';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Receipt } from 'lucide-react';
 
 export default function AdminPage() {
   return (
     <>
-      <PageHeader title="Administración - Facturación por Piloto" />
-      <Suspense fallback={<ReportSkeleton />}>
-        <BillingReportClient />
-      </Suspense>
-    </>
-  );
-}
-
-function ReportSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-center">
-        <Skeleton className="h-10 w-full sm:w-64" />
-        <Skeleton className="h-10 w-full sm:w-64" />
-        <Skeleton className="h-10 w-full sm:w-48" />
+      <PageHeader title="Administración" />
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Receipt className="mr-2 h-6 w-6 text-primary" />
+              Informe de Facturación
+            </CardTitle>
+            <CardDescription>
+              Genera un detalle de los vuelos y remolques a facturar para un piloto en un rango de fechas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/logbook/reports/billing">Generar Informe de Facturación</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
-      <Skeleton className="h-12 w-full" /> {/* Table Header */}
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-10 w-full" />
-    </div>
+    </>
   );
 }
