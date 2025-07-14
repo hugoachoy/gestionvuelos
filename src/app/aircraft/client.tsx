@@ -75,6 +75,15 @@ export function AircraftClient() {
     setAircraftToDelete(null);
   };
 
+  const handleSubmitForm = async (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => {
+    if (aircraftId) {
+      await updateAircraft({ ...data, id: aircraftId } as Aircraft);
+    } else {
+      await addAircraft(data);
+    }
+    setIsFormOpen(false);
+  };
+
   const handleRefreshData = useCallback(() => {
     fetchAircraft(true);
   }, [fetchAircraft]);
@@ -278,6 +287,7 @@ export function AircraftClient() {
         <AircraftForm
             open={isFormOpen}
             onOpenChange={setIsFormOpen}
+            onSubmit={handleSubmitForm}
             aircraft={editingAircraft}
         />
       )}

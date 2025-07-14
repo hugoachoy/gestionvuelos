@@ -44,7 +44,6 @@ import React, { useState, useEffect } from 'react';
 import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { useAircraftStore } from '@/store/data-hooks';
 
 const aircraftSchema = z.object({
   name: z.string().min(1, "El nombre/matrícula es obligatorio."),
@@ -61,11 +60,11 @@ type AircraftFormData = z.infer<typeof aircraftSchema>;
 interface AircraftFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSubmit: (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => void;
   aircraft?: Aircraft;
 }
 
-export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps) {
-  const { updateAircraft, addAircraft } = useAircraftStore();
+export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: AircraftFormProps) {
   const [isAnnualPickerOpen, setAnnualPickerOpen] = useState(false);
   const [isOilPickerOpen, setOilPickerOpen] = useState(false);
   const [isInsurancePickerOpen, setInsurancePickerOpen] = useState(false);
@@ -113,7 +112,7 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
     }
   }, [watchedInsuranceExpiry, watchedAnnualReview, form]);
 
-  const handleSubmit = async (data: AircraftFormData) => {
+  const handleSubmit = (data: AircraftFormData) => {
     const dataToSubmit: Omit<Aircraft, 'id' | 'created_at'> = {
       ...data,
       annual_review_date: data.annual_review_date ? format(data.annual_review_date, 'yyyy-MM-dd') : null,
@@ -121,13 +120,8 @@ export function AircraftForm({ open, onOpenChange, aircraft }: AircraftFormProps
       insurance_expiry_date: data.insurance_expiry_date ? format(data.insurance_expiry_date, 'yyyy-MM-dd') : null,
       out_of_service_reason: data.is_out_of_service ? data.out_of_service_reason : null,
     };
-    if (aircraft?.id) {
-        await updateAircraft({ ...dataToSubmit, id: aircraft.id } as Aircraft);
-    } else {
-        await addAircraft(dataToSubmit);
-    }
+    onSubmit(dataToSubmit, aircraft?.id);
     form.reset();
-    onOpenChange(false);
   };
 
   React.useEffect(() => {
