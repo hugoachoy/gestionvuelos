@@ -291,13 +291,10 @@ export function useAircraftStore() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<any>(null);
     const fetchingRef = useRef(false);
-    const lastFetchTimeRef = useRef(0);
 
     const fetchAircraft = useCallback(async (force = false) => {
-        const now = Date.now();
-        if (fetchingRef.current || (!force && now - lastFetchTimeRef.current < 5000)) {
-            return;
-        }
+        if (fetchingRef.current && !force) return;
+
         fetchingRef.current = true;
         setLoading(true);
         setError(null);
@@ -339,7 +336,6 @@ export function useAircraftStore() {
             });
 
             setAircraft(calculatedAircraft);
-            lastFetchTimeRef.current = now;
         } catch (e: any) {
             logSupabaseError('Error fetching aircraft data', e);
             setError(e);

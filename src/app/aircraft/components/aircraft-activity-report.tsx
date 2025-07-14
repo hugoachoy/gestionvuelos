@@ -73,7 +73,18 @@ export function AircraftActivityReport() {
             }
 
             const allFlights = [...engineFlights, ...gliderFlights];
-            const sortedData = allFlights.sort((a, b) => a.date.localeCompare(b.date) || a.departure_time.localeCompare(b.departure_time));
+            
+            // --- FIX: Remove duplicates before processing ---
+            const uniqueFlightIds = new Set<string>();
+            const uniqueFlights = allFlights.filter(flight => {
+                if (uniqueFlightIds.has(flight.id)) {
+                    return false;
+                }
+                uniqueFlightIds.add(flight.id);
+                return true;
+            });
+
+            const sortedData = uniqueFlights.sort((a, b) => a.date.localeCompare(b.date) || a.departure_time.localeCompare(b.departure_time));
             const total = sortedData.reduce((acc, flight) => acc + flight.flight_duration_decimal, 0);
 
             setReportData(sortedData);
@@ -292,3 +303,4 @@ export function AircraftActivityReport() {
         </div>
     );
 }
+
