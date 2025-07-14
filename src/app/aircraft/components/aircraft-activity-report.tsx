@@ -61,30 +61,31 @@ export function AircraftActivityReport() {
             const startDateStr = format(startDate, "yyyy-MM-dd");
             const endDateStr = format(endDate, "yyyy-MM-dd");
 
-            const [engineFlights, gliderFlights] = await Promise.all([
-                fetchCompletedEngineFlightsByAircraftForRange(startDateStr, endDateStr, selectedAircraftId),
-                fetchCompletedGliderFlightsByAircraftForRange(startDateStr, endDateStr, selectedAircraftId),
-            ]);
+            const selectedAC = aircraftWithCalculatedData.find(ac => ac.id === selectedAircraftId);
+            if (!selectedAC) {
+                toast({ title: "Error", description: "Aeronave no encontrada.", variant: "destructive"});
+                setIsGenerating(false);
+                return;
+            }
 
-            if (engineFlights === null || gliderFlights === null) {
+            let allFlights: CompletedFlight[] = [];
+
+            if (selectedAC.type === 'Glider') {
+                const gliderFlights = await fetchCompletedGliderFlightsByAircraftForRange(startDateStr, endDateStr, selectedAircraftId);
+                if(gliderFlights) allFlights = [...gliderFlights];
+            } else {
+                 const engineFlights = await fetchCompletedEngineFlightsByAircraftForRange(startDateStr, endDateStr, selectedAircraftId);
+                 if(engineFlights) allFlights = [...engineFlights];
+            }
+
+
+            if (allFlights === null) {
                 toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
                 setIsGenerating(false);
                 return;
             }
 
-            const allFlights = [...engineFlights, ...gliderFlights];
-            
-            // --- FIX: Remove duplicates before processing ---
-            const uniqueFlightIds = new Set<string>();
-            const uniqueFlights = allFlights.filter(flight => {
-                if (uniqueFlightIds.has(flight.id)) {
-                    return false;
-                }
-                uniqueFlightIds.add(flight.id);
-                return true;
-            });
-
-            const sortedData = uniqueFlights.sort((a, b) => a.date.localeCompare(b.date) || a.departure_time.localeCompare(b.departure_time));
+            const sortedData = allFlights.sort((a, b) => a.date.localeCompare(b.date) || a.departure_time.localeCompare(b.departure_time));
             const total = sortedData.reduce((acc, flight) => acc + flight.flight_duration_decimal, 0);
 
             setReportData(sortedData);
@@ -100,7 +101,7 @@ export function AircraftActivityReport() {
         } finally {
             setIsGenerating(false);
         }
-    }, [startDate, endDate, selectedAircraftId, toast, fetchCompletedEngineFlightsByAircraftForRange, fetchCompletedGliderFlightsByAircraftForRange]);
+    }, [startDate, endDate, selectedAircraftId, toast, fetchCompletedEngineFlightsByAircraftForRange, fetchCompletedGliderFlightsByAircraftForRange, aircraftWithCalculatedData]);
     
     const isLoadingUI = aircraftLoading || pilotsLoading || isGenerating;
     const selectedAircraftDetails = useMemo(() => aircraftWithCalculatedData.find(a => a.id === selectedAircraftId), [selectedAircraftId, aircraftWithCalculatedData]);
