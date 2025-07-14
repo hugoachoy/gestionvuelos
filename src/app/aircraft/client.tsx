@@ -26,6 +26,8 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay, isAf
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { AircraftReportButton } from './components/aircraft-report-button';
+import { AircraftActivityReport } from './components/aircraft-activity-report';
+import { Separator } from '@/components/ui/separator';
 
 const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
   'Tow Plane': 'Avión Remolcador',
@@ -297,6 +299,13 @@ export function AircraftClient() {
         onConfirm={confirmDelete}
         itemName={aircraftToDelete?.name || 'esta aeronave'}
       />
+
+      <Separator className="my-8" />
+      <div className="mt-8">
+        <PageHeader title="Informe de Actividad por Aeronave" />
+        <AircraftActivityReport />
+      </div>
+
     </TooltipProvider>
   );
 }
