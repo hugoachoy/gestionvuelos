@@ -75,14 +75,14 @@ export function AircraftClient() {
     setAircraftToDelete(null);
   };
 
-  const handleSubmitForm = async (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => {
+  const handleSubmitForm = useCallback(async (data: Omit<Aircraft, 'id' | 'created_at'>, aircraftId?: string) => {
     if (aircraftId) {
       await updateAircraft({ ...data, id: aircraftId } as Aircraft);
     } else {
       await addAircraft(data);
     }
     setIsFormOpen(false);
-  };
+  }, [addAircraft, updateAircraft]);
 
   const handleRefreshData = useCallback(() => {
     fetchAircraft(true);
