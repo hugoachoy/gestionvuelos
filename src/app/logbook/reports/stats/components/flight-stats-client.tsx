@@ -100,10 +100,9 @@ export function FlightStatsClient() {
     setIsGenerating(true);
     setStatsData(null);
 
-    const gliderFlightsPromise = fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
-    const engineFlightsPromise = fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
-
-    const [gliderData, engineData] = await Promise.all([gliderFlightsPromise, engineFlightsPromise]);
+    // Always fetch all flights for the range if "All pilots" is selected, otherwise filter by pilot.
+    const gliderData = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
+    const engineData = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
 
     if (gliderData === null || engineData === null) {
       toast({ title: "Error al Generar", description: "No se pudieron obtener los datos de vuelo.", variant: "destructive" });
@@ -149,6 +148,7 @@ export function FlightStatsClient() {
             newStats.gliderOtherFlights += 1;
         }
         
+        // This part is only for the specific pilot view
         if (pilotIdToFetch) {
             if (flight.pilot_id === pilotIdToFetch && isInstruction) {
                 newStats.pilotSpecific_gliderInstructionTakenHours += flight.flight_duration_decimal;
@@ -165,6 +165,8 @@ export function FlightStatsClient() {
         const isTow = flight.flight_purpose === 'Remolque planeador';
         const towsCount = flight.tows_count || (isTow ? 1 : 0);
 
+        // A tow flight might represent multiple tows, but is a single "flight" record for hours.
+        // We count total tows for flight count in towage case.
         newStats.engineTotalFlights += isTow ? towsCount : 1;
 
         if (isTow) {
@@ -178,6 +180,7 @@ export function FlightStatsClient() {
             newStats.engineOtherFlights += 1;
         }
         
+        // This part is only for the specific pilot view
         if (pilotIdToFetch) {
             if (flight.pilot_id === pilotIdToFetch && isInstruction) {
                 newStats.pilotSpecific_engineInstructionTakenHours += flight.flight_duration_decimal;
