@@ -139,98 +139,72 @@ export function FlightStatsClient() {
       engineTowFlights: 0,
       engineOtherFlights: 0,
     };
+    
+    // Process Glider Flights
+    gliderData.forEach(flight => {
+        newStats.gliderTotalHours += flight.flight_duration_decimal;
+        newStats.gliderTotalFlights += 1;
 
-    if (pilotIdToFetch) { // Logic for a specific pilot (Glider)
-        gliderData.forEach(flight => {
-            if (flight.pilot_id === pilotIdToFetch) {
-                newStats.gliderTotalHours += flight.flight_duration_decimal;
-                newStats.gliderTotalFlights += 1;
-                switch (flight.flight_purpose) {
-                    case 'Instrucción (Recibida)':
-                    case 'readaptación':
-                    case 'entrenamiento':
-                      newStats.gliderInstructionTakenHours += flight.flight_duration_decimal;
-                      newStats.gliderInstructionTakenFlights += 1;
-                      break;
-                    default:
-                      newStats.gliderOtherHours += flight.flight_duration_decimal;
-                      newStats.gliderOtherFlights += 1;
-                      break;
-                }
-            } else if (flight.instructor_id === pilotIdToFetch) {
-                 if (flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'Instrucción (Recibida)'){
-                    newStats.gliderInstructionGivenHours += flight.flight_duration_decimal;
-                    newStats.gliderInstructionGivenFlights += 1;
-                 }
-            }
-        });
-    } else { // Logic for "All Pilots" (Glider)
-        gliderData.forEach(flight => {
-            newStats.gliderTotalHours += flight.flight_duration_decimal;
-            newStats.gliderTotalFlights += 1;
-            switch (flight.flight_purpose) {
-                case 'Instrucción (Recibida)':
-                case 'Instrucción (Impartida)':
-                case 'readaptación':
-                case 'entrenamiento':
-                    newStats.gliderInstructionTotalHours += flight.flight_duration_decimal;
-                    newStats.gliderInstructionTotalFlights += 1;
-                    break;
-                default:
-                    newStats.gliderOtherHours += flight.flight_duration_decimal;
-                    newStats.gliderOtherFlights += 1;
-                    break;
-            }
-        });
-    }
+        const isInstruction = ['Instrucción (Recibida)', 'Instrucción (Impartida)', 'readaptación', 'entrenamiento'].includes(flight.flight_purpose);
 
-
-    if (pilotIdToFetch) { // Logic for a specific pilot (Engine)
-      engineData.forEach(flight => {
-        if (flight.pilot_id === pilotIdToFetch) {
-          newStats.engineTotalHours += flight.flight_duration_decimal;
-          
-          if (flight.flight_purpose === 'Remolque planeador') {
-              const tows = flight.tows_count || 1;
-              newStats.engineTotalFlights += tows;
-              newStats.engineTowHours += flight.flight_duration_decimal;
-              newStats.engineTowFlights += tows;
-          } else {
-              newStats.engineTotalFlights += 1;
-              if (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
-                  newStats.engineInstructionTakenHours += flight.flight_duration_decimal;
-                  newStats.engineInstructionTakenFlights += 1;
-              } else {
-                  newStats.engineOtherHours += flight.flight_duration_decimal;
-                  newStats.engineOtherFlights += 1;
-              }
-          }
-        } else if (flight.instructor_id === pilotIdToFetch && (flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'Instrucción (Recibida)')) {
-            newStats.engineInstructionGivenHours += flight.flight_duration_decimal;
-            newStats.engineInstructionGivenFlights += 1;
+        if (isInstruction) {
+            newStats.gliderInstructionTotalHours += flight.flight_duration_decimal;
+            newStats.gliderInstructionTotalFlights += 1;
+        } else {
+            newStats.gliderOtherHours += flight.flight_duration_decimal;
+            newStats.gliderOtherFlights += 1;
         }
-      });
-    } else { // Logic for "All Pilots" (Engine)
-      engineData.forEach(flight => {
-          newStats.engineTotalHours += flight.flight_duration_decimal;
-          
-          if (flight.flight_purpose === 'Remolque planeador') {
-              const tows = flight.tows_count || 1;
-              newStats.engineTotalFlights += tows;
-              newStats.engineTowHours += flight.flight_duration_decimal;
-              newStats.engineTowFlights += tows;
-          } else {
-              newStats.engineTotalFlights += 1;
-              if (flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'readaptación' || flight.flight_purpose === 'entrenamiento') {
-                  newStats.engineInstructionTotalHours += flight.flight_duration_decimal;
-                  newStats.engineInstructionTotalFlights += 1;
-              } else {
-                  newStats.engineOtherHours += flight.flight_duration_decimal;
-                  newStats.engineOtherFlights += 1;
-              }
-          }
-      });
-    }
+        
+        // Detailed breakdown for a specific pilot
+        if (pilotIdToFetch) {
+            if (flight.pilot_id === pilotIdToFetch && isInstruction) {
+                newStats.gliderInstructionTakenHours += flight.flight_duration_decimal;
+                newStats.gliderInstructionTakenFlights += 1;
+            }
+            if (flight.instructor_id === pilotIdToFetch && isInstruction) {
+                newStats.gliderInstructionGivenHours += flight.flight_duration_decimal;
+                newStats.gliderInstructionGivenFlights += 1;
+            }
+        }
+    });
+
+    // Process Engine Flights
+    engineData.forEach(flight => {
+        newStats.engineTotalHours += flight.flight_duration_decimal;
+
+        const isInstruction = ['instrucción', 'readaptación', 'entrenamiento'].includes(flight.flight_purpose);
+        const isTow = flight.flight_purpose === 'Remolque planeador';
+        const towsCount = flight.tows_count || 1;
+
+        if (isTow) {
+            newStats.engineTotalFlights += towsCount;
+            newStats.engineTowHours += flight.flight_duration_decimal;
+            newStats.engineTowFlights += towsCount;
+        } else {
+            newStats.engineTotalFlights += 1;
+            if (isInstruction) {
+                newStats.engineInstructionTotalHours += flight.flight_duration_decimal;
+                newStats.engineInstructionTotalFlights += 1;
+            } else {
+                newStats.engineOtherHours += flight.flight_duration_decimal;
+                newStats.engineOtherFlights += 1;
+            }
+        }
+
+        // Detailed breakdown for a specific pilot
+        if (pilotIdToFetch) {
+            if (flight.pilot_id === pilotIdToFetch) {
+                if (isInstruction) {
+                    newStats.engineInstructionTakenHours += flight.flight_duration_decimal;
+                    newStats.engineInstructionTakenFlights += 1;
+                }
+            }
+            if (flight.instructor_id === pilotIdToFetch && isInstruction) {
+                newStats.engineInstructionGivenHours += flight.flight_duration_decimal;
+                newStats.engineInstructionGivenFlights += 1;
+            }
+        }
+    });
 
     setStatsData(newStats);
     setIsGenerating(false);
@@ -351,22 +325,25 @@ export function FlightStatsClient() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Feather />Vuelos en Planeador</CardTitle>
               <CardDescription>
-                  {selectedPilotId !== 'all' ? `Total PIC: ` : `Total Club: `}
+                  {selectedPilotId !== 'all' ? `Total Personal: ` : `Total Club: `}
                   <span className="font-bold text-primary">{statsData.gliderTotalHours.toFixed(1)} hs</span>
                   {` (${pluralize(statsData.gliderTotalFlights, 'vuelo', 'vuelos')})`}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-sm space-y-1 mb-4">
-                  {selectedPilotId !== 'all' ? (
+                  {selectedPilotId !== 'all' && currentUserPilotId === selectedPilotId ? (
                       <>
                         <p>Instrucción Recibida/Práctica: <span className="font-semibold">{statsData.gliderInstructionTakenHours.toFixed(1)} hs</span>{` (${pluralize(statsData.gliderInstructionTakenFlights, 'vuelo', 'vuelos')})`}</p>
                         <p>Instrucción Impartida: <span className="font-semibold">{statsData.gliderInstructionGivenHours.toFixed(1)} hs</span>{` (${pluralize(statsData.gliderInstructionGivenFlights, 'vuelo', 'vuelos')})`}</p>
+                         <p>Otros Vuelos (Deportivo, etc.): <span className="font-semibold">{statsData.gliderOtherHours.toFixed(1)} hs</span>{` (${pluralize(statsData.gliderOtherFlights, 'vuelo', 'vuelos')})`}</p>
                       </>
                   ) : (
-                      <p>Instrucción (Total): <span className="font-semibold">{statsData.gliderInstructionTotalHours.toFixed(1)} hs</span>{` (${pluralize(statsData.gliderInstructionTotalFlights, 'vuelo', 'vuelos')})`}</p>
+                      <>
+                        <p>Instrucción (Total): <span className="font-semibold">{statsData.gliderInstructionTotalHours.toFixed(1)} hs</span>{` (${pluralize(statsData.gliderInstructionTotalFlights, 'vuelo', 'vuelos')})`}</p>
+                        <p>Otros Vuelos (Deportivo, etc.): <span className="font-semibold">{statsData.gliderOtherHours.toFixed(1)} hs</span>{` (${pluralize(statsData.gliderOtherFlights, 'vuelo', 'vuelos')})`}</p>
+                      </>
                   )}
-                  <p>Otros Vuelos (Deportivo, etc.): <span className="font-semibold">{statsData.gliderOtherHours.toFixed(1)} hs</span>{` (${pluralize(statsData.gliderOtherFlights, 'vuelo', 'vuelos')})`}</p>
               </div>
                <ChartContainer config={chartConfig} className="h-[150px] w-full">
                 <RechartsBarChart accessibilityLayer data={gliderChartData} layout="vertical" margin={{ left: 10, right: 10 }}>
@@ -382,23 +359,27 @@ export function FlightStatsClient() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Plane />Vuelos a Motor</CardTitle>
               <CardDescription>
-                {selectedPilotId !== 'all' ? `Total PIC: ` : `Total Club: `}
+                {selectedPilotId !== 'all' ? `Total Personal: ` : `Total Club: `}
                 <span className="font-bold text-primary">{statsData.engineTotalHours.toFixed(1)} hs</span>
                 {` (${pluralize(statsData.engineTotalFlights, 'vuelo', 'vuelos')})`}
               </CardDescription>
             </CardHeader>
             <CardContent>
                <div className="text-sm space-y-1 mb-4">
-                  {selectedPilotId !== 'all' ? (
+                  {selectedPilotId !== 'all' && currentUserPilotId === selectedPilotId ? (
                       <>
                           <p>Instrucción Recibida: <span className="font-semibold">{statsData.engineInstructionTakenHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineInstructionTakenFlights, 'vuelo', 'vuelos')})`}</p>
                           <p>Instrucción Impartida: <span className="font-semibold">{statsData.engineInstructionGivenHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineInstructionGivenFlights, 'vuelo', 'vuelos')})`}</p>
+                          <p>Remolque: <span className="font-semibold">{statsData.engineTowHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineTowFlights, 'vuelo', 'vuelos')})`}</p>
+                          <p>Otros Vuelos (Local, Travesía): <span className="font-semibold">{statsData.engineOtherHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineOtherFlights, 'vuelo', 'vuelos')})`}</p>
                       </>
                   ) : (
-                      <p>Instrucción (Total): <span className="font-semibold">{statsData.engineInstructionTotalHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineInstructionTotalFlights, 'vuelo', 'vuelos')})`}</p>
+                      <>
+                        <p>Instrucción (Total): <span className="font-semibold">{statsData.engineInstructionTotalHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineInstructionTotalFlights, 'vuelo', 'vuelos')})`}</p>
+                        <p>Remolque: <span className="font-semibold">{statsData.engineTowHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineTowFlights, 'vuelo', 'vuelos')})`}</p>
+                        <p>Otros Vuelos (Local, Travesía): <span className="font-semibold">{statsData.engineOtherHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineOtherFlights, 'vuelo', 'vuelos')})`}</p>
+                      </>
                   )}
-                  <p>Remolque: <span className="font-semibold">{statsData.engineTowHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineTowFlights, 'vuelo', 'vuelos')})`}</p>
-                  <p>Otros Vuelos (Local, Travesía): <span className="font-semibold">{statsData.engineOtherHours.toFixed(1)} hs</span>{` (${pluralize(statsData.engineOtherFlights, 'vuelo', 'vuelos')})`}</p>
               </div>
               <ChartContainer config={chartConfig} className="h-[150px] w-full">
                 <RechartsBarChart accessibilityLayer data={engineChartData} layout="vertical" margin={{ left: 10, right: 10 }}>
