@@ -94,6 +94,88 @@ export function AircraftActivityReport() {
     const isLoadingUI = aircraftLoading || pilotsLoading || isGenerating;
     const selectedAircraftDetails = useMemo(() => aircraftWithCalculatedData.find(a => a.id === selectedAircraftId), [selectedAircraftId, aircraftWithCalculatedData]);
 
+    const handleExportPdf = async () => {
+      if (reportData.length === 0 || !selectedAircraftDetails) {
+        toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+        return;
+      }
+      setIsGenerating(true);
+      try {
+        const { default: jsPDF } = await import('jspdf');
+        const { default: autoTable } = await import('jspdf-autotable');
+        
+        const doc = new jsPDF({ orientation: 'landscape' });
+        
+        const pageTitle = `Informe de Actividad para ${selectedAircraftDetails.name} (${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''})`;
+        let currentY = 15;
+
+        doc.setFontSize(16);
+        doc.text(pageTitle, 14, currentY);
+        currentY += 10;
+
+        let tableColumn = ["Fecha", "Piloto", "Instructor", "Propósito", "Duración", "Notas"];
+        let tableRows: (string | null)[][] = [];
+        let columnStyles: any = { 0: { cellWidth: 18 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 'auto' }, 3: { cellWidth: 30 }, 4: { cellWidth: 15 }, 5: { cellWidth: 70 } };
+        
+        const isEngine = selectedAircraftDetails.type !== 'Glider';
+        if (isEngine) {
+            tableColumn = ["Fecha", "Piloto", "Instructor", "Propósito", "Duración", "Aterrizajes", "Aceite (L)", "Nafta (L)", "Notas"];
+            columnStyles = { 0: { cellWidth: 18 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 'auto' }, 3: { cellWidth: 30 }, 4: { cellWidth: 15 }, 5: { cellWidth: 18 }, 6: { cellWidth: 18 }, 7: { cellWidth: 18 }, 8: { cellWidth: 50 }};
+        }
+
+
+        reportData.forEach(item => {
+            const rowBase = [
+                format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
+                getPilotName(item.pilot_id),
+                item.instructor_id ? getPilotName(item.instructor_id) : '-',
+                FLIGHT_PURPOSE_DISPLAY_MAP[item.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || item.flight_purpose,
+                `${item.flight_duration_decimal.toFixed(1)} hs`,
+            ];
+
+            if (isEngine) {
+                const engineItem = item as CompletedEngineFlight;
+                tableRows.push([
+                    ...rowBase,
+                    engineItem.landings_count?.toString() ?? '-',
+                    engineItem.oil_added_liters?.toString() ?? '-',
+                    engineItem.fuel_added_liters?.toString() ?? '-',
+                    item.notes || '-',
+                ]);
+            } else {
+                tableRows.push([...rowBase, item.notes || '-']);
+            }
+        });
+
+        autoTable(doc, {
+          head: [tableColumn],
+          body: tableRows,
+          foot: [[
+            { content: 'TOTAL HORAS', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
+            { content: '', colSpan: isEngine ? 4 : 1 },
+          ]],
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [30, 100, 160], textColor: 255 },
+          styles: { fontSize: 8, cellPadding: 1.5 },
+          columnStyles: columnStyles,
+        });
+        
+        const aircraftFileNamePart = (selectedAircraftDetails.name).replace(/ /g, '_').toLowerCase();
+        const fileName = `actividad_${aircraftFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
+        doc.save(fileName);
+        toast({ title: "PDF Exportado", description: `El informe de actividad se ha guardado como ${fileName}.` });
+
+      } catch (error) {
+        console.error("Error generating PDF:", error);
+        toast({ title: "Error de Exportación", description: "No se pudo generar el PDF.", variant: "destructive" });
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row gap-4 items-center p-4 border rounded-lg bg-card flex-wrap">
@@ -150,6 +232,12 @@ export function AircraftActivityReport() {
                     {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                     Generar Informe
                 </Button>
+                {reportData.length > 0 && !isGenerating && (
+                    <Button onClick={handleExportPdf} variant="outline" disabled={isGenerating || isLoadingUI} className="w-full sm:w-auto">
+                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Exportar a PDF
+                    </Button>
+                )}
             </div>
 
             {isGenerating && (
