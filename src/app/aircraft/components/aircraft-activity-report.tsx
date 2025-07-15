@@ -17,7 +17,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 
-type ReportItem = CompletedFlight;
+type AugmentedReportItem = CompletedFlight & { isInstructionPair?: boolean; counterpartNotes?: string | null };
 
 export function AircraftActivityReport() {
     const { toast } = useToast();
@@ -34,7 +34,7 @@ export function AircraftActivityReport() {
     const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
     const [isAircraftPickerOpen, setIsAircraftPickerOpen] = useState(false);
     
-    const [reportData, setReportData] = useState<ReportItem[]>([]);
+    const [reportData, setReportData] = useState<AugmentedReportItem[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [totalHours, setTotalHours] = useState(0);
 
@@ -85,7 +85,37 @@ export function AircraftActivityReport() {
                 return;
             }
 
-            const sortedData = allFlights.sort((a, b) => a.date.localeCompare(b.date) || a.departure_time.localeCompare(b.departure_time));
+            const processedIds = new Set<string>();
+            const uniqueFlights: AugmentedReportItem[] = [];
+
+            for (const flight of allFlights) {
+                if (processedIds.has(flight.id)) continue;
+
+                if (flight.flight_purpose === 'instrucción') {
+                    const counterpart = allFlights.find(f => 
+                        f.id !== flight.id &&
+                        f.date === flight.date &&
+                        f.departure_time === flight.departure_time &&
+                        f.arrival_time === flight.arrival_time &&
+                        ('engine_aircraft_id' in f && 'engine_aircraft_id' in flight && f.engine_aircraft_id === flight.engine_aircraft_id)
+                    );
+
+                    if (counterpart) {
+                        uniqueFlights.push({ ...flight, isInstructionPair: true, counterpartNotes: counterpart.notes });
+                        processedIds.add(flight.id);
+                        processedIds.add(counterpart.id);
+                    } else {
+                        uniqueFlights.push(flight);
+                        processedIds.add(flight.id);
+                    }
+                } else {
+                    uniqueFlights.push(flight);
+                    processedIds.add(flight.id);
+                }
+            }
+
+
+            const sortedData = uniqueFlights.sort((a, b) => a.date.localeCompare(b.date) || a.departure_time.localeCompare(b.departure_time));
             const total = sortedData.reduce((acc, flight) => acc + flight.flight_duration_decimal, 0);
 
             setReportData(sortedData);
@@ -125,37 +155,40 @@ export function AircraftActivityReport() {
         doc.text(pageTitle, 14, currentY);
         currentY += 10;
 
-        let tableColumn = ["Fecha", "Piloto", "Instructor", "Propósito", "Duración", "Notas"];
-        let tableRows: (string | null)[][] = [];
-        let columnStyles: any = { 0: { cellWidth: 18 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 'auto' }, 3: { cellWidth: 30 }, 4: { cellWidth: 15 }, 5: { cellWidth: 70 } };
+        let tableColumn = ["Fecha", "Piloto(s)", "Propósito", "Duración", "Notas"];
+        let columnStyles: any = { 0: { cellWidth: 18 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30 }, 3: { cellWidth: 15 }, 4: { cellWidth: 70 } };
         
         const isEngine = selectedAircraftDetails.type !== 'Glider';
         if (isEngine) {
-            tableColumn = ["Fecha", "Piloto", "Instructor", "Propósito", "Duración", "Aterrizajes", "Aceite (L)", "Nafta (L)", "Notas"];
-            columnStyles = { 0: { cellWidth: 18 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 'auto' }, 3: { cellWidth: 30 }, 4: { cellWidth: 15 }, 5: { cellWidth: 18 }, 6: { cellWidth: 18 }, 7: { cellWidth: 18 }, 8: { cellWidth: 50 }};
+            tableColumn = ["Fecha", "Piloto(s)", "Propósito", "Duración", "Aterrizajes", "Aceite (L)", "Nafta (L)", "Notas"];
+            columnStyles = { 0: { cellWidth: 18 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30 }, 3: { cellWidth: 15 }, 4: { cellWidth: 18 }, 5: { cellWidth: 18 }, 6: { cellWidth: 18 }, 7: { cellWidth: 50 }};
         }
 
+        const tableRows: (string | null)[][] = reportData.map(item => {
+            const pilotText = item.isInstructionPair ? 
+                `Alumno: ${getPilotName(item.pilot_id)} / Instr: ${getPilotName(item.instructor_id)}` : 
+                getPilotName(item.pilot_id);
 
-        reportData.forEach(item => {
+            const allNotes = [item.notes, (item as AugmentedReportItem).counterpartNotes].filter(Boolean).join('; ');
+            
             const rowBase = [
                 format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
-                getPilotName(item.pilot_id),
-                item.instructor_id ? getPilotName(item.instructor_id) : '-',
+                pilotText,
                 FLIGHT_PURPOSE_DISPLAY_MAP[item.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || item.flight_purpose,
                 `${item.flight_duration_decimal.toFixed(1)} hs`,
             ];
 
             if (isEngine) {
                 const engineItem = item as CompletedEngineFlight;
-                tableRows.push([
+                return [
                     ...rowBase,
                     engineItem.landings_count?.toString() ?? '-',
                     engineItem.oil_added_liters?.toString() ?? '-',
                     engineItem.fuel_added_liters?.toString() ?? '-',
-                    item.notes || '-',
-                ]);
+                    allNotes || '-',
+                ];
             } else {
-                tableRows.push([...rowBase, item.notes || '-']);
+                return [...rowBase, allNotes || '-'];
             }
         });
 
@@ -163,7 +196,7 @@ export function AircraftActivityReport() {
           head: [tableColumn],
           body: tableRows,
           foot: [[
-            { content: 'TOTAL HORAS', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: 'TOTAL HORAS', colSpan: isEngine ? 3 : 3, styles: { halign: 'right', fontStyle: 'bold' } },
             { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
             { content: '', colSpan: isEngine ? 4 : 1 },
           ]],
@@ -266,8 +299,7 @@ export function AircraftActivityReport() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Fecha</TableHead>
-                                <TableHead>Piloto</TableHead>
-                                <TableHead>Instructor</TableHead>
+                                <TableHead>Piloto(s)</TableHead>
                                 <TableHead>Propósito</TableHead>
                                 <TableHead>Duración</TableHead>
                                 {selectedAircraftDetails.type !== 'Glider' && <TableHead>Aterrizajes</TableHead>}
@@ -277,23 +309,26 @@ export function AircraftActivityReport() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {reportData.map((item) => (
+                            {reportData.map((item) => {
+                                const pilotText = item.isInstructionPair ? `Alum: ${getPilotName(item.pilot_id)} / Inst: ${getPilotName(item.instructor_id)}` : getPilotName(item.pilot_id);
+                                const allNotes = [item.notes, item.counterpartNotes].filter(Boolean).join('; ');
+                                
+                                return (
                                 <TableRow key={item.id}>
                                     <TableCell>{format(parseISO(item.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                                    <TableCell>{getPilotName(item.pilot_id)}</TableCell>
-                                    <TableCell>{item.instructor_id ? getPilotName(item.instructor_id) : '-'}</TableCell>
+                                    <TableCell>{pilotText}</TableCell>
                                     <TableCell>{FLIGHT_PURPOSE_DISPLAY_MAP[item.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || item.flight_purpose}</TableCell>
                                     <TableCell>{item.flight_duration_decimal.toFixed(1)} hs</TableCell>
                                     {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as CompletedEngineFlight).landings_count ?? '-'}</TableCell>}
                                     {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as CompletedEngineFlight).oil_added_liters ?? '-'}</TableCell>}
                                     {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as CompletedEngineFlight).fuel_added_liters ?? '-'}</TableCell>}
-                                    <TableCell>{item.notes || '-'}</TableCell>
+                                    <TableCell>{allNotes || '-'}</TableCell>
                                 </TableRow>
-                            ))}
+                            )})}
                         </TableBody>
                         <TableFooter>
                             <TableRow className="bg-muted/50 font-bold">
-                                <TableCell colSpan={4} className="text-right">TOTAL HORAS</TableCell>
+                                <TableCell colSpan={3} className="text-right">TOTAL HORAS</TableCell>
                                 <TableCell>{totalHours.toFixed(1)} hs</TableCell>
                                 <TableCell colSpan={selectedAircraftDetails.type !== 'Glider' ? 4 : 1}></TableCell>
                             </TableRow>
@@ -304,3 +339,5 @@ export function AircraftActivityReport() {
         </div>
     );
 }
+
+    

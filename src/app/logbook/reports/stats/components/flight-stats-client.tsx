@@ -20,13 +20,11 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartStyle } from "@
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 
 interface FlightStats {
-  // Totals for the selected filter (all or specific pilot)
   gliderTotalHours: number;
   gliderTotalFlights: number;
   engineTotalHours: number;
   engineTotalFlights: number;
   
-  // Breakdown by purpose for the selected filter
   gliderInstructionHours: number;
   gliderInstructionFlights: number;
   gliderOtherHours: number;
@@ -39,7 +37,6 @@ interface FlightStats {
   engineOtherHours: number;
   engineOtherFlights: number;
 
-  // Granular breakdown *only* for a specific pilot view
   pilotSpecific_gliderInstructionTakenHours: number;
   pilotSpecific_gliderInstructionGivenHours: number;
   pilotSpecific_engineInstructionTakenHours: number;
@@ -100,7 +97,6 @@ export function FlightStatsClient() {
     setIsGenerating(true);
     setStatsData(null);
 
-    // Always fetch all flights for the range if "All pilots" is selected, otherwise filter by pilot.
     const gliderData = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     const engineData = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
 
@@ -135,62 +131,70 @@ export function FlightStatsClient() {
       pilotSpecific_engineInstructionGivenHours: 0,
     };
     
-    gliderData.forEach(flight => {
+    // Process unique flights to avoid double counting
+    const processedGliderIds = new Set<string>();
+    for (const flight of gliderData) {
+        // Skip if this flight is the 'other half' of an already processed instruction flight
+        if (processedGliderIds.has(flight.id)) continue;
+
+        const isInstruction = ['Instrucción (Recibida)', 'Instrucción (Impartida)', 'readaptación'].includes(flight.flight_purpose);
         newStats.gliderTotalHours += flight.flight_duration_decimal;
         newStats.gliderTotalFlights += 1;
-        const isInstruction = ['Instrucción (Recibida)', 'Instrucción (Impartida)', 'readaptación', 'entrenamiento'].includes(flight.flight_purpose);
-
+        
         if (isInstruction) {
             newStats.gliderInstructionHours += flight.flight_duration_decimal;
             newStats.gliderInstructionFlights += 1;
+            
+            if (pilotIdToFetch) { // Only calculate specific roles if a pilot is selected
+                if (flight.pilot_id === pilotIdToFetch) newStats.pilotSpecific_gliderInstructionTakenHours += flight.flight_duration_decimal;
+                if (flight.instructor_id === pilotIdToFetch) newStats.pilotSpecific_gliderInstructionGivenHours += flight.flight_duration_decimal;
+            }
         } else {
             newStats.gliderOtherHours += flight.flight_duration_decimal;
             newStats.gliderOtherFlights += 1;
         }
+    }
+
+    const processedEngineIds = new Set<string>();
+    for (const flight of engineData) {
+        if (processedEngineIds.has(flight.id)) continue;
         
-        // This part is only for the specific pilot view
-        if (pilotIdToFetch) {
-            if (flight.pilot_id === pilotIdToFetch && isInstruction) {
-                newStats.pilotSpecific_gliderInstructionTakenHours += flight.flight_duration_decimal;
-            }
-            if (flight.instructor_id === pilotIdToFetch && isInstruction) {
-                newStats.pilotSpecific_gliderInstructionGivenHours += flight.flight_duration_decimal;
-            }
-        }
-    });
+        const isInstruction = flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación';
+        
+        if(isInstruction) {
+            // Find the matching instruction flight
+            const counterpart = engineData.find(f => 
+                f.id !== flight.id &&
+                f.date === flight.date &&
+                f.departure_time === flight.departure_time &&
+                f.arrival_time === flight.arrival_time &&
+                f.engine_aircraft_id === flight.engine_aircraft_id &&
+                (f.pilot_id === flight.instructor_id || f.instructor_id === flight.pilot_id)
+            );
+            // Mark both as processed so they are only counted once.
+            processedEngineIds.add(flight.id);
+            if (counterpart) processedEngineIds.add(counterpart.id);
 
-    engineData.forEach(flight => {
-        newStats.engineTotalHours += flight.flight_duration_decimal;
-        const isInstruction = ['instrucción', 'readaptación', 'entrenamiento'].includes(flight.flight_purpose);
-        const isTow = flight.flight_purpose === 'Remolque planeador';
-        const towsCount = flight.tows_count || (isTow ? 1 : 0);
-
-        // A tow flight might represent multiple tows, but is a single "flight" record for hours.
-        // We count total tows for flight count in towage case.
-        newStats.engineTotalFlights += isTow ? towsCount : 1;
-
-        if (isTow) {
-            newStats.engineTowHours += flight.flight_duration_decimal;
-            newStats.engineTowFlights += towsCount;
-        } else if (isInstruction) {
             newStats.engineInstructionHours += flight.flight_duration_decimal;
             newStats.engineInstructionFlights += 1;
+
+            if(pilotIdToFetch) {
+                if(flight.pilot_id === pilotIdToFetch) newStats.pilotSpecific_engineInstructionTakenHours += flight.flight_duration_decimal;
+                if(flight.instructor_id === pilotIdToFetch) newStats.pilotSpecific_engineInstructionGivenHours += flight.flight_duration_decimal;
+            }
+        } else if (flight.flight_purpose === 'Remolque planeador') {
+            newStats.engineTowHours += flight.flight_duration_decimal;
+            newStats.engineTowFlights += flight.tows_count || 1;
         } else {
             newStats.engineOtherHours += flight.flight_duration_decimal;
             newStats.engineOtherFlights += 1;
         }
         
-        // This part is only for the specific pilot view
-        if (pilotIdToFetch) {
-            if (flight.pilot_id === pilotIdToFetch && isInstruction) {
-                newStats.pilotSpecific_engineInstructionTakenHours += flight.flight_duration_decimal;
-            }
-            if (flight.instructor_id === pilotIdToFetch && isInstruction) {
-                newStats.pilotSpecific_engineInstructionGivenHours += flight.flight_duration_decimal;
-            }
-        }
-    });
-
+        // Sum up total hours for all unique engine flights
+        newStats.engineTotalHours += flight.flight_duration_decimal;
+        newStats.engineTotalFlights += (flight.flight_purpose === 'Remolque planeador') ? (flight.tows_count || 1) : 1;
+    }
+    
     setStatsData(newStats);
     setIsGenerating(false);
   }, [startDate, endDate, currentUser?.is_admin, selectedPilotId, currentUserPilotId, fetchCompletedGliderFlightsForRange, fetchCompletedEngineFlightsForRange, toast]);
@@ -371,6 +375,5 @@ export function FlightStatsClient() {
     </div>
   );
 }
-
 
     
