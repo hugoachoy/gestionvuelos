@@ -101,7 +101,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName: getAircraftFullName } = aircraftStore;
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate, completedGliderFlights, fetchCompletedGliderFlights } = useCompletedGliderFlightsStore();
+  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate, fetchCompletedGliderFlights } = useCompletedGliderFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -157,16 +157,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     fetchPilots();
     fetchAircraft();
     fetchPilotCategories();
-    if (!isEditMode) {
-      fetchCompletedGliderFlights();
-    }
     if (scheduleEntryIdParam && !isEditMode) {
       const dateParam = searchParams.get('date');
       if (dateParam) {
         fetchScheduleEntries(dateParam);
       }
     }
-  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchCompletedGliderFlights, scheduleEntryIdParam, fetchScheduleEntries, isEditMode]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, scheduleEntryIdParam, fetchScheduleEntries, isEditMode]);
 
 
   useEffect(() => {
@@ -697,7 +694,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        onSelect={(date) => { field.onChange(date); setIsCalendarOpen(false); }}
+                        onSelect={(date) => { if(date) field.onChange(date); setIsCalendarOpen(false); }}
                         disabled={(date) => date > new Date() || isLoading }
                         initialFocus
                         locale={es}
