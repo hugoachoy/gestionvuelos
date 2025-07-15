@@ -310,7 +310,9 @@ export function AircraftActivityReport() {
                         </TableHeader>
                         <TableBody>
                             {reportData.map((item) => {
-                                const pilotText = item.isInstructionPair ? `Alum: ${getPilotName(item.pilot_id)} / Inst: ${getPilotName(item.instructor_id)}` : getPilotName(item.pilot_id);
+                                const pilotText = item.isInstructionPair ? 
+                                `Alumno: ${getPilotName(item.pilot_id)} / Instr: ${getPilotName(item.instructor_id)}` : 
+                                getPilotName(item.pilot_id);
                                 const allNotes = [item.notes, item.counterpartNotes].filter(Boolean).join('; ');
                                 
                                 return (
@@ -339,5 +341,3 @@ export function AircraftActivityReport() {
         </div>
     );
 }
-
-    
