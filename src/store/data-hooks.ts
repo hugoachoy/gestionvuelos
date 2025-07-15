@@ -287,6 +287,7 @@ export function usePilotCategoriesStore() {
 
 // AIRCRAFT STORE
 export function useAircraftStore() {
+    const [aircraft, setAircraft] = useState<BaseAircraft[]>([]);
     const [aircraftWithCalculatedData, setAircraftWithCalculatedData] = useState<Aircraft[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<any>(null);
@@ -311,6 +312,8 @@ export function useAircraftStore() {
                 .order('name');
             
             if (aircraftError) throw aircraftError;
+            
+            setAircraft(aircraftData || []); // Set the base aircraft data
 
             const calculatedAircraft = (aircraftData || []).map(ac => {
                 if (ac.type === 'Glider') {
@@ -395,7 +398,7 @@ export function useAircraftStore() {
         return ac ? ac.name : 'Aeronave no encontrada';
     }, [aircraftWithCalculatedData]);
 
-    return { aircraftWithCalculatedData, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
+    return { aircraft, aircraftWithCalculatedData, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
 }
 
 
