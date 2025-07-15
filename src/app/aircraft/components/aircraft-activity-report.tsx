@@ -114,23 +114,25 @@ export function AircraftActivityReport() {
                     );
                     
                     if (counterpart) {
-                        const studentFlight = (flight as CompletedEngineFlight).pilot_id !== (flight as CompletedEngineFlight).instructor_id ? flight : counterpart;
-                        const instructorFlight = (flight as CompletedEngineFlight).pilot_id === (flight as CompletedEngineFlight).instructor_id ? flight : counterpart;
-                        
+                        const studentFlight = flight.instructor_id ? flight : counterpart;
+                        const instructorRecord = flight.instructor_id ? counterpart : flight;
+
+                        const studentId = studentFlight.pilot_id;
+                        const instructorId = studentFlight.instructor_id;
+
                         uniqueFlights.push({
                             ...studentFlight,
                             isInstructionPair: true, 
-                            studentName: getPilotName(studentFlight.pilot_id),
-                            instructorName: getPilotName(instructorFlight.instructor_id!),
-                            consolidated_oil_added_liters: (studentFlight as CompletedEngineFlight).oil_added_liters || (instructorFlight as CompletedEngineFlight).oil_added_liters,
-                            consolidated_fuel_added_liters: (studentFlight as CompletedEngineFlight).fuel_added_liters || (instructorFlight as CompletedEngineFlight).fuel_added_liters,
-                            notes: studentFlight.notes || '', // Prioritize student notes
+                            studentName: getPilotName(studentId),
+                            instructorName: getPilotName(instructorId!),
+                            consolidated_oil_added_liters: (studentFlight as CompletedEngineFlight).oil_added_liters || (instructorRecord as CompletedEngineFlight).oil_added_liters,
+                            consolidated_fuel_added_liters: (studentFlight as CompletedEngineFlight).fuel_added_liters || (instructorRecord as CompletedEngineFlight).fuel_added_liters,
+                            notes: studentFlight.notes || '',
                         });
                         
                         processedIds.add(flight.id);
                         processedIds.add(counterpart.id);
                     } else {
-                        // This handles instruction flights that don't have a counterpart (e.g., solo instruction flight record)
                         uniqueFlights.push(flight);
                         processedIds.add(flight.id);
                     }
@@ -366,5 +368,7 @@ export function AircraftActivityReport() {
         </div>
     );
 }
+
+    
 
     
