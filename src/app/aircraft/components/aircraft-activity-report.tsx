@@ -85,7 +85,6 @@ export function AircraftActivityReport() {
                  if(engineFlights) allFlights = [...engineFlights];
             }
 
-
             if (allFlights === null) {
                 toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
                 setIsGenerating(false);
@@ -98,33 +97,40 @@ export function AircraftActivityReport() {
             for (const flight of allFlights) {
                 if (processedIds.has(flight.id)) continue;
 
-                if ((flight as CompletedEngineFlight).flight_purpose === 'instrucción') {
+                const isInstruction = (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación');
+                
+                if (isInstruction) {
+                    const isEngineFlight = 'engine_aircraft_id' in flight;
+                    
                     const counterpart = allFlights.find(f => 
                         f.id !== flight.id &&
                         f.date === flight.date &&
                         f.departure_time === flight.departure_time &&
                         f.arrival_time === flight.arrival_time &&
-                        ((f as CompletedEngineFlight).engine_aircraft_id && (f as CompletedEngineFlight).engine_aircraft_id === (flight as CompletedEngineFlight).engine_aircraft_id)
+                        (isEngineFlight ? 
+                            (f as CompletedEngineFlight).engine_aircraft_id === (flight as CompletedEngineFlight).engine_aircraft_id :
+                            (f as CompletedGliderFlight).glider_aircraft_id === (flight as CompletedGliderFlight).glider_aircraft_id
+                        )
                     );
                     
                     if (counterpart) {
-                        const studentFlight = (flight as CompletedEngineFlight).pilot_id !== (flight as CompletedEngineFlight).instructor_id ? flight as CompletedEngineFlight : counterpart as CompletedEngineFlight;
-                        const instructorFlight = (flight as CompletedEngineFlight).pilot_id === (flight as CompletedEngineFlight).instructor_id ? flight as CompletedEngineFlight : counterpart as CompletedEngineFlight;
-
+                        const studentFlight = (flight as CompletedEngineFlight).pilot_id !== (flight as CompletedEngineFlight).instructor_id ? flight : counterpart;
+                        const instructorFlight = (flight as CompletedEngineFlight).pilot_id === (flight as CompletedEngineFlight).instructor_id ? flight : counterpart;
+                        
                         uniqueFlights.push({
                             ...studentFlight,
                             isInstructionPair: true, 
                             studentName: getPilotName(studentFlight.pilot_id),
-                            instructorName: getPilotName(instructorFlight.pilot_id),
-                            consolidated_oil_added_liters: studentFlight.oil_added_liters || instructorFlight.oil_added_liters,
-                            consolidated_fuel_added_liters: studentFlight.fuel_added_liters || instructorFlight.fuel_added_liters,
+                            instructorName: getPilotName(instructorFlight.instructor_id!),
+                            consolidated_oil_added_liters: (studentFlight as CompletedEngineFlight).oil_added_liters || (instructorFlight as CompletedEngineFlight).oil_added_liters,
+                            consolidated_fuel_added_liters: (studentFlight as CompletedEngineFlight).fuel_added_liters || (instructorFlight as CompletedEngineFlight).fuel_added_liters,
                             notes: studentFlight.notes || '', // Prioritize student notes
                         });
                         
                         processedIds.add(flight.id);
                         processedIds.add(counterpart.id);
-
                     } else {
+                        // This handles instruction flights that don't have a counterpart (e.g., solo instruction flight record)
                         uniqueFlights.push(flight);
                         processedIds.add(flight.id);
                     }
@@ -360,3 +366,5 @@ export function AircraftActivityReport() {
         </div>
     );
 }
+
+    
