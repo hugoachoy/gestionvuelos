@@ -108,17 +108,17 @@ export function AircraftActivityReport() {
                     );
                     
                     if (counterpart) {
-                         // Correctly identify student and instructor flights
-                        const studentFlight = (flight as CompletedEngineFlight).instructor_id === flight.pilot_id ? counterpart as CompletedEngineFlight : flight as CompletedEngineFlight;
-                        const instructorFlight = (flight as CompletedEngineFlight).instructor_id === flight.pilot_id ? flight as CompletedEngineFlight : counterpart as CompletedEngineFlight;
+                        const studentFlight = (flight as CompletedEngineFlight).pilot_id !== (flight as CompletedEngineFlight).instructor_id ? flight as CompletedEngineFlight : counterpart as CompletedEngineFlight;
+                        const instructorFlight = (flight as CompletedEngineFlight).pilot_id === (flight as CompletedEngineFlight).instructor_id ? flight as CompletedEngineFlight : counterpart as CompletedEngineFlight;
 
                         uniqueFlights.push({
                             ...studentFlight,
                             isInstructionPair: true, 
                             studentName: getPilotName(studentFlight.pilot_id),
-                            instructorName: getPilotName(instructorFlight.pilot_id), // Use instructor's pilot_id for name
+                            instructorName: getPilotName(instructorFlight.pilot_id),
                             consolidated_oil_added_liters: studentFlight.oil_added_liters || instructorFlight.oil_added_liters,
                             consolidated_fuel_added_liters: studentFlight.fuel_added_liters || instructorFlight.fuel_added_liters,
+                            notes: studentFlight.notes || '', // Prioritize student notes
                         });
                         
                         processedIds.add(flight.id);
