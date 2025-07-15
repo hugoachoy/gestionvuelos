@@ -222,7 +222,8 @@ export function AvailabilityForm({
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
 
   const pilotCategoriesForSelectedPilot = useMemo(() => {
-    return pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
+    if (!pilotDetails?.category_ids) return [];
+    return pilotDetails.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[];
   }, [pilotDetails, categories]);
 
   const isRemolcadorCategorySelectedForTurn = useMemo(() => {
@@ -232,13 +233,19 @@ export function AvailabilityForm({
 
   useEffect(() => {
     setAircraftWarning(null);
-    if (watchedAircraftId) {
+    if (watchedAircraftId && watchedDate && isValid(watchedDate)) {
       const selectedAircraftDetails = aircraft.find(a => a.id === watchedAircraftId);
-      if (selectedAircraftDetails?.is_out_of_service) {
-        setAircraftWarning(`La aeronave seleccionada (${selectedAircraftDetails.name}) está fuera de servicio. No se puede agendar un turno.`);
+      if (selectedAircraftDetails) {
+        const flightDateStart = startOfDay(watchedDate);
+        const isInsuranceExpiredOnFlightDate = selectedAircraftDetails.insurance_expiry_date && isValid(parseISO(selectedAircraftDetails.insurance_expiry_date)) && isBefore(parseISO(selectedAircraftDetails.insurance_expiry_date), flightDateStart);
+        if (selectedAircraftDetails.is_out_of_service) {
+          setAircraftWarning(`La aeronave seleccionada (${selectedAircraftDetails.name}) está fuera de servicio.`);
+        } else if (isInsuranceExpiredOnFlightDate) {
+          setAircraftWarning(`El seguro de la aeronave (${selectedAircraftDetails.name}) estará/estaba vencido en la fecha del turno.`);
+        }
       }
     }
-  }, [watchedAircraftId, aircraft]);
+  }, [watchedAircraftId, aircraft, watchedDate]);
 
   useEffect(() => {
     let newMedicalWarningInfo: MedicalWarningState | null = null;
@@ -810,13 +817,25 @@ export function AvailabilityForm({
                     </FormControl>
                     <SelectContent>
                       {filteredAircraftForSelect.length > 0 ? (
-                        filteredAircraftForSelect.map(ac => (
-                          <SelectItem key={ac.id} value={ac.id} disabled={ac.is_out_of_service}>
-                            {ac.name} ({ac.type === 'Glider' ? 'Planeador' :
-                                                                          ac.type === 'Tow Plane' ? 'Remolcador' : 'Avión'})
-                            {ac.is_out_of_service && " (Fuera de Servicio)"}
-                          </SelectItem>
-                        ))
+                        filteredAircraftForSelect.map(ac => {
+                          const flightDateStart = watchedDate ? startOfDay(watchedDate) : startOfDay(new Date());
+                          const isInsuranceExpiredOnFlightDate = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), flightDateStart);
+                          const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpiredOnFlightDate;
+                          let outOfServiceReason = "";
+                          if (ac.is_out_of_service) {
+                            outOfServiceReason = "(Fuera de Servicio)";
+                          } else if (isInsuranceExpiredOnFlightDate) {
+                            outOfServiceReason = "(Seguro Vencido en fecha)";
+                          }
+                          
+                          return (
+                            <SelectItem key={ac.id} value={ac.id} disabled={isEffectivelyOutOfService}>
+                              {ac.name} ({ac.type === 'Glider' ? 'Planeador' :
+                                                                                        ac.type === 'Tow Plane' ? 'Remolcador' : 'Avión'})
+                              {isEffectivelyOutOfService && ` ${outOfServiceReason}`}
+                            </SelectItem>
+                          )
+                        })
                       ) : (
                         <div className="p-2 text-sm text-muted-foreground text-center">No hay aeronaves que coincidan.</div>
                       )}
