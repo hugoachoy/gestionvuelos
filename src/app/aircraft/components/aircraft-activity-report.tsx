@@ -17,7 +17,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 
-type AugmentedReportItem = CompletedFlight & { isInstructionPair?: boolean; counterpartNotes?: string | null };
+type AugmentedReportItem = CompletedFlight & { isInstructionPair?: boolean; counterpartNotes?: string | null; studentName?: string; instructorName?: string; };
 
 export function AircraftActivityReport() {
     const { toast } = useToast();
@@ -92,19 +92,42 @@ export function AircraftActivityReport() {
                 if (processedIds.has(flight.id)) continue;
 
                 if (flight.flight_purpose === 'instrucción') {
+                    // Try to find the other half of the instruction flight
                     const counterpart = allFlights.find(f => 
                         f.id !== flight.id &&
                         f.date === flight.date &&
                         f.departure_time === flight.departure_time &&
                         f.arrival_time === flight.arrival_time &&
-                        ('engine_aircraft_id' in f && 'engine_aircraft_id' in flight && f.engine_aircraft_id === flight.engine_aircraft_id)
+                        // Match aircraft IDs for both engine and glider flights safely
+                        ((f as CompletedEngineFlight).engine_aircraft_id && (f as CompletedEngineFlight).engine_aircraft_id === (flight as CompletedEngineFlight).engine_aircraft_id) ||
+                        ((f as CompletedGliderFlight).glider_aircraft_id && (f as CompletedGliderFlight).glider_aircraft_id === (flight as CompletedGliderFlight).glider_aircraft_id)
                     );
 
                     if (counterpart) {
-                        uniqueFlights.push({ ...flight, isInstructionPair: true, counterpartNotes: counterpart.notes });
+                        let studentFlight: CompletedFlight, instructorFlight: CompletedFlight;
+                        
+                        // Determine who is student and who is instructor based on the relationship in the records
+                        if (flight.pilot_id === counterpart.instructor_id && flight.instructor_id === counterpart.pilot_id) {
+                            studentFlight = flight.pilot_id === counterpart.instructor_id ? counterpart : flight;
+                            instructorFlight = flight.pilot_id === counterpart.instructor_id ? flight : counterpart;
+                        } else {
+                            // Fallback if the relationship is not perfectly mirrored, assume the one with an instructor_id is the student
+                            studentFlight = flight.instructor_id ? flight : counterpart;
+                            instructorFlight = flight.instructor_id ? counterpart : flight;
+                        }
+
+                        uniqueFlights.push({
+                            ...studentFlight, 
+                            isInstructionPair: true, 
+                            counterpartNotes: instructorFlight.notes,
+                            studentName: getPilotName(studentFlight.pilot_id),
+                            instructorName: getPilotName(studentFlight.instructor_id),
+                        });
+                        
                         processedIds.add(flight.id);
                         processedIds.add(counterpart.id);
                     } else {
+                        // It's an instruction flight without a counterpart, treat as a normal flight
                         uniqueFlights.push(flight);
                         processedIds.add(flight.id);
                     }
@@ -131,7 +154,7 @@ export function AircraftActivityReport() {
         } finally {
             setIsGenerating(false);
         }
-    }, [startDate, endDate, selectedAircraftId, toast, fetchCompletedEngineFlightsByAircraftForRange, fetchCompletedGliderFlightsByAircraftForRange, aircraftWithCalculatedData]);
+    }, [startDate, endDate, selectedAircraftId, toast, fetchCompletedEngineFlightsByAircraftForRange, fetchCompletedGliderFlightsByAircraftForRange, aircraftWithCalculatedData, getPilotName]);
     
     const isLoadingUI = aircraftLoading || pilotsLoading || isGenerating;
     const selectedAircraftDetails = useMemo(() => aircraftWithCalculatedData.find(a => a.id === selectedAircraftId), [selectedAircraftId, aircraftWithCalculatedData]);
@@ -166,7 +189,7 @@ export function AircraftActivityReport() {
 
         const tableRows: (string | null)[][] = reportData.map(item => {
             const pilotText = item.isInstructionPair ? 
-                `Alumno: ${getPilotName(item.pilot_id)} / Instr: ${getPilotName(item.instructor_id)}` : 
+                `Piloto: ${item.studentName} / Instructor: ${item.instructorName}` : 
                 getPilotName(item.pilot_id);
 
             const allNotes = [item.notes, (item as AugmentedReportItem).counterpartNotes].filter(Boolean).join('; ');
@@ -311,7 +334,7 @@ export function AircraftActivityReport() {
                         <TableBody>
                             {reportData.map((item) => {
                                 const pilotText = item.isInstructionPair ? 
-                                `Alumno: ${getPilotName(item.pilot_id)} / Instr: ${getPilotName(item.instructor_id)}` : 
+                                `Piloto: ${item.studentName} / Instructor: ${item.instructorName}` : 
                                 getPilotName(item.pilot_id);
                                 const allNotes = [item.notes, item.counterpartNotes].filter(Boolean).join('; ');
                                 
