@@ -98,7 +98,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
   const aircraftStore = useAircraftStore(); 
-  const { aircraft, loading: aircraftLoading, fetchAircraft, getAircraftName: getAircraftFullName } = aircraftStore;
+  const { aircraftWithCalculatedData, loading: aircraftLoading, fetchAircraft } = aircraftStore;
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
   const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate, fetchCompletedGliderFlights } = useCompletedGliderFlightsStore();
@@ -169,7 +169,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   useEffect(() => {
     const loadFlightDetails = async () => {
       // Defensive check: ensure data dependencies are loaded before proceeding
-      if (!user || !pilots || pilots.length === 0 || !aircraft || aircraft.length === 0) {
+      if (!user || pilots.length === 0 || aircraftWithCalculatedData.length === 0 || categories.length === 0) {
         return;
       }
 
@@ -218,7 +218,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
     if (isEditMode) { 
       loadFlightDetails();
-    } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries && scheduleEntries.length > 0 && pilots && pilots.length > 0 && aircraft && aircraft.length > 0) {
+    } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries && scheduleEntries.length > 0 && pilots.length > 0 && aircraftWithCalculatedData.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
         if (entry) {
             const prefilledFlightPurpose = (GLIDER_FLIGHT_PURPOSES as readonly string[]).includes(entry.flight_type_id) ? entry.flight_type_id as GliderFlightPurpose : undefined;
@@ -237,7 +237,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               notes: null,
             });
         }
-    } else if (!isEditMode && !scheduleEntryIdParam && pilots && pilots.length > 0 && aircraft && aircraft.length > 0 && user) {
+    } else if (!isEditMode && !scheduleEntryIdParam && pilots.length > 0 && aircraftWithCalculatedData.length > 0 && user) {
         form.reset({
             date: new Date(),
             pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
@@ -253,7 +253,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries, pilots, aircraft]); 
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries, pilots.length, aircraftWithCalculatedData.length, categories.length]); 
 
 
   const watchedPicPilotId = form.watch("pilot_id");
@@ -268,7 +268,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
   const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación', [watchedFlightPurpose]);
-  const picOrStudentLabel = "Piloto a Cargo";
+  const picOrStudentLabel = "Piloto";
 
   useEffect(() => {
     if (!isInstructionTakenMode && form.getValues("instructor_id") !== null) {
@@ -352,7 +352,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   useEffect(() => {
     setGliderWarning(null);
     if (watchedGliderAircraftId && watchedDate && isValid(watchedDate)) {
-      const selectedAC = aircraft.find(ac => ac.id === watchedGliderAircraftId);
+      const selectedAC = aircraftWithCalculatedData.find(ac => ac.id === watchedGliderAircraftId);
       if (selectedAC) {
         const flightDateStart = startOfDay(watchedDate);
         const isInsuranceExpiredOnFlightDate = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), flightDateStart);
@@ -363,12 +363,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
       }
     }
-  }, [watchedGliderAircraftId, aircraft, watchedDate]);
+  }, [watchedGliderAircraftId, aircraftWithCalculatedData, watchedDate]);
 
   useEffect(() => {
     setTowPlaneWarning(null);
     if (watchedTowAircraftId && watchedDate && isValid(watchedDate)) {
-      const selectedAC = aircraft.find(ac => ac.id === watchedTowAircraftId);
+      const selectedAC = aircraftWithCalculatedData.find(ac => ac.id === watchedTowAircraftId);
       if (selectedAC) {
         const flightDateStart = startOfDay(watchedDate);
         const isInsuranceExpiredOnFlightDate = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), flightDateStart);
@@ -379,7 +379,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
       }
     }
-  }, [watchedTowAircraftId, aircraft, watchedDate]);
+  }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
   const sortedPilots = useMemo(() => {
     return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
@@ -447,12 +447,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
 
   const filteredGliders = useMemo(() => {
-    return aircraft.filter(ac => ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
-  }, [aircraft]);
+    return aircraftWithCalculatedData.filter(ac => ac.type === 'Glider').sort((a,b) => a.name.localeCompare(b.name));
+  }, [aircraftWithCalculatedData]);
 
   const filteredTowPlanes = useMemo(() => {
-    return aircraft.filter(ac => ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
-  }, [aircraft]);
+    return aircraftWithCalculatedData.filter(ac => ac.type === 'Tow Plane').sort((a,b) => a.name.localeCompare(b.name));
+  }, [aircraftWithCalculatedData]);
 
   const isAnyPilotInvalidForFlight = useMemo(() => {
     const isPicExpired = medicalWarning?.toUpperCase().includes("VENCIDO");

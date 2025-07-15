@@ -287,7 +287,7 @@ export function usePilotCategoriesStore() {
 
 // AIRCRAFT STORE
 export function useAircraftStore() {
-    const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+    const [aircraftWithCalculatedData, setAircraftWithCalculatedData] = useState<Aircraft[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<any>(null);
     const fetchingRef = useRef(false);
@@ -335,7 +335,7 @@ export function useAircraftStore() {
                 return { ...ac, hours_since_oil_change: hours, total_oil_added_since_review: totalOilAdded };
             });
 
-            setAircraft(calculatedAircraft);
+            setAircraftWithCalculatedData(calculatedAircraft);
         } catch (e: any) {
             logSupabaseError('Error fetching aircraft data', e);
             setError(e);
@@ -391,11 +391,11 @@ export function useAircraftStore() {
 
     const getAircraftName = useCallback((aircraftId?: string | null): string => {
         if (!aircraftId) return 'N/A';
-        const ac = aircraft.find(a => a.id === aircraftId);
+        const ac = aircraftWithCalculatedData.find(a => a.id === aircraftId);
         return ac ? ac.name : 'Aeronave no encontrada';
-    }, [aircraft]);
+    }, [aircraftWithCalculatedData]);
 
-    return { aircraftWithCalculatedData: aircraft, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
+    return { aircraftWithCalculatedData, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
 }
 
 
