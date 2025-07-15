@@ -211,13 +211,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 let instructionMode: 'recibida' | 'impartida' | 'ninguna' = 'ninguna';
                 if (data.flight_purpose === 'instrucción') {
-                  // The user who created the log is the instructor -> impartida
-                  // otherwise it's the student -> recibida
-                   if (data.instructor_id && data.auth_user_id === pilots.find(p=>p.id === data.instructor_id)?.auth_user_id) {
-                     instructionMode = 'impartida';
-                   } else {
-                     instructionMode = 'recibida';
-                   }
+                    // Si el registro tiene un instructor_id y es diferente al pilot_id, es instrucción recibida.
+                    if (data.instructor_id && data.pilot_id !== data.instructor_id) {
+                        instructionMode = 'recibida';
+                    } 
+                    // Si pilot_id e instructor_id son el mismo, es instrucción impartida.
+                    else if (data.instructor_id && data.pilot_id === data.instructor_id) {
+                        instructionMode = 'impartida';
+                    }
                 }
                 
                 form.reset({
@@ -638,6 +639,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         // Remove the UI-only field before submitting
         const { instruction_mode, ...dbFormData } = formData;
         
+        let finalInstructorId = formData.instructor_id;
+        if (formData.instruction_mode === 'impartida') {
+            finalInstructorId = formData.pilot_id; // Instructor is the PIC
+        } else if (formData.instruction_mode === 'ninguna') {
+            finalInstructorId = null;
+        }
+
         const submissionData: Partial<CompletedEngineFlight> = {
             ...dbFormData,
             date: format(formData.date, 'yyyy-MM-dd'),
@@ -651,7 +659,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             oil_added_liters: formData.oil_added_liters || null,
             fuel_added_liters: formData.fuel_added_liters || null,
             notes: formData.notes || null,
-            instructor_id: (formData.flight_purpose === 'instrucción' && formData.instruction_mode === 'recibida') ? formData.instructor_id : null,
+            instructor_id: finalInstructorId,
         };
 
         let result;
@@ -679,7 +687,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            await fetchAircraft(); // Forzar la actualización de datos de la aeronave
+            await fetchAircraft(true); // Forzar la actualización de datos de la aeronave
             router.push('/logbook/engine/list'); 
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
