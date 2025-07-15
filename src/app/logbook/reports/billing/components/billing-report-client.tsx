@@ -127,7 +127,7 @@ export function BillingReportClient() {
                 aircraft: getAircraftName(flight.engine_aircraft_id),
                 duration_hs: flight.flight_duration_decimal,
                 billable_minutes: null,
-                notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+                notes: `(Abona piloto ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
                 is_non_billable_for_pilot: true
             });
             processedEngineInstructionIds.add(flight.id);
@@ -158,7 +158,7 @@ export function BillingReportClient() {
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,
-              notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+              notes: `(Abona piloto ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
           } 
@@ -460,5 +460,3 @@ export function BillingReportClient() {
     </div>
   );
 }
-
-    

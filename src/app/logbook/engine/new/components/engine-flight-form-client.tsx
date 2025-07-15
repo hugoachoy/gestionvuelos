@@ -211,13 +211,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 
                 let instructionMode: 'recibida' | 'impartida' | 'ninguna' = 'ninguna';
                 if (data.flight_purpose === 'instrucción') {
-                    // Si el registro tiene un instructor_id y es diferente al pilot_id, es instrucción recibida.
-                    if (data.instructor_id && data.pilot_id !== data.instructor_id) {
-                        instructionMode = 'recibida';
-                    } 
-                    // Si pilot_id e instructor_id son el mismo, es instrucción impartida.
-                    else if (data.instructor_id && data.pilot_id === data.instructor_id) {
+                    // Logic to correctly set the instruction mode for editing
+                    const isInstructorAlsoPilot = data.pilot_id === data.instructor_id;
+                    if (isInstructorAlsoPilot) {
                         instructionMode = 'impartida';
+                    } else if (data.instructor_id) {
+                        instructionMode = 'recibida';
                     }
                 }
                 
@@ -318,7 +317,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'instrucción' && watchedInstructionMode === 'impartida', [watchedFlightPurpose, watchedInstructionMode]);
   const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'instrucción' && watchedInstructionMode === 'recibida', [watchedFlightPurpose, watchedInstructionMode]);
   const isGenericInstructionMode = useMemo(() => watchedFlightPurpose === 'instrucción', [watchedFlightPurpose]);
-  const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto';
+  const picOrStudentLabel = "Piloto";
 
   useEffect(() => {
     setAircraftWarning(null);

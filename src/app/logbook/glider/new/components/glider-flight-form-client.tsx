@@ -263,7 +263,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
   const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación', [watchedFlightPurpose]);
-  const picOrStudentLabel = isInstructionGivenMode ? 'Alumno' : 'Piloto a Cargo';
+  const picOrStudentLabel = "Piloto a Cargo";
 
   useEffect(() => {
     if (!isInstructionTakenMode && form.getValues("instructor_id") !== null) {

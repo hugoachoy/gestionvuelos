@@ -188,7 +188,7 @@ export function AircraftActivityReport() {
                 `Piloto: ${item.studentName} / Instructor: ${item.instructorName}` : 
                 getPilotName(item.pilot_id);
 
-            const allNotes = item.notes || '-';
+            const allNotes = item.notes || '';
             
             const rowBase = [
                 format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
@@ -359,4 +359,3 @@ export function AircraftActivityReport() {
         </div>
     );
 }
-
