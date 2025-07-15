@@ -2,15 +2,21 @@
 "use client";
 
 import React, { useState } from 'react';
-import type { Aircraft } from '@/types';
+import type { Aircraft as BaseAircraft } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+// Define a more specific type for this component to ensure calculated data is present
+type AircraftWithCalculatedData = BaseAircraft & {
+    hours_since_oil_change?: number | null;
+    total_oil_added_since_review?: number | null;
+};
+
 interface AircraftReportButtonProps {
-  aircraft: Aircraft[];
+  aircraft: AircraftWithCalculatedData[];
   disabled?: boolean;
 }
 
@@ -29,7 +35,7 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
       const { default: jsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
 
-      const doc = new jsPDF({ orientation: 'portrait' });
+      const doc = new jsPDF({ orientation: 'landscape' });
       const generationDate = format(new Date(), "dd/MM/yyyy HH:mm");
       const pageTitle = `Informe de Aeronaves (Generado el ${generationDate})`;
       let currentY = 15;
@@ -38,13 +44,13 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
       doc.text(pageTitle, 14, currentY);
       currentY += 10;
 
-      const aircraftTypeTranslations: Record<Aircraft['type'], string> = {
+      const aircraftTypeTranslations: Record<BaseAircraft['type'], string> = {
         'Tow Plane': 'Avión Remolcador',
         'Glider': 'Planeador',
         'Avión': 'Avión',
       };
       
-      const aircraftTypeOrder: Record<Aircraft['type'], number> = {
+      const aircraftTypeOrder: Record<BaseAircraft['type'], number> = {
         'Tow Plane': 1,
         'Glider': 2,
         'Avión': 3,
@@ -60,7 +66,7 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
         return a.name.localeCompare(b.name);
       });
 
-      const tableColumn = ["Nombre/Matrícula", "Tipo", "Estado", "Venc. Anual", "Venc. Seguro"];
+      const tableColumn = ["Nombre/Matrícula", "Tipo", "Estado", "Venc. Anual", "Venc. Seguro", "Últ. Cambio Aceite", "Hs. desde Cambio"];
       const tableRows: (string | { content: string; styles?: any })[][] = [];
 
       const today = startOfDay(new Date());
@@ -75,6 +81,15 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
         if (ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date))) {
           insuranceExpiryDisplay = format(parseISO(ac.insurance_expiry_date), "dd/MM/yyyy", { locale: es });
         }
+        
+        let lastOilChangeDateDisplay = '-';
+        if (ac.last_oil_change_date && isValid(parseISO(ac.last_oil_change_date))) {
+          lastOilChangeDateDisplay = format(parseISO(ac.last_oil_change_date), "dd/MM/yyyy", { locale: es });
+        }
+
+        const hoursSinceOilChangeString = (ac.type !== 'Glider' && ac.hours_since_oil_change !== null && ac.hours_since_oil_change !== undefined) 
+            ? `${ac.hours_since_oil_change.toFixed(1)} hs` 
+            : '-';
 
         const isAnnualExpired = ac.annual_review_date ? isBefore(parseISO(ac.annual_review_date), today) : false;
         const isInsuranceExpired = ac.insurance_expiry_date ? isBefore(parseISO(ac.insurance_expiry_date), today) : false;
@@ -99,6 +114,8 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
           { content: statusText, styles: statusStyles },
           annualReviewDisplay,
           insuranceExpiryDisplay,
+          lastOilChangeDateDisplay,
+          hoursSinceOilChangeString
         ]);
       });
 
@@ -110,11 +127,13 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
         headStyles: { fillColor: [41, 128, 185], textColor: 255 },
         styles: { fontSize: 9, cellPadding: 1.5 },
         columnStyles: {
-          0: { cellWidth: 'auto' },
-          1: { cellWidth: 'auto' },
-          2: { cellWidth: 'auto' },
-          3: { cellWidth: 35 },
-          4: { cellWidth: 35 },
+          0: { cellWidth: 'auto' }, // Nombre
+          1: { cellWidth: 'auto' }, // Tipo
+          2: { cellWidth: 'auto' }, // Estado
+          3: { cellWidth: 25 },     // Venc. Anual
+          4: { cellWidth: 25 },     // Venc. Seguro
+          5: { cellWidth: 30 },     // Últ. Cambio Aceite
+          6: { cellWidth: 25 },     // Hs. desde Cambio
         },
         didParseCell: function (data) {
           if (data.column.dataKey === 2 && data.cell.raw && typeof data.cell.raw === 'object' && data.cell.raw !== null && 'styles' in data.cell.raw) {
