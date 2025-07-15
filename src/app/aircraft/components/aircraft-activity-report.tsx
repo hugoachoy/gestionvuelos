@@ -17,7 +17,14 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 
-type AugmentedReportItem = CompletedFlight & { isInstructionPair?: boolean; counterpartNotes?: string | null; studentName?: string; instructorName?: string; };
+type AugmentedReportItem = CompletedFlight & { 
+    isInstructionPair?: boolean; 
+    studentName?: string; 
+    instructorName?: string;
+    consolidated_oil_added_liters?: number | null;
+    consolidated_fuel_added_liters?: number | null;
+};
+
 
 export function AircraftActivityReport() {
     const { toast } = useToast();
@@ -91,43 +98,32 @@ export function AircraftActivityReport() {
             for (const flight of allFlights) {
                 if (processedIds.has(flight.id)) continue;
 
-                if (flight.flight_purpose === 'instrucción') {
-                    // Try to find the other half of the instruction flight
+                if ((flight as CompletedEngineFlight).flight_purpose === 'instrucción') {
                     const counterpart = allFlights.find(f => 
                         f.id !== flight.id &&
                         f.date === flight.date &&
                         f.departure_time === flight.departure_time &&
                         f.arrival_time === flight.arrival_time &&
-                        // Match aircraft IDs for both engine and glider flights safely
-                        ((f as CompletedEngineFlight).engine_aircraft_id && (f as CompletedEngineFlight).engine_aircraft_id === (flight as CompletedEngineFlight).engine_aircraft_id) ||
-                        ((f as CompletedGliderFlight).glider_aircraft_id && (f as CompletedGliderFlight).glider_aircraft_id === (flight as CompletedGliderFlight).glider_aircraft_id)
+                        ((f as CompletedEngineFlight).engine_aircraft_id && (f as CompletedEngineFlight).engine_aircraft_id === (flight as CompletedEngineFlight).engine_aircraft_id)
                     );
-
+                    
                     if (counterpart) {
-                        let studentFlight: CompletedFlight, instructorFlight: CompletedFlight;
+                        let studentFlight = flight.instructor_id ? flight as CompletedEngineFlight : counterpart as CompletedEngineFlight;
+                        let instructorFlight = flight.instructor_id ? counterpart as CompletedEngineFlight : flight as CompletedEngineFlight;
                         
-                        // Determine who is student and who is instructor based on the relationship in the records
-                        if (flight.pilot_id === counterpart.instructor_id && flight.instructor_id === counterpart.pilot_id) {
-                            studentFlight = flight.pilot_id === counterpart.instructor_id ? counterpart : flight;
-                            instructorFlight = flight.pilot_id === counterpart.instructor_id ? flight : counterpart;
-                        } else {
-                            // Fallback if the relationship is not perfectly mirrored, assume the one with an instructor_id is the student
-                            studentFlight = flight.instructor_id ? flight : counterpart;
-                            instructorFlight = flight.instructor_id ? counterpart : flight;
-                        }
-
                         uniqueFlights.push({
-                            ...studentFlight, 
+                            ...studentFlight,
                             isInstructionPair: true, 
-                            counterpartNotes: instructorFlight.notes,
                             studentName: getPilotName(studentFlight.pilot_id),
                             instructorName: getPilotName(studentFlight.instructor_id),
+                            consolidated_oil_added_liters: studentFlight.oil_added_liters || instructorFlight.oil_added_liters,
+                            consolidated_fuel_added_liters: studentFlight.fuel_added_liters || instructorFlight.fuel_added_liters,
                         });
                         
                         processedIds.add(flight.id);
                         processedIds.add(counterpart.id);
+
                     } else {
-                        // It's an instruction flight without a counterpart, treat as a normal flight
                         uniqueFlights.push(flight);
                         processedIds.add(flight.id);
                     }
@@ -192,7 +188,7 @@ export function AircraftActivityReport() {
                 `Piloto: ${item.studentName} / Instructor: ${item.instructorName}` : 
                 getPilotName(item.pilot_id);
 
-            const allNotes = [item.notes, (item as AugmentedReportItem).counterpartNotes].filter(Boolean).join('; ');
+            const allNotes = item.notes || '-';
             
             const rowBase = [
                 format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
@@ -202,16 +198,16 @@ export function AircraftActivityReport() {
             ];
 
             if (isEngine) {
-                const engineItem = item as CompletedEngineFlight;
+                const engineItem = item as AugmentedReportItem;
                 return [
                     ...rowBase,
-                    engineItem.landings_count?.toString() ?? '-',
-                    engineItem.oil_added_liters?.toString() ?? '-',
-                    engineItem.fuel_added_liters?.toString() ?? '-',
-                    allNotes || '-',
+                    (engineItem as CompletedEngineFlight).landings_count?.toString() ?? '-',
+                    engineItem.consolidated_oil_added_liters?.toString() ?? (engineItem as CompletedEngineFlight).oil_added_liters?.toString() ?? '-',
+                    engineItem.consolidated_fuel_added_liters?.toString() ?? (engineItem as CompletedEngineFlight).fuel_added_liters?.toString() ?? '-',
+                    allNotes,
                 ];
             } else {
-                return [...rowBase, allNotes || '-'];
+                return [...rowBase, allNotes];
             }
         });
 
@@ -336,7 +332,6 @@ export function AircraftActivityReport() {
                                 const pilotText = item.isInstructionPair ? 
                                 `Piloto: ${item.studentName} / Instructor: ${item.instructorName}` : 
                                 getPilotName(item.pilot_id);
-                                const allNotes = [item.notes, item.counterpartNotes].filter(Boolean).join('; ');
                                 
                                 return (
                                 <TableRow key={item.id}>
@@ -345,9 +340,9 @@ export function AircraftActivityReport() {
                                     <TableCell>{FLIGHT_PURPOSE_DISPLAY_MAP[item.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || item.flight_purpose}</TableCell>
                                     <TableCell>{item.flight_duration_decimal.toFixed(1)} hs</TableCell>
                                     {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as CompletedEngineFlight).landings_count ?? '-'}</TableCell>}
-                                    {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as CompletedEngineFlight).oil_added_liters ?? '-'}</TableCell>}
-                                    {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as CompletedEngineFlight).fuel_added_liters ?? '-'}</TableCell>}
-                                    <TableCell>{allNotes || '-'}</TableCell>
+                                    {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as AugmentedReportItem).consolidated_oil_added_liters ?? (item as CompletedEngineFlight).oil_added_liters ?? '-'}</TableCell>}
+                                    {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as AugmentedReportItem).consolidated_fuel_added_liters ?? (item as CompletedEngineFlight).fuel_added_liters ?? '-'}</TableCell>}
+                                    <TableCell>{item.notes || '-'}</TableCell>
                                 </TableRow>
                             )})}
                         </TableBody>
@@ -364,3 +359,4 @@ export function AircraftActivityReport() {
         </div>
     );
 }
+
