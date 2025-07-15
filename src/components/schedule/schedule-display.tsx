@@ -79,9 +79,10 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
 
         const towageFlightId = FLIGHT_TYPES.find(ft => ft.id === 'towage')?.id;
         const sportFlightId = FLIGHT_TYPES.find(ft => ft.id === 'sport')?.id;
+        const instructionGivenFlightId = FLIGHT_TYPES.find(ft => ft.id === 'instruction_given')?.id;
 
         const shouldFlightTypeBeBold = 
-          (entry.flight_type_id === 'instruction_given' && isTurnByCategoryInstructor) ||
+          (entry.flight_type_id === instructionGivenFlightId && isTurnByCategoryInstructor) ||
           (isTurnByCategoryRemolcador) || 
           (entry.flight_type_id === towageFlightId); 
 
@@ -93,7 +94,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
 
         const showAvailableSinceText = 
             (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available && isTurnByCategoryRemolcador) || 
-            isTurnByCategoryInstructor;
+            (isTurnByCategoryInstructor && entry.flight_type_id === instructionGivenFlightId);
 
 
         if (pilot && pilot.medical_expiry) {
@@ -152,6 +153,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
         }
 
         const isCardStyleRemolcador = isTurnByCategoryRemolcador || entry.flight_type_id === towageFlightId;
+        const isCardStyleInstructor = isTurnByCategoryInstructor && entry.flight_type_id === instructionGivenFlightId;
         
         const isOwner = currentUser && entry.auth_user_id && currentUser.id === entry.auth_user_id;
         const canManageEntry = isOwner || currentUser?.is_admin;
@@ -161,7 +163,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
             key={entry.id}
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isCardStyleRemolcador && 'bg-primary/20'
+              isCardStyleInstructor && 'bg-primary/30',
+              isCardStyleRemolcador && !isCardStyleInstructor && 'bg-primary/20'
             )}
           >
             <CardHeader className="pb-2">
