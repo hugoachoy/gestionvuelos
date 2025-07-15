@@ -168,7 +168,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   useEffect(() => {
     const loadFlightDetails = async () => {
-      if (flightIdToLoad && user) {
+      // Defensive check: ensure data dependencies are loaded before proceeding
+      if (!user || !pilots || pilots.length === 0 || !aircraft || aircraft.length === 0) {
+        return;
+      }
+
+      if (flightIdToLoad) {
         setIsFetchingFlightDetails(true);
         setFlightFetchError(null);
         setInitialFlightData(null);
@@ -211,9 +216,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       }
     };
 
-    if (isEditMode && user) { 
+    if (isEditMode) { 
       loadFlightDetails();
-    } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries.length > 0 && pilots.length > 0 && aircraft.length > 0) {
+    } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries && scheduleEntries.length > 0 && pilots && pilots.length > 0 && aircraft && aircraft.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
         if (entry) {
             const prefilledFlightPurpose = (GLIDER_FLIGHT_PURPOSES as readonly string[]).includes(entry.flight_type_id) ? entry.flight_type_id as GliderFlightPurpose : undefined;
@@ -232,7 +237,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
               notes: null,
             });
         }
-    } else if (!isEditMode && !scheduleEntryIdParam && pilots.length > 0 && aircraft.length > 0 && user) {
+    } else if (!isEditMode && !scheduleEntryIdParam && pilots && pilots.length > 0 && aircraft && aircraft.length > 0 && user) {
         form.reset({
             date: new Date(),
             pilot_id: pilots.find(p => p.auth_user_id === user.id)?.id || '',
@@ -248,7 +253,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraft.length]); 
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries, pilots, aircraft]); 
 
 
   const watchedPicPilotId = form.watch("pilot_id");
