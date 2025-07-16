@@ -13,9 +13,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { RefreshCw, Trash2, Edit, CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
+import { RefreshCw, Trash2, Edit, CalendarIcon, Check, ChevronsUpDown, Download } from 'lucide-react';
 import { format, parseISO, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { usePilotsStore, useAircraftStore } from '@/store/data-hooks';
@@ -151,6 +152,95 @@ export function EngineFlightListClient() {
     });
   }, [filteredFlights]);
 
+  const handleExportPdf = async () => {
+    if (sortedFlights.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+      return;
+    }
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    
+    const doc = new jsPDF({ orientation: 'landscape' });
+    
+    const pilotIdForTitle = currentUser?.is_admin ? selectedPilotId : currentUserPilotId;
+    const pilotNameForTitle = pilotIdForTitle === 'all' ? 'Todos los Pilotos' : getPilotName(pilotIdForTitle);
+    const pageTitle = `Historial de Vuelos a Motor: ${pilotNameForTitle}`;
+    const pageSubtitle = `Período: ${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''}`;
+
+    doc.setFontSize(16);
+    doc.text(pageTitle, 14, 15);
+    doc.setFontSize(10);
+    doc.text(pageSubtitle, 14, 22);
+
+    const tableColumn = ["Fecha", "Piloto", "Aeronave", "Instructor", "Propósito", "Salida", "Llegada", "Duración", "Facturable (min)", "Ruta", "Aterr.", "Remol.", "Aceite", "Nafta", "Notas"];
+    const tableRows: (string | null)[][] = [];
+    
+    let totalDuration = 0;
+    let totalBillableMinutes = 0;
+
+    sortedFlights.forEach(flight => {
+        totalDuration += flight.flight_duration_decimal;
+        if (flight.flight_purpose !== 'Remolque planeador') {
+            totalBillableMinutes += flight.billable_minutes || 0;
+        }
+
+        tableRows.push([
+            format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
+            getPilotName(flight.pilot_id),
+            getAircraftName(flight.engine_aircraft_id),
+            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
+            FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose,
+            flight.departure_time,
+            flight.arrival_time,
+            `${flight.flight_duration_decimal.toFixed(1)} hs`,
+            flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
+            flight.route_from_to || '-',
+            flight.landings_count?.toString() ?? '-',
+            flight.tows_count?.toString() ?? '-',
+            flight.oil_added_liters?.toString() ?? '-',
+            flight.fuel_added_liters?.toString() ?? '-',
+            flight.notes || '-',
+        ]);
+    });
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      foot: [[
+          { content: 'TOTALES', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: `${totalDuration.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
+          { content: `${totalBillableMinutes} min`, styles: { fontStyle: 'bold' } },
+          { content: '', colSpan: 6 },
+      ]],
+      startY: 28,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 100, 160], textColor: 255 },
+      styles: { fontSize: 7, cellPadding: 1 },
+      columnStyles: {
+          0: { cellWidth: 16 },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 'auto' },
+          3: { cellWidth: 'auto' },
+          4: { cellWidth: 20 },
+          5: { cellWidth: 12 },
+          6: { cellWidth: 12 },
+          7: { cellWidth: 13 },
+          8: { cellWidth: 16 },
+          9: { cellWidth: 25 },
+          10: { cellWidth: 11 },
+          11: { cellWidth: 11 },
+          12: { cellWidth: 11 },
+          13: { cellWidth: 11 },
+          14: { cellWidth: 'auto' },
+      },
+    });
+
+    const fileName = `historial_motor_${pilotIdForTitle === 'all' ? 'todos' : getPilotName(pilotIdForTitle).replace(/\s/g, '_')}_${format(new Date(), "yyyyMMdd")}.pdf`;
+    doc.save(fileName);
+    toast({ title: "PDF Exportado", description: `El historial se ha guardado como ${fileName}.` });
+  };
+
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row gap-4 items-center p-4 border rounded-lg bg-card flex-wrap mb-4">
@@ -226,6 +316,12 @@ export function EngineFlightListClient() {
           <RefreshCw className={cn("mr-2 h-4 w-4", (flightsLoading || pilotsLoading || aircraftLoading) && "animate-spin")} />
           Filtrar / Refrescar
         </Button>
+        {sortedFlights.length > 0 && !isLoadingUI && (
+            <Button onClick={handleExportPdf} variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Exportar a PDF
+            </Button>
+        )}
       </div>
 
       {isLoadingUI && !sortedFlights.length ? (
