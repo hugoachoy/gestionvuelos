@@ -179,34 +179,36 @@ export function EngineFlightListClient() {
     let totalBillableMinutes = 0;
     const processedFlightIds = new Set<string>();
 
-    sortedFlights.forEach(flight => {
-        if (!processedFlightIds.has(flight.id)) {
-            totalDuration += flight.flight_duration_decimal;
-            
-            // Only add billable minutes if it's not a tow flight
-            if (flight.flight_purpose !== 'Remolque planeador') {
-                totalBillableMinutes += flight.billable_minutes || 0;
-            }
+    const flightsForPdf = [...sortedFlights].sort((a, b) => {
+        const dateComp = a.date.localeCompare(b.date);
+        if (dateComp !== 0) return dateComp;
+        return a.departure_time.localeCompare(b.departure_time);
+    });
 
-            // Mark this flight as processed
-            processedFlightIds.add(flight.id);
-            
-            // If it's an instruction flight, find its counterpart and mark it as processed too to avoid double counting
+    flightsForPdf.forEach(flight => {
+        if (!processedFlightIds.has(flight.id)) {
+            // Check for instruction counterpart to avoid double counting totals
             const isInstruction = flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación';
             if (isInstruction) {
-                const counterpart = sortedFlights.find(f => 
+                const counterpart = flightsForPdf.find(f => 
                     f.id !== flight.id &&
                     f.date === flight.date &&
                     f.departure_time === flight.departure_time &&
                     f.arrival_time === flight.arrival_time &&
-                    f.engine_aircraft_id === flight.engine_aircraft_id
+                    f.engine_aircraft_id === flight.engine_aircraft_id &&
+                    (f.pilot_id === flight.instructor_id || f.instructor_id === flight.pilot_id)
                 );
                 if (counterpart) {
                     processedFlightIds.add(counterpart.id);
                 }
             }
+            // Add totals for the current flight (which is either not instruction, or the first of an instruction pair)
+            totalDuration += flight.flight_duration_decimal;
+            if (flight.flight_purpose !== 'Remolque planeador') {
+                totalBillableMinutes += flight.billable_minutes || 0;
+            }
         }
-
+        
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
             getPilotName(flight.pilot_id),
