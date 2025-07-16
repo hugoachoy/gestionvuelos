@@ -7,7 +7,7 @@ import type { Rate } from '@/types';
 import { useRatesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, RefreshCw, Download, Loader2 } from 'lucide-react';
 import { RateForm } from './rate-form';
 import { DeleteDialog } from '@/components/common/delete-dialog';
 import {
@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import { format } from 'date-fns';
 
 export function RatesClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -33,6 +34,7 @@ export function RatesClient() {
   const [editingRate, setEditingRate] = useState<Rate | undefined>(undefined);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [rateToDelete, setRateToDelete] = useState<Rate | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     fetchRates();
@@ -83,7 +85,54 @@ export function RatesClient() {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
   };
 
-  const isLoadingUI = loading || authLoading;
+  const handleExportPdf = async () => {
+    if (rates.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay tarifas para exportar." });
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      
+      const doc = new jsPDF();
+      const generationDate = format(new Date(), "dd/MM/yyyy HH:mm");
+
+      doc.setFontSize(18);
+      doc.text("Listado de Tarifas", 14, 22);
+      doc.setFontSize(10);
+      doc.text(`Generado el: ${generationDate}`, 14, 28);
+      
+      const tableColumn = ["Ítem", "Precio Socio", "Precio No Socio", "POS Socio", "POS No Socio"];
+      const tableRows = rates.map(rate => [
+        rate.item_name,
+        formatValue(rate.is_percentage ? rate.percentage_value : rate.member_price, rate.is_percentage),
+        formatValue(rate.is_percentage ? rate.percentage_value : rate.non_member_price, rate.is_percentage),
+        formatValue(rate.pos_member_price, false),
+        formatValue(rate.pos_non_member_price, false)
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 35,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      });
+
+      doc.save(`tarifas_aeroclub_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: "PDF Exportado", description: "El listado de tarifas se ha guardado correctamente." });
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error de Exportación", description: "No se pudo generar el PDF.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+
+  const isLoadingUI = loading || authLoading || isExporting;
 
   if (!currentUser?.is_admin && !authLoading) {
     return (
@@ -105,6 +154,9 @@ export function RatesClient() {
         <div className="flex gap-2">
             <Button onClick={() => fetchRates()} variant="outline" size="icon" disabled={isLoadingUI}>
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
+            </Button>
+            <Button onClick={handleExportPdf} variant="outline" disabled={isLoadingUI || rates.length === 0}>
+                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Exportar a PDF
             </Button>
             <Button onClick={handleAddRate} disabled={isLoadingUI}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarifa
