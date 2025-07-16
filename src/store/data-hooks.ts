@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 type Aircraft = BaseAircraft & { hours_since_oil_change?: number | null, total_oil_added_since_review?: number | null };
 
@@ -292,6 +293,7 @@ export function useAircraftStore() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<any>(null);
     const fetchingRef = useRef(false);
+    const { toast } = useToast();
 
     const fetchAircraft = useCallback(async (force = false) => {
         if (fetchingRef.current && !force) return;
@@ -383,14 +385,30 @@ export function useAircraftStore() {
         setLoading(true);
         const { error } = await supabase.from('aircraft').delete().eq('id', id);
         if (error) {
-            logSupabaseError('Error deleting aircraft', error);
-            setError(error);
+            // Check for foreign key violation
+            if (error.code === '23503') {
+                toast({
+                    title: "Acción no permitida",
+                    description: "No se puede eliminar la aeronave porque tiene vuelos registrados. Considere ponerla 'Fuera de Servicio' en su lugar.",
+                    variant: "destructive",
+                    duration: 7000
+                });
+                setError(null); // Clear the error as it's been handled gracefully
+            } else {
+                logSupabaseError('Error deleting aircraft', error);
+                setError(error);
+                 toast({
+                    title: "Error al Eliminar",
+                    description: "Ocurrió un error inesperado al intentar eliminar la aeronave.",
+                    variant: "destructive",
+                });
+            }
             setLoading(false);
             return false;
         }
         await fetchAircraft(true); // Force refetch after deleting
         return true;
-    }, [fetchAircraft]);
+    }, [fetchAircraft, toast]);
 
     const getAircraftName = useCallback((aircraftId?: string | null): string => {
         if (!aircraftId) return 'N/A';
