@@ -170,6 +170,7 @@ export function GliderFlightListClient() {
         if (!processedFlightIds.has(flight.id)) {
             totalDuration += flight.flight_duration_decimal;
             
+            processedFlightIds.add(flight.id);
             const isInstruction = ['Instrucción (Recibida)', 'Instrucción (Impartida)', 'readaptación'].includes(flight.flight_purpose);
             if (isInstruction) {
                 const counterpart = sortedFlights.find(f => 
@@ -177,14 +178,12 @@ export function GliderFlightListClient() {
                     f.date === flight.date &&
                     f.departure_time === flight.departure_time &&
                     f.arrival_time === flight.arrival_time &&
-                    f.glider_aircraft_id === flight.glider_aircraft_id &&
-                    (f.pilot_id === flight.instructor_id && f.instructor_id === flight.pilot_id)
+                    f.glider_aircraft_id === flight.glider_aircraft_id
                 );
                 if (counterpart) {
                     processedFlightIds.add(counterpart.id);
                 }
             }
-             processedFlightIds.add(flight.id);
         }
 
         tableRows.push([

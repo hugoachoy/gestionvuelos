@@ -182,25 +182,29 @@ export function EngineFlightListClient() {
     sortedFlights.forEach(flight => {
         if (!processedFlightIds.has(flight.id)) {
             totalDuration += flight.flight_duration_decimal;
+            
+            // Only add billable minutes if it's not a tow flight
             if (flight.flight_purpose !== 'Remolque planeador') {
                 totalBillableMinutes += flight.billable_minutes || 0;
             }
 
-            // If it's an instruction flight, find its counterpart and mark it as processed too
-            if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación') {
+            // Mark this flight as processed
+            processedFlightIds.add(flight.id);
+            
+            // If it's an instruction flight, find its counterpart and mark it as processed too to avoid double counting
+            const isInstruction = flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación';
+            if (isInstruction) {
                 const counterpart = sortedFlights.find(f => 
                     f.id !== flight.id &&
                     f.date === flight.date &&
                     f.departure_time === flight.departure_time &&
                     f.arrival_time === flight.arrival_time &&
-                    f.engine_aircraft_id === flight.engine_aircraft_id &&
-                    (f.pilot_id === flight.instructor_id && f.instructor_id === flight.pilot_id)
+                    f.engine_aircraft_id === flight.engine_aircraft_id
                 );
                 if (counterpart) {
                     processedFlightIds.add(counterpart.id);
                 }
             }
-             processedFlightIds.add(flight.id);
         }
 
         tableRows.push([
