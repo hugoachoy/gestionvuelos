@@ -43,6 +43,10 @@ export interface Rate {
   item_name: string;
   member_price: number | null;
   non_member_price: number | null;
+  pos_member_price: number | null;
+  pos_non_member_price: number | null;
+  is_percentage: boolean | null;
+  percentage_value: number | null;
   created_at?: string;
 }
 

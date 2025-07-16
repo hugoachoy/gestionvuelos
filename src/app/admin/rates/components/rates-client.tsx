@@ -75,10 +75,13 @@ export function RatesClient() {
     setIsFormOpen(false);
   };
   
-  const formatCurrency = (value: number | null | undefined) => {
+  const formatValue = (value: number | null | undefined, isPercentage: boolean | null | undefined) => {
     if (value === null || value === undefined) return '-';
+    if (isPercentage) {
+      return `${value}%`;
+    }
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
-  }
+  };
 
   const isLoadingUI = loading || authLoading;
 
@@ -122,13 +125,15 @@ export function RatesClient() {
                 <TableHead>Ítem</TableHead>
                 <TableHead className="text-right">Precio Socio</TableHead>
                 <TableHead className="text-right">Precio No Socio</TableHead>
+                <TableHead className="text-right">POS Socio</TableHead>
+                <TableHead className="text-right">POS No Socio</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center h-24">
+                  <TableCell colSpan={6} className="text-center h-24">
                     No hay tarifas registradas.
                   </TableCell>
                 </TableRow>
@@ -136,8 +141,10 @@ export function RatesClient() {
                 rates.map((rate) => (
                   <TableRow key={rate.id}>
                     <TableCell className="font-medium">{rate.item_name}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(rate.member_price)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(rate.non_member_price)}</TableCell>
+                    <TableCell className="text-right">{formatValue(rate.is_percentage ? rate.percentage_value : rate.member_price, rate.is_percentage)}</TableCell>
+                    <TableCell className="text-right">{formatValue(rate.is_percentage ? rate.percentage_value : rate.non_member_price, rate.is_percentage)}</TableCell>
+                    <TableCell className="text-right">{formatValue(rate.pos_member_price, false)}</TableCell>
+                    <TableCell className="text-right">{formatValue(rate.pos_non_member_price, false)}</TableCell>
                     <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleEditRate(rate)} className="mr-2 hover:text-primary">
                           <Edit className="h-4 w-4" />
