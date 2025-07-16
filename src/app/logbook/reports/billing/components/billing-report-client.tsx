@@ -116,35 +116,36 @@ export function BillingReportClient() {
       let totalTowsCount = 0;
       
       engineFlights.forEach((flight) => {
-        // Correct logic for billing report
-        if (flight.instructor_id === selectedPilotId) {
-          // This pilot was the instructor in this flight. It is not billable for them.
-           billableItems.push({
+          if (flight.instructor_id === selectedPilotId) {
+            // The selected pilot was the INSTRUCTOR for this flight.
+            // This is NOT billable for them.
+            billableItems.push({
               id: `eng-inst-${flight.id}`,
               date: flight.date,
               type: 'Instrucción Impartida',
               aircraft: getAircraftName(flight.engine_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
-              billable_minutes: null,
+              billable_minutes: null, // Not billable to the instructor
               notes: `(Abona piloto ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
-        } else if (flight.pilot_id === selectedPilotId) {
-          // This pilot was the PIC/student. It is billable for them.
-          // This handles both regular flights and flights where they received instruction.
-          if (flight.flight_purpose !== 'Remolque planeador') {
+          } else if (flight.pilot_id === selectedPilotId) {
+            // The selected pilot was the PIC/STUDENT for this flight.
+            // This IS billable for them.
+            if (flight.flight_purpose !== 'Remolque planeador') {
               billableItems.push({
-                  id: `eng-${flight.id}`,
-                  date: flight.date,
-                  type: 'Vuelo a Motor',
-                  aircraft: getAircraftName(flight.engine_aircraft_id),
-                  duration_hs: flight.flight_duration_decimal,
-                  billable_minutes: flight.billable_minutes ?? 0,
-                  notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
+                id: `eng-${flight.id}`,
+                date: flight.date,
+                type: 'Vuelo a Motor',
+                aircraft: getAircraftName(flight.engine_aircraft_id),
+                duration_hs: flight.flight_duration_decimal,
+                billable_minutes: flight.billable_minutes ?? 0,
+                notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`,
+                is_non_billable_for_pilot: false // This is billable
               });
               totalMins += flight.billable_minutes ?? 0;
+            }
           }
-        }
       });
       
       gliderFlights
@@ -174,7 +175,8 @@ export function BillingReportClient() {
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,
-              notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
+              notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`,
+              is_non_billable_for_pilot: false
             });
             totalTowsCount += 1;
           }
