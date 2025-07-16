@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight } from '@/types';
+import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight, Rate } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -417,6 +417,78 @@ export function useAircraftStore() {
     }, [aircraftWithCalculatedData]);
 
     return { aircraft, aircraftWithCalculatedData, loading, error, fetchAircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftName };
+}
+
+// Rates Store
+export function useRatesStore() {
+  const [rates, setRates] = useState<Rate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
+
+  const fetchRates = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase.from('rates').select('*').order('item_name');
+      if (fetchError) {
+        logSupabaseError('Error fetching rates', fetchError);
+        setError(fetchError);
+      } else {
+        setRates(data || []);
+      }
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchRates', e);
+      setError(e);
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, []);
+
+  const addRate = useCallback(async (rateData: Omit<Rate, 'id' | 'created_at'>) => {
+    setLoading(true);
+    const { data, error } = await supabase.from('rates').insert([rateData]).select().single();
+    if (error) {
+        logSupabaseError('Error adding rate', error);
+        setError(error);
+        setLoading(false);
+        return null;
+    }
+    await fetchRates();
+    return data;
+  }, [fetchRates]);
+
+  const updateRate = useCallback(async (updatedData: Rate) => {
+    setLoading(true);
+    const { id, ...updatePayload } = updatedData;
+    const { data, error } = await supabase.from('rates').update(updatePayload).eq('id', id).select().single();
+    if (error) {
+        logSupabaseError('Error updating rate', error);
+        setError(error);
+        setLoading(false);
+        return null;
+    }
+    await fetchRates();
+    return data;
+  }, [fetchRates]);
+
+  const deleteRate = useCallback(async (id: string) => {
+    setLoading(true);
+    const { error } = await supabase.from('rates').delete().eq('id', id);
+    if (error) {
+        logSupabaseError('Error deleting rate', error);
+        setError(error);
+        setLoading(false);
+        return false;
+    }
+    await fetchRates();
+    return true;
+  }, [fetchRates]);
+
+  return { rates, loading, error, fetchRates, addRate, updateRate, deleteRate };
 }
 
 

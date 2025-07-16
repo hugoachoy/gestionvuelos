@@ -38,6 +38,14 @@ export interface Aircraft {
   created_at?: string;
 }
 
+export interface Rate {
+  id: string;
+  item_name: string;
+  member_price: number | null;
+  non_member_price: number | null;
+  created_at?: string;
+}
+
 export const FLIGHT_TYPES = [
   { id: 'instruction_taken', name: 'Instrucción Recibida' },
   { id: 'instruction_given', name: 'Instrucción Impartida' },
