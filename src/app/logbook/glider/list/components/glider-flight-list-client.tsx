@@ -163,9 +163,30 @@ export function GliderFlightListClient() {
     const tableRows: (string | null)[][] = [];
     
     let totalDuration = 0;
+    const processedFlightIds = new Set<string>();
 
     sortedFlights.forEach(flight => {
-        totalDuration += flight.flight_duration_decimal;
+        // Correctly calculate totals, avoiding double-counting for instruction flights
+        if (!processedFlightIds.has(flight.id)) {
+            totalDuration += flight.flight_duration_decimal;
+            
+            const isInstruction = ['Instrucción (Recibida)', 'Instrucción (Impartida)', 'readaptación'].includes(flight.flight_purpose);
+            if (isInstruction) {
+                const counterpart = sortedFlights.find(f => 
+                    f.id !== flight.id &&
+                    f.date === flight.date &&
+                    f.departure_time === flight.departure_time &&
+                    f.arrival_time === flight.arrival_time &&
+                    f.glider_aircraft_id === flight.glider_aircraft_id &&
+                    (f.pilot_id === flight.instructor_id && f.instructor_id === flight.pilot_id)
+                );
+                if (counterpart) {
+                    processedFlightIds.add(counterpart.id);
+                }
+            }
+             processedFlightIds.add(flight.id);
+        }
+
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
             getPilotName(flight.pilot_id),

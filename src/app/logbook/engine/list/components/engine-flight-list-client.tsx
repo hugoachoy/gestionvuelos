@@ -177,11 +177,30 @@ export function EngineFlightListClient() {
     
     let totalDuration = 0;
     let totalBillableMinutes = 0;
+    const processedFlightIds = new Set<string>();
 
     sortedFlights.forEach(flight => {
-        totalDuration += flight.flight_duration_decimal;
-        if (flight.flight_purpose !== 'Remolque planeador') {
-            totalBillableMinutes += flight.billable_minutes || 0;
+        if (!processedFlightIds.has(flight.id)) {
+            totalDuration += flight.flight_duration_decimal;
+            if (flight.flight_purpose !== 'Remolque planeador') {
+                totalBillableMinutes += flight.billable_minutes || 0;
+            }
+
+            // If it's an instruction flight, find its counterpart and mark it as processed too
+            if (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación') {
+                const counterpart = sortedFlights.find(f => 
+                    f.id !== flight.id &&
+                    f.date === flight.date &&
+                    f.departure_time === flight.departure_time &&
+                    f.arrival_time === flight.arrival_time &&
+                    f.engine_aircraft_id === flight.engine_aircraft_id &&
+                    (f.pilot_id === flight.instructor_id && f.instructor_id === flight.pilot_id)
+                );
+                if (counterpart) {
+                    processedFlightIds.add(counterpart.id);
+                }
+            }
+             processedFlightIds.add(flight.id);
         }
 
         tableRows.push([
