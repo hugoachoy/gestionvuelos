@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import React from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const rateSchema = z.object({
   item_name: z.string().min(3, "El nombre del ítem es obligatorio y debe tener al menos 3 caracteres."),
@@ -108,7 +109,7 @@ export function RateForm({ open, onOpenChange, onSubmit, rate }: RateFormProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{rate ? 'Editar Tarifa' : 'Agregar Tarifa'}</DialogTitle>
           <DialogDescription>
@@ -116,120 +117,122 @@ export function RateForm({ open, onOpenChange, onSubmit, rate }: RateFormProps) 
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="item_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre del Ítem</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Hora de vuelo LV-GSA" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="is_percentage"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>¿Es un porcentaje?</FormLabel>
-                    <FormDescription>
-                      Marque si esta tarifa es un % de otro valor.
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-            
-            <Separator />
-
-            {isPercentage ? (
+          <ScrollArea className="max-h-[70vh] p-1">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pr-4">
               <FormField
                 control={form.control}
-                name="percentage_value"
+                name="item_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Valor del Porcentaje (%)</FormLabel>
+                    <FormLabel>Nombre del Ítem</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="25" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                      <Input placeholder="Ej: Hora de vuelo LV-GSA" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            ) : (
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="member_price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Precio Socio (Efectivo/Transf.)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="75000" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="non_member_price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Precio No Socio (Efectivo/Transf.)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="90000" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="pos_member_price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Precio Socio (POS)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="82500" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="pos_non_member_price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Precio No Socio (POS)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="99000" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
+              
+              <FormField
+                control={form.control}
+                name="is_percentage"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>¿Es un porcentaje?</FormLabel>
+                      <FormDescription>
+                        Marque si esta tarifa es un % de otro valor.
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              <Separator />
 
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button type="submit">{rate ? 'Guardar Cambios' : 'Crear Tarifa'}</Button>
-            </DialogFooter>
-          </form>
+              {isPercentage ? (
+                <FormField
+                  control={form.control}
+                  name="percentage_value"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valor del Porcentaje (%)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="25" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="member_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Socio (Efectivo/Transf.)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="75000" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="non_member_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>No Socio (Efectivo/Transf.)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="90000" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="pos_member_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Socio (POS)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="82500" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="pos_non_member_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>No Socio (POS)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="99000" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              <DialogFooter className="pt-4 sticky bottom-0 bg-background/95 pb-4">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button type="submit">{rate ? 'Guardar Cambios' : 'Crear Tarifa'}</Button>
+              </DialogFooter>
+            </form>
+          </ScrollArea>
         </Form>
       </DialogContent>
     </Dialog>
