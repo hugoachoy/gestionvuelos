@@ -159,22 +159,9 @@ export function FlightStatsClient() {
     for (const flight of engineData) {
         if (processedEngineIds.has(flight.id)) continue;
         
-        const isInstruction = flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación';
+        const isInstruction = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'readaptación';
         
         if(isInstruction) {
-            // Find the matching instruction flight
-            const counterpart = engineData.find(f => 
-                f.id !== flight.id &&
-                f.date === flight.date &&
-                f.departure_time === flight.departure_time &&
-                f.arrival_time === flight.arrival_time &&
-                f.engine_aircraft_id === flight.engine_aircraft_id &&
-                (f.pilot_id === flight.instructor_id || f.instructor_id === flight.pilot_id)
-            );
-            // Mark both as processed so they are only counted once.
-            processedEngineIds.add(flight.id);
-            if (counterpart) processedEngineIds.add(counterpart.id);
-
             newStats.engineInstructionHours += flight.flight_duration_decimal;
             newStats.engineInstructionFlights += 1;
 
@@ -375,5 +362,3 @@ export function FlightStatsClient() {
     </div>
   );
 }
-
-    
