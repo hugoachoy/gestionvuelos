@@ -118,9 +118,11 @@ export function BillingReportClient() {
             notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
             is_non_billable_for_pilot: true
           });
+          return; // Skip to next flight to avoid double counting
         } 
+        
         // Case 2: The selected pilot was the PIC/STUDENT. This IS billable.
-        else if (flight.pilot_id === selectedPilotId) {
+        if (flight.pilot_id === selectedPilotId) {
           if (flight.flight_purpose !== 'Remolque planeador') {
             billableItems.push({
               id: `eng-${flight.id}`,
@@ -137,7 +139,7 @@ export function BillingReportClient() {
       });
       
       gliderFlights.forEach((flight) => {
-          // Case 1: The selected pilot was the INSTRUCTOR.
+          // Case 1: The selected pilot was the INSTRUCTOR. This is the priority check.
           if (flight.instructor_id === selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
@@ -149,9 +151,11 @@ export function BillingReportClient() {
               notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
+            return; // IMPORTANT: Prevents double-processing this flight for the instructor.
           } 
-          // Case 2: The selected pilot was the PIC/STUDENT.
-          else if (flight.pilot_id === selectedPilotId) {
+          
+          // Case 2: The selected pilot was the PIC/STUDENT. This is only checked if they were not the instructor.
+          if (flight.pilot_id === selectedPilotId) {
             const isInstructional = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación';
             const typeText = isInstructional 
                 ? 'Remolque de Planeador (En instruccion)' 
