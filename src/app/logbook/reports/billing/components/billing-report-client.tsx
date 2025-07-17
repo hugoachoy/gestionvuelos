@@ -115,24 +115,19 @@ export function BillingReportClient() {
       let totalMins = 0;
       let totalTowsCount = 0;
       
-      // Corrected logic for Engine Flights
       engineFlights.forEach((flight) => {
           if (flight.instructor_id === selectedPilotId) {
-            // The selected pilot was the INSTRUCTOR for this flight.
-            // This is NOT billable for them.
             billableItems.push({
               id: `eng-inst-${flight.id}`,
               date: flight.date,
               type: 'Instrucción Impartida',
               aircraft: getAircraftName(flight.engine_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
-              billable_minutes: null, // Not billable to the instructor
+              billable_minutes: null,
               notes: `(Abona piloto ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
           } else if (flight.pilot_id === selectedPilotId) {
-            // The selected pilot was the PIC/STUDENT for this flight.
-            // This IS billable for them.
             if (flight.flight_purpose !== 'Remolque planeador') {
               billableItems.push({
                 id: `eng-${flight.id}`,
@@ -149,12 +144,9 @@ export function BillingReportClient() {
           }
       });
       
-      // Corrected logic for Glider Flights
-      gliderFlights
-        .forEach((flight) => {
+      gliderFlights.forEach((flight) => {
+          // If the selected pilot is the instructor for this flight, it's NOT billable to them.
           if (flight.instructor_id === selectedPilotId) {
-             // The selected pilot was the INSTRUCTOR for this flight.
-             // This is NOT billable for them.
             billableItems.push({
               id: `gli-inst-${flight.id}`,
               date: flight.date,
@@ -162,14 +154,13 @@ export function BillingReportClient() {
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,
-              notes: `(Abona piloto ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+              notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
           } 
+          // If the selected pilot is the student/PIC, the tow IS billable.
           else if (flight.pilot_id === selectedPilotId) {
-             // The selected pilot was the PIC/STUDENT for this flight.
-             // This IS billable for them.
-            const isInstructional = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación';
+            const isInstructional = ['Instrucción (Recibida)', 'readaptación'].includes(flight.flight_purpose);
             const typeText = isInstructional 
                 ? 'Remolque de Planeador (En instruccion)' 
                 : 'Remolque de Planeador';
@@ -343,6 +334,16 @@ export function BillingReportClient() {
 
 
   const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
+
+  if (!currentUser?.is_admin) {
+    return (
+       <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Acceso Denegado</AlertTitle>
+            <AlertDescription>Esta sección está disponible solo para administradores.</AlertDescription>
+        </Alert>
+    );
+  }
 
   return (
     <div className="space-y-6">
