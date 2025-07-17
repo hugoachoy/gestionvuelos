@@ -115,6 +115,7 @@ export function BillingReportClient() {
       let totalMins = 0;
       let totalTowsCount = 0;
       
+      // Corrected logic for Engine Flights
       engineFlights.forEach((flight) => {
           if (flight.instructor_id === selectedPilotId) {
             // The selected pilot was the INSTRUCTOR for this flight.
@@ -141,16 +142,19 @@ export function BillingReportClient() {
                 duration_hs: flight.flight_duration_decimal,
                 billable_minutes: flight.billable_minutes ?? 0,
                 notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`,
-                is_non_billable_for_pilot: false // This is billable
+                is_non_billable_for_pilot: false
               });
               totalMins += flight.billable_minutes ?? 0;
             }
           }
       });
       
+      // Corrected logic for Glider Flights
       gliderFlights
         .forEach((flight) => {
           if (flight.instructor_id === selectedPilotId) {
+             // The selected pilot was the INSTRUCTOR for this flight.
+             // This is NOT billable for them.
             billableItems.push({
               id: `gli-inst-${flight.id}`,
               date: flight.date,
@@ -163,6 +167,8 @@ export function BillingReportClient() {
             });
           } 
           else if (flight.pilot_id === selectedPilotId) {
+             // The selected pilot was the PIC/STUDENT for this flight.
+             // This IS billable for them.
             const isInstructional = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación';
             const typeText = isInstructional 
                 ? 'Remolque de Planeador (En instruccion)' 
