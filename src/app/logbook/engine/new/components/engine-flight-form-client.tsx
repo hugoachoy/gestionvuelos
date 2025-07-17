@@ -66,12 +66,12 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
+  if ((data.flight_purpose === 'Instrucción (Recibida)' || data.flight_purpose === 'readaptación') && !data.instructor_id) {
     return false;
   }
   return true;
 }, {
-  message: "Se requiere un instructor para 'Instrucción (Recibida)'.",
+  message: "Se requiere un instructor para 'Instrucción (Recibida)' o 'Readaptación'.",
   path: ["instructor_id"],
 });
 
@@ -102,13 +102,6 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): EngineFli
 interface EngineFlightFormClientProps {
   flightIdToLoad?: string;
 }
-
-const isTimeOverlap = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
-    if (!isValid(start1) || !isValid(end1) || !isValid(start2) || !isValid(end2)) {
-        return false;
-    }
-    return start1 < end2 && start2 < end1;
-};
 
 export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClientProps) {
   const router = useRouter();
@@ -291,9 +284,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedFlightPurpose = form.watch('flight_purpose');
   const watchedEngineAircraftId = form.watch("engine_aircraft_id");
   
-  const isInstructionGivenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Impartida)', [watchedFlightPurpose]);
-  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
-  const isGenericInstructionMode = isInstructionGivenMode || isInstructionTakenMode;
+  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)' || watchedFlightPurpose === 'readaptación', [watchedFlightPurpose]);
   const picOrStudentLabel = "Piloto";
 
   useEffect(() => {
@@ -542,13 +533,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           billableMins = durationMinutes;
         }
         
-        let finalInstructorId: string | null | undefined = null;
-        if (formData.flight_purpose === 'Instrucción (Recibida)') {
-            finalInstructorId = formData.instructor_id;
-        } else {
-            finalInstructorId = null;
-        }
-
+        const isReceivingInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'readaptación';
+        
         const submissionData: Partial<CompletedEngineFlight> = {
             ...formData,
             date: format(formData.date, 'yyyy-MM-dd'),
@@ -556,41 +542,23 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
             billable_minutes: billableMins,
-            schedule_entry_id: formData.schedule_entry_id || null,
-            route_from_to: formData.route_from_to || null,
-            tows_count: formData.tows_count ?? 0,
-            oil_added_liters: formData.oil_added_liters || null,
-            fuel_added_liters: formData.fuel_added_liters || null,
-            notes: formData.notes || null,
-            instructor_id: finalInstructorId,
+            instructor_id: isReceivingInstruction ? formData.instructor_id : null,
         };
 
         let result;
-        if (isEditMode && flightIdToLoad && typeof flightIdToLoad === 'string' && flightIdToLoad.trim() !== '') {
-            result = await updateCompletedEngineFlight(flightIdToLoad, submissionData);
-        } else if (!isEditMode) {
-             if (!flightIdToLoad || flightIdToLoad.trim() === '') {
-                result = await addCompletedEngineFlight({
-                    ...submissionData,
-                    logbook_type: 'engine',
-                    auth_user_id: user.id,
-                } as Omit<CompletedEngineFlight, 'id' | 'created_at'>);
-            } else {
-                console.error("Form submission in add mode but flightIdToLoad is present and non-empty:", flightIdToLoad);
-                toast({ title: "Error de Formulario", description: "Conflicto en modo de formulario. Intente recargar.", variant: "destructive" });
-                setIsSubmittingForm(false);
-                return;
-            }
+        if (isEditMode) {
+            result = await updateCompletedEngineFlight(flightIdToLoad!, submissionData);
         } else {
-            console.error("Form submission in edit mode but flightIdToLoad is invalid:", flightIdToLoad);
-            toast({ title: "Error de Edición", description: "ID de vuelo para edición no es válido.", variant: "destructive" });
-            setIsSubmittingForm(false);
-            return;
+            result = await addCompletedEngineFlight({
+                ...submissionData,
+                logbook_type: 'engine',
+                auth_user_id: user.id,
+            } as Omit<CompletedEngineFlight, 'id' | 'created_at'>);
         }
 
         if (result) {
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            await fetchAircraft(true); // Forzar la actualización de datos de la aeronave
+            await fetchAircraft(true);
             router.push('/logbook/engine/list'); 
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
