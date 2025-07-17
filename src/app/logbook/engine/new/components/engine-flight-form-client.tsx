@@ -533,8 +533,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           billableMins = durationMinutes;
         }
         
-        const isReceivingInstruction = formData.flight_purpose === 'Instrucción (Recibida)' || formData.flight_purpose === 'readaptación';
-        
+        const isInstructionImparted = formData.flight_purpose === 'Instrucción (Impartida)';
+
         const submissionData: Partial<CompletedEngineFlight> = {
             ...formData,
             date: format(formData.date, 'yyyy-MM-dd'),
@@ -542,7 +542,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
             billable_minutes: billableMins,
-            instructor_id: isReceivingInstruction ? formData.instructor_id : null,
+            instructor_id: isInstructionImparted ? null : formData.instructor_id,
         };
 
         let result;
@@ -1083,3 +1083,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
