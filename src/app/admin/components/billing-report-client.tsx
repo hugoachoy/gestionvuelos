@@ -107,6 +107,7 @@ export function BillingReportClient() {
 
       engineFlights
         .forEach((flight) => {
+          // Case 1: The selected pilot was the INSTRUCTOR. This is not billable for them.
           if (flight.instructor_id === selectedPilotId && (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación')) {
             billableItems.push({
               id: `eng-inst-${flight.id}`,
@@ -118,6 +119,7 @@ export function BillingReportClient() {
               notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
+          // Case 2: The selected pilot was the PIC (student or solo). This IS billable.
           } else if (flight.pilot_id === selectedPilotId && flight.flight_purpose !== 'Remolque planeador') {
             billableItems.push({
               id: `eng-${flight.id}`,
@@ -134,6 +136,7 @@ export function BillingReportClient() {
       
       gliderFlights
         .forEach((flight) => {
+          // Case 1: The selected pilot was the INSTRUCTOR. Not billable.
           if (flight.instructor_id === selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
@@ -146,6 +149,7 @@ export function BillingReportClient() {
               is_non_billable_for_pilot: true
             });
           } 
+          // Case 2: The selected pilot was the PIC (student or solo). Billable tow.
           else if (flight.pilot_id === selectedPilotId) {
             const isInstructional = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación';
             const typeText = isInstructional 
