@@ -105,22 +105,23 @@ export function BillingReportClient() {
       let totalMins = 0;
       let totalTowsCount = 0;
 
-      engineFlights
-        .forEach((flight) => {
-          // Case 1: The selected pilot was the INSTRUCTOR. This is not billable for them.
-          if (flight.instructor_id === selectedPilotId && (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación')) {
-            billableItems.push({
-              id: `eng-inst-${flight.id}`,
-              date: flight.date,
-              type: 'Instrucción Impartida',
-              aircraft: getAircraftName(flight.engine_aircraft_id),
-              duration_hs: flight.flight_duration_decimal,
-              billable_minutes: null,
-              notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
-              is_non_billable_for_pilot: true
-            });
-          // Case 2: The selected pilot was the PIC (student or solo). This IS billable.
-          } else if (flight.pilot_id === selectedPilotId && flight.flight_purpose !== 'Remolque planeador') {
+      engineFlights.forEach((flight) => {
+        // Case 1: The selected pilot was the INSTRUCTOR.
+        if (flight.instructor_id === selectedPilotId) {
+          billableItems.push({
+            id: `eng-inst-${flight.id}`,
+            date: flight.date,
+            type: 'Instrucción Impartida',
+            aircraft: getAircraftName(flight.engine_aircraft_id),
+            duration_hs: flight.flight_duration_decimal,
+            billable_minutes: null,
+            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+            is_non_billable_for_pilot: true
+          });
+        } 
+        // Case 2: The selected pilot was the PIC/STUDENT. This IS billable.
+        else if (flight.pilot_id === selectedPilotId) {
+          if (flight.flight_purpose !== 'Remolque planeador') {
             billableItems.push({
               id: `eng-${flight.id}`,
               date: flight.date,
@@ -132,11 +133,11 @@ export function BillingReportClient() {
             });
             totalMins += flight.billable_minutes ?? 0;
           }
-        });
+        }
+      });
       
-      gliderFlights
-        .forEach((flight) => {
-          // Case 1: The selected pilot was the INSTRUCTOR. Not billable.
+      gliderFlights.forEach((flight) => {
+          // Case 1: The selected pilot was the INSTRUCTOR.
           if (flight.instructor_id === selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
@@ -149,7 +150,7 @@ export function BillingReportClient() {
               is_non_billable_for_pilot: true
             });
           } 
-          // Case 2: The selected pilot was the PIC (student or solo). Billable tow.
+          // Case 2: The selected pilot was the PIC/STUDENT.
           else if (flight.pilot_id === selectedPilotId) {
             const isInstructional = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación';
             const typeText = isInstructional 
