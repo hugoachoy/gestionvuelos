@@ -638,10 +638,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         // Remove the UI-only field before submitting
         const { instruction_mode, ...dbFormData } = formData;
         
-        let finalInstructorId = formData.instructor_id;
-        if (formData.instruction_mode === 'impartida') {
-            finalInstructorId = formData.pilot_id; // Instructor is the PIC
-        } else if (formData.instruction_mode === 'ninguna') {
+        let finalInstructorId: string | null | undefined = null;
+        if (formData.instruction_mode === 'recibida') {
+            finalInstructorId = formData.instructor_id;
+        } else if (formData.instruction_mode === 'impartida') {
+            finalInstructorId = null; // Instructor is the PIC, so instructor_id should be null.
+        } else { // 'ninguna'
             finalInstructorId = null;
         }
 
