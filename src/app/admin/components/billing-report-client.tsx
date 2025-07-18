@@ -2,9 +2,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore } from '@/store/data-hooks';
+import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore, useFlightPurposesStore } from '@/store/data-hooks';
 import type { CompletedEngineFlight, CompletedGliderFlight } from '@/types';
-import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from "@/hooks/use-toast";
 
@@ -50,6 +49,7 @@ export function BillingReportClient() {
   const { toast } = useToast();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
   const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
 
@@ -69,7 +69,8 @@ export function BillingReportClient() {
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
-  }, [fetchPilots, fetchAircraft]);
+    fetchFlightPurposes();
+  }, [fetchPilots, fetchAircraft, fetchFlightPurposes]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!startDate || !endDate || !selectedPilotId) {
@@ -107,10 +108,7 @@ export function BillingReportClient() {
 
       engineFlights.forEach((flight) => {
         // Case 1: The selected pilot was the INSTRUCTOR.
-        // This is only possible if the flight purpose is "Instrucción (Impartida)".
-        if (flight.flight_purpose === 'Instrucción (Impartida)' && flight.pilot_id === selectedPilotId) {
-          // This flight is NOT billable to the instructor.
-          // Note: In this case, `instructor_id` should be null, and `pilot_id` is the instructor.
+        if (flight.instructor_id === selectedPilotId) {
           billableItems.push({
             id: `eng-inst-${flight.id}`,
             date: flight.date,
@@ -118,27 +116,28 @@ export function BillingReportClient() {
             aircraft: getAircraftName(flight.engine_aircraft_id),
             duration_hs: flight.flight_duration_decimal,
             billable_minutes: null,
-            notes: `(El alumno abona por separado) - No facturable para ud.`,
+            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
             is_non_billable_for_pilot: true
           });
-          return; // Skip to next flight
+          return; // IMPORTANT: Prevents double-processing for the instructor.
         }
-        
-        // Case 2: The selected pilot was the PIC/STUDENT. This IS billable.
-        // This covers all other flight purposes, including "Instrucción (Recibida)".
+
+        // Case 2: The selected pilot was the PIC/STUDENT.
         if (flight.pilot_id === selectedPilotId) {
-          if (flight.flight_purpose !== 'Remolque planeador') {
+            const purposeName = getPurposeName(flight.flight_purpose_id);
             billableItems.push({
-              id: `eng-${flight.id}`,
-              date: flight.date,
-              type: 'Vuelo a Motor',
-              aircraft: getAircraftName(flight.engine_aircraft_id),
-              duration_hs: flight.flight_duration_decimal,
-              billable_minutes: flight.billable_minutes ?? 0,
-              notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`
+                id: `eng-${flight.id}`,
+                date: flight.date,
+                type: 'Vuelo a Motor',
+                aircraft: getAircraftName(flight.engine_aircraft_id),
+                duration_hs: flight.flight_duration_decimal,
+                billable_minutes: flight.billable_minutes ?? 0,
+                notes: `Propósito: ${purposeName}`,
+                is_non_billable_for_pilot: false
             });
-            totalMins += flight.billable_minutes ?? 0;
-          }
+            if (purposeName !== 'Remolque planeador') {
+                totalMins += flight.billable_minutes ?? 0;
+            }
         }
       });
       
@@ -167,7 +166,8 @@ export function BillingReportClient() {
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,
-              notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`
+              notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`,
+              is_non_billable_for_pilot: false
             });
             totalTowsCount += 1;
           }
@@ -189,7 +189,7 @@ export function BillingReportClient() {
     } finally {
         setIsGenerating(false);
     }
-  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast, fetchCompletedEngineFlightsForRange, fetchCompletedGliderFlightsForRange]);
+  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, getPurposeName, toast, fetchCompletedEngineFlightsForRange, fetchCompletedGliderFlightsForRange]);
 
   const handleExportPdf = async () => {
     if (reportData.length === 0) {
@@ -327,7 +327,7 @@ export function BillingReportClient() {
   }, [reportData, toast, getPilotName, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows]);
 
 
-  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
+  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || purposesLoading;
   
   if (!currentUser?.is_admin) {
     return (
@@ -462,3 +462,5 @@ export function BillingReportClient() {
     </div>
   );
 }
+
+    

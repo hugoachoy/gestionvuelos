@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { CompletedFlight, CompletedEngineFlight, CompletedGliderFlight, Aircraft } from '@/types';
-import { useAircraftStore, usePilotsStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore } from '@/store/data-hooks';
+import { useAircraftStore, usePilotsStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore, useFlightPurposesStore } from '@/store/data-hooks';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -11,11 +11,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
-import { CalendarIcon, FileText, Loader2, Check, ChevronsUpDown, Download, FileSpreadsheet } from 'lucide-react';
+import { CalendarIcon, FileText, Loader2, Check, ChevronsUpDown, Download } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 
 type AugmentedReportItem = CompletedFlight & { 
     isInstructionPair?: boolean; 
@@ -32,6 +31,7 @@ export function AircraftActivityReport() {
     const { getPilotName, loading: pilotsLoading, fetchPilots } = usePilotsStore();
     const { fetchCompletedEngineFlightsByAircraftForRange } = useCompletedEngineFlightsStore();
     const { fetchCompletedGliderFlightsByAircraftForRange } = useCompletedGliderFlightsStore();
+    const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
 
     const [startDate, setStartDate] = useState<Date | undefined>(new Date());
     const [endDate, setEndDate] = useState<Date | undefined>(new Date());
@@ -48,7 +48,8 @@ export function AircraftActivityReport() {
     useEffect(() => {
         fetchAircraft();
         fetchPilots();
-    }, [fetchAircraft, fetchPilots]);
+        fetchFlightPurposes();
+    }, [fetchAircraft, fetchPilots, fetchFlightPurposes]);
 
     const handleGenerateReport = useCallback(async () => {
         if (!startDate || !endDate || !selectedAircraftId) {
@@ -96,8 +97,9 @@ export function AircraftActivityReport() {
 
             for (const flight of allFlights) {
                 if (processedIds.has(flight.id)) continue;
-
-                const isInstruction = (flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación');
+                
+                const purposeName = getPurposeName(flight.flight_purpose_id);
+                const isInstruction = purposeName?.includes('Instrucción');
                 
                 if (isInstruction) {
                     const isEngineFlight = 'engine_aircraft_id' in flight;
@@ -159,9 +161,9 @@ export function AircraftActivityReport() {
         } finally {
             setIsGenerating(false);
         }
-    }, [startDate, endDate, selectedAircraftId, toast, fetchCompletedEngineFlightsByAircraftForRange, fetchCompletedGliderFlightsByAircraftForRange, aircraftWithCalculatedData, getPilotName]);
+    }, [startDate, endDate, selectedAircraftId, toast, fetchCompletedEngineFlightsByAircraftForRange, fetchCompletedGliderFlightsByAircraftForRange, aircraftWithCalculatedData, getPilotName, getPurposeName]);
     
-    const isLoadingUI = aircraftLoading || pilotsLoading || isGenerating;
+    const isLoadingUI = aircraftLoading || pilotsLoading || purposesLoading || isGenerating;
     const selectedAircraftDetails = useMemo(() => aircraftWithCalculatedData.find(a => a.id === selectedAircraftId), [selectedAircraftId, aircraftWithCalculatedData]);
 
     const handleExportPdf = async () => {
@@ -202,7 +204,7 @@ export function AircraftActivityReport() {
             const rowBase = [
                 format(parseISO(item.date), "dd/MM/yyyy", { locale: es }),
                 pilotText,
-                FLIGHT_PURPOSE_DISPLAY_MAP[item.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || item.flight_purpose,
+                getPurposeName(item.flight_purpose_id),
                 `${item.flight_duration_decimal.toFixed(1)} hs`,
             ];
 
@@ -346,7 +348,7 @@ export function AircraftActivityReport() {
                                 <TableRow key={item.id}>
                                     <TableCell>{format(parseISO(item.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                                     <TableCell>{pilotText}</TableCell>
-                                    <TableCell>{FLIGHT_PURPOSE_DISPLAY_MAP[item.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || item.flight_purpose}</TableCell>
+                                    <TableCell>{getPurposeName(item.flight_purpose_id)}</TableCell>
                                     <TableCell>{item.flight_duration_decimal.toFixed(1)} hs</TableCell>
                                     {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as CompletedEngineFlight).landings_count ?? '-'}</TableCell>}
                                     {selectedAircraftDetails.type !== 'Glider' && <TableCell>{(item as AugmentedReportItem).consolidated_oil_added_liters ?? (item as CompletedEngineFlight).oil_added_liters ?? '-'}</TableCell>}
@@ -368,7 +370,5 @@ export function AircraftActivityReport() {
         </div>
     );
 }
-
-    
 
     
