@@ -494,31 +494,47 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             setIsSubmittingForm(false);
             return;
         }
+        
+        const depTimeCleaned = formData.departure_time.substring(0, 5);
 
         // --- CONFLICT VALIDATION ---
         const { data: existingFlights, error: fetchError } = await supabase
             .from('completed_glider_flights')
-            .select('id, pilot_id, instructor_id, tow_pilot_id, glider_aircraft_id, tow_aircraft_id')
+            .select('id, pilot_id, instructor_id, tow_pilot_id, glider_aircraft_id, tow_aircraft_id, flight_purpose_id')
             .eq('date', format(formData.date, 'yyyy-MM-dd'))
-            .eq('departure_time', formData.departure_time.substring(0, 5));
+            .eq('departure_time', depTimeCleaned);
 
         if (fetchError) {
             toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
             setIsSubmittingForm(false);
             return;
         }
-        
+
         const conflictingFlights = isEditMode
             ? existingFlights.filter(f => f.id !== flightIdToLoad)
             : existingFlights;
         
         if (conflictingFlights && conflictingFlights.length > 0) {
             const conflicts: string[] = [];
-            if (conflictingFlights.some(f => f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id)) conflicts.push(`Piloto (${getPilotName(formData.pilot_id)})`);
-            if (formData.instructor_id && conflictingFlights.some(f => f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id)) conflicts.push(`Instructor (${getPilotName(formData.instructor_id)})`);
-            if (conflictingFlights.some(f => f.tow_pilot_id === formData.tow_pilot_id)) conflicts.push(`Piloto Remolcador (${getPilotName(formData.tow_pilot_id)})`);
-            if (conflictingFlights.some(f => f.glider_aircraft_id === formData.glider_aircraft_id)) conflicts.push(`Planeador (${getAircraftName(formData.glider_aircraft_id)})`);
-            if (conflictingFlights.some(f => f.tow_aircraft_id === formData.tow_aircraft_id)) conflicts.push(`Avión Remolcador (${getAircraftName(formData.tow_aircraft_id)})`);
+
+            const isCurrentFlightInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
+
+            for (const f of conflictingFlights) {
+                const isExistingFlightInstruction = getPurposeName(f.flight_purpose_id)?.includes('Instrucción');
+                const isInstructionPair = isCurrentFlightInstruction && isExistingFlightInstruction && 
+                                          f.glider_aircraft_id === formData.glider_aircraft_id &&
+                                          (f.pilot_id === formData.instructor_id || f.instructor_id === formData.pilot_id);
+
+                if (isInstructionPair) {
+                    continue; // Skip this as a conflict, it's a valid pair
+                }
+
+                if (f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id) conflicts.push(`Piloto (${getPilotName(formData.pilot_id)})`);
+                if (formData.instructor_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id)) conflicts.push(`Instructor (${getPilotName(formData.instructor_id)})`);
+                if (f.tow_pilot_id === formData.tow_pilot_id) conflicts.push(`Piloto Remolcador (${getPilotName(formData.tow_pilot_id)})`);
+                if (f.glider_aircraft_id === formData.glider_aircraft_id) conflicts.push(`Planeador (${getAircraftName(formData.glider_aircraft_id)})`);
+                if (f.tow_aircraft_id === formData.tow_aircraft_id) conflicts.push(`Avión Remolcador (${getAircraftName(formData.tow_aircraft_id)})`);
+            }
 
             if (conflicts.length > 0) {
                 toast({
@@ -535,7 +551,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         
         let finalInstructorId = isInstructionTakenMode ? formData.instructor_id : null;
         
-        const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
 
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
