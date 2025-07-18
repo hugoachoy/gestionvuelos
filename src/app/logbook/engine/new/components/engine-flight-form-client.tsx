@@ -89,7 +89,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { user, loading: authLoading } = useAuth();
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
-  const { aircraftWithCalculatedData, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { aircraftWithCalculatedData, loading: aircraftLoading, fetchAircraft, getAircraftName } = useAircraftStore();
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
@@ -211,9 +211,21 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     if (user && pilots.length > 0 && categories.length > 0) {
         if (isEditMode) {
             loadFlightDetails();
-        } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && aircraftWithCalculatedData.length > 0) {
+        } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && aircraftWithCalculatedData.length > 0 && purposes.length > 0) {
           const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
           if (entry) {
+            
+            const purposeNameMap: Record<FlightTypeId, string | undefined> = {
+                'instruction_taken': 'Instrucción (Recibida)',
+                'instruction_given': 'Instrucción (Impartida)',
+                'local': 'Local',
+                'sport': 'Deportivo',
+                'towage': 'Remolque planeador',
+                'trip': 'Travesía'
+            };
+            const targetPurposeName = purposeNameMap[entry.flight_type_id];
+            const correspondingPurpose = purposes.find(p => p.name === targetPurposeName);
+
             form.reset({
               date: entry.date ? parseISO(entry.date) : new Date(),
               pilot_id: entry.pilot_id || '',
@@ -222,7 +234,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               arrival_time: '',
               schedule_entry_id: entry.id,
               instructor_id: null,
-              flight_purpose_id: '',
+              flight_purpose_id: correspondingPurpose?.id || '',
               route_from_to: null,
               landings_count: 1,
               tows_count: 0,
@@ -252,7 +264,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraftWithCalculatedData.length, categories.length]);
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraftWithCalculatedData.length, categories.length, purposes.length]);
 
 
   const watchedPilotId = form.watch("pilot_id");
@@ -502,8 +514,64 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           setIsSubmittingForm(false);
           return;
         }
+
+        // --- CONFLICT VALIDATION ---
+        const depTimeCleaned = formData.departure_time.substring(0, 5);
+        const conflicts = [];
+        const { data: existingEngineFlights, error: engineFetchError } = await supabase
+            .from('completed_engine_flights')
+            .select('id, pilot_id, instructor_id, engine_aircraft_id, flight_purpose_id')
+            .eq('date', format(formData.date, 'yyyy-MM-dd'))
+            .eq('departure_time', depTimeCleaned);
+
+        const { data: existingGliderFlights, error: gliderFetchError } = await supabase
+            .from('completed_glider_flights')
+            .select('id, pilot_id, instructor_id, tow_pilot_id, glider_aircraft_id, tow_aircraft_id, flight_purpose_id')
+            .eq('date', format(formData.date, 'yyyy-MM-dd'))
+            .eq('departure_time', depTimeCleaned);
+
+        if (engineFetchError || gliderFetchError) {
+            toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
+            setIsSubmittingForm(false);
+            return;
+        }
         
-        const depTimeCleaned = formData.departure_time.substring(0,5);
+        const conflictingEngineFlights = isEditMode
+            ? existingEngineFlights?.filter(f => f.id !== flightIdToLoad)
+            : existingEngineFlights;
+
+        const checkPilotConflict = (pilotId: string, role: string, flightType: string) => {
+            conflicts.push(`${role} (${getPilotName(pilotId)}) (en vuelo de ${flightType})`);
+        };
+
+        const checkAircraftConflict = (aircraftId: string, flightType: string) => {
+            conflicts.push(`Aeronave (${getAircraftName(aircraftId)}) (en vuelo de ${flightType})`);
+        };
+        
+        for (const f of (conflictingEngineFlights || [])) {
+            if (f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id) checkPilotConflict(formData.pilot_id, 'Piloto', 'motor');
+            if (formData.instructor_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id)) checkPilotConflict(formData.instructor_id, 'Instructor', 'motor');
+            if (f.engine_aircraft_id === formData.engine_aircraft_id) checkAircraftConflict(formData.engine_aircraft_id, 'motor');
+        }
+
+        for (const f of (existingGliderFlights || [])) {
+            if (f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id || f.tow_pilot_id === formData.pilot_id) checkPilotConflict(formData.pilot_id, 'Piloto', 'planeador');
+            if (formData.instructor_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id || f.tow_pilot_id === formData.instructor_id)) checkPilotConflict(formData.instructor_id, 'Instructor', 'planeador');
+            if (f.tow_aircraft_id === formData.engine_aircraft_id) checkAircraftConflict(formData.engine_aircraft_id, 'planeador');
+        }
+
+        if (conflicts.length > 0) {
+            toast({
+                title: "Conflicto de Vuelo Detectado",
+                description: `Ya existe un vuelo a la misma hora para: ${[...new Set(conflicts)].join(', ')}.`,
+                variant: "destructive",
+                duration: 7000,
+            });
+            setIsSubmittingForm(false);
+            return;
+        }
+        // --- END CONFLICT VALIDATION ---
+        
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
 
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
@@ -1073,4 +1141,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
