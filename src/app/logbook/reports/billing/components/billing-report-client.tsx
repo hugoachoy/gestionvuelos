@@ -115,10 +115,13 @@ export function BillingReportClient() {
       const billableItems: BillableItem[] = [];
       let totalMins = 0;
       let totalTowsCount = 0;
+      const remolquePurposeName = "Remolque planeador";
+      const instruccionImpartidaPurposeName = "Instrucción (Impartida)";
       
       engineFlights.forEach((flight) => {
+        const purposeName = getPurposeName(flight.flight_purpose_id);
         // Case 1: The selected pilot was the INSTRUCTOR.
-        if (flight.instructor_id === selectedPilotId) {
+        if (purposeName === instruccionImpartidaPurposeName && flight.pilot_id !== selectedPilotId) {
           billableItems.push({
             id: `eng-inst-${flight.id}`,
             date: flight.date,
@@ -129,12 +132,11 @@ export function BillingReportClient() {
             notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
             is_non_billable_for_pilot: true
           });
-          return; // IMPORTANT: Prevents double-processing for the instructor.
+          return;
         }
 
         // Case 2: The selected pilot was the PIC/STUDENT.
         if (flight.pilot_id === selectedPilotId) {
-            const purposeName = getPurposeName(flight.flight_purpose_id);
             billableItems.push({
                 id: `eng-${flight.id}`,
                 date: flight.date,
@@ -145,15 +147,16 @@ export function BillingReportClient() {
                 notes: `Propósito: ${purposeName}`,
                 is_non_billable_for_pilot: false
             });
-            if (purposeName !== 'Remolque planeador') {
+            if (purposeName !== remolquePurposeName) {
                 totalMins += flight.billable_minutes ?? 0;
             }
         }
       });
       
       gliderFlights.forEach((flight) => {
-          // Case 1: The selected pilot was the INSTRUCTOR. This is the priority check.
-          if (flight.instructor_id === selectedPilotId) {
+          const purposeName = getPurposeName(flight.flight_purpose_id);
+          // Case 1: The selected pilot was the INSTRUCTOR.
+          if (purposeName === instruccionImpartidaPurposeName && flight.pilot_id !== selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
               date: flight.date,
@@ -164,7 +167,7 @@ export function BillingReportClient() {
               notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
-            return; // IMPORTANT: Prevents double-processing this flight for the instructor.
+            return;
           } 
           
           // Case 2: The selected pilot was the PIC/STUDENT. This is only checked if they were not the instructor.

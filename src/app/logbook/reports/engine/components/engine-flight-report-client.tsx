@@ -90,10 +90,12 @@ export function EngineFlightReportClient() {
       let duration = 0;
       let billableMins = 0;
       let landings = 0;
+      const remolquePurposeName = "Remolque planeador";
+
       data.forEach(flight => {
         duration += flight.flight_duration_decimal || 0;
         const purposeName = getPurposeName(flight.flight_purpose_id);
-        if (purposeName !== 'Remolque planeador') {
+        if (purposeName !== remolquePurposeName) {
             billableMins += flight.billable_minutes || 0;
         }
         landings += flight.landings_count || 0;
@@ -138,6 +140,7 @@ export function EngineFlightReportClient() {
 
       const tableColumn = ["Fecha", "Piloto", "Aeronave", "Instructor", "Propósito", "Salida", "Llegada", "Duración", "Facturable", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)", "Notas"];
       const tableRows: (string | null)[][] = [];
+      const remolquePurposeName = "Remolque planeador";
 
       reportData.forEach(flight => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
@@ -150,7 +153,7 @@ export function EngineFlightReportClient() {
           flight.departure_time,
           flight.arrival_time,
           `${flight.flight_duration_decimal.toFixed(1)} hs`,
-          purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
+          purposeName !== remolquePurposeName && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
           flight.route_from_to || '-',
           flight.landings_count?.toString() ?? '-',
           flight.tows_count?.toString() ?? '-',
@@ -216,6 +219,7 @@ export function EngineFlightReportClient() {
     try {
         const headers = ["Fecha", "Piloto", "Aeronave", "Instructor", "Proposito", "Salida", "Llegada", "Duracion (hs)", "Facturable (min)", "Ruta", "Aterrizajes", "Remolques", "Aceite (L)", "Nafta (L)", "Notas"];
         const csvRows = [headers.join(',')];
+        const remolquePurposeName = "Remolque planeador";
 
         reportData.forEach(flight => {
             const purposeName = getPurposeName(flight.flight_purpose_id);
@@ -228,7 +232,7 @@ export function EngineFlightReportClient() {
                 flight.departure_time,
                 flight.arrival_time,
                 flight.flight_duration_decimal.toFixed(1),
-                purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? flight.billable_minutes : '-',
+                purposeName !== remolquePurposeName && typeof flight.billable_minutes === 'number' ? flight.billable_minutes : '-',
                 `"${(flight.route_from_to || '-').replace(/"/g, '""')}"`,
                 flight.landings_count?.toString() ?? '-',
                 flight.tows_count?.toString() ?? '-',
@@ -454,3 +458,4 @@ export function EngineFlightReportClient() {
     </div>
   );
 }
+
