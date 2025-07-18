@@ -37,7 +37,7 @@ function logSupabaseError(context: string, error: any) {
 type BillableItem = {
   id: string;
   date: string;
-  type: 'Vuelo a Motor' | 'Remolque de Planeador' | 'Instrucción Impartida' | 'Remolque de Planeador (En instruccion)';
+  type: 'Vuelo a Motor' | 'Remolque de Planeador' | 'Instrucción Impartida';
   aircraft: string;
   duration_hs: number;
   billable_minutes: number | null;
@@ -107,7 +107,10 @@ export function BillingReportClient() {
 
       engineFlights.forEach((flight) => {
         // Case 1: The selected pilot was the INSTRUCTOR.
-        if (flight.instructor_id === selectedPilotId) {
+        // This is only possible if the flight purpose is "Instrucción (Impartida)".
+        if (flight.flight_purpose === 'Instrucción (Impartida)' && flight.pilot_id === selectedPilotId) {
+          // This flight is NOT billable to the instructor.
+          // Note: In this case, `instructor_id` should be null, and `pilot_id` is the instructor.
           billableItems.push({
             id: `eng-inst-${flight.id}`,
             date: flight.date,
@@ -115,13 +118,14 @@ export function BillingReportClient() {
             aircraft: getAircraftName(flight.engine_aircraft_id),
             duration_hs: flight.flight_duration_decimal,
             billable_minutes: null,
-            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+            notes: `(El alumno abona por separado) - No facturable para ud.`,
             is_non_billable_for_pilot: true
           });
-          return; // Skip to next flight to avoid double counting
-        } 
+          return; // Skip to next flight
+        }
         
         // Case 2: The selected pilot was the PIC/STUDENT. This IS billable.
+        // This covers all other flight purposes, including "Instrucción (Recibida)".
         if (flight.pilot_id === selectedPilotId) {
           if (flight.flight_purpose !== 'Remolque planeador') {
             billableItems.push({
@@ -156,15 +160,10 @@ export function BillingReportClient() {
           
           // Case 2: The selected pilot was the PIC/STUDENT. This is only checked if they were not the instructor.
           if (flight.pilot_id === selectedPilotId) {
-            const isInstructional = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'readaptación';
-            const typeText = isInstructional 
-                ? 'Remolque de Planeador (En instruccion)' 
-                : 'Remolque de Planeador';
-            
             billableItems.push({
               id: `gli-${flight.id}`,
               date: flight.date,
-              type: typeText,
+              type: 'Remolque de Planeador',
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,

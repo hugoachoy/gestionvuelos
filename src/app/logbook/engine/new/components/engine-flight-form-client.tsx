@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, EngineFlightPurpose, FlightTypeId, InstructionType } from '@/types';
+import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, EngineFlightPurpose, FlightTypeId } from '@/types';
 import { FLIGHT_TYPES, FLIGHT_PURPOSE_DISPLAY_MAP, ENGINE_FLIGHT_PURPOSES } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,7 +43,6 @@ const engineFlightSchema = z.object({
   instructor_id: z.string().optional().nullable(),
   engine_aircraft_id: z.string().min(1, "Seleccione una aeronave."),
   flight_purpose: z.enum(ENGINE_FLIGHT_PURPOSES, { required_error: "El propósito del vuelo es obligatorio." }),
-  instruction_type: z.string().optional().nullable(), // For "Recibida" or "Impartida"
   departure_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de salida inválido (HH:MM)."),
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
   route_from_to: z.string().optional().nullable(),
@@ -67,15 +66,7 @@ const engineFlightSchema = z.object({
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
-  if (data.flight_purpose === 'instrucción' && !data.instruction_type) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Debe seleccionar si la instrucción es recibida o impartida.",
-  path: ["instruction_type"],
-}).refine(data => {
-  if ((data.instruction_type === 'Instrucción (Recibida)') && !data.instructor_id) {
+  if (data.flight_purpose === 'Instrucción (Recibida)' && !data.instructor_id) {
     return false;
   }
   return true;
@@ -96,11 +87,10 @@ const normalizeText = (text?: string | null): string => {
 
 const ENGINE_FLIGHT_REQUIRED_CATEGORY_KEYWORDS = ["piloto de avion", "remolcador", "instructor avion"];
 
-// This function now just suggests the main purpose, not the specific instruction type
 const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): EngineFlightPurpose | undefined => {
     switch (scheduleTypeId) {
-        case 'instruction_taken': return 'instrucción';
-        case 'instruction_given': return 'instrucción';
+        case 'instruction_taken': return 'Instrucción (Recibida)';
+        case 'instruction_given': return 'Instrucción (Impartida)';
         case 'towage': return 'Remolque planeador';
         case 'trip': return 'viaje';
         case 'local': return 'local';
@@ -108,14 +98,6 @@ const mapScheduleTypeToEnginePurpose = (scheduleTypeId: FlightTypeId): EngineFli
             return undefined;
     }
 };
-
-const mapScheduleTypeToInstructionType = (scheduleTypeId: FlightTypeId): InstructionType | undefined => {
-    switch(scheduleTypeId) {
-        case 'instruction_taken': return 'Instrucción (Recibida)';
-        case 'instruction_given': return 'Instrucción (Impartida)';
-        default: return undefined;
-    }
-}
 
 interface EngineFlightFormClientProps {
   flightIdToLoad?: string;
@@ -161,7 +143,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       instructor_id: null,
       engine_aircraft_id: '',
       flight_purpose: undefined,
-      instruction_type: null,
       departure_time: '',
       arrival_time: '',
       route_from_to: null,
@@ -216,22 +197,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const isOwner = data.auth_user_id === user.id;
             if (isOwner || user.is_admin) {
                 setInitialFlightData(data);
-                
-                let instructionType: InstructionType | null = null;
-                if (data.flight_purpose === 'instrucción') {
-                  if(data.instructor_id) {
-                    instructionType = 'Instrucción (Recibida)';
-                  } else {
-                    instructionType = 'Instrucción (Impartida)';
-                  }
-                }
-                
                 form.reset({
                     ...data,
                     date: data.date ? parseISO(data.date) : new Date(),
                     pilot_id: data.pilot_id,
                     instructor_id: data.instructor_id || null,
-                    instruction_type: instructionType,
                     route_from_to: data.route_from_to || null,
                     landings_count: data.landings_count ?? 1,
                     tows_count: data.tows_count ?? 0,
@@ -264,7 +234,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
           if (entry) {
             const prefilledFlightPurpose = mapScheduleTypeToEnginePurpose(entry.flight_type_id as FlightTypeId);
-            const prefilledInstructionType = mapScheduleTypeToInstructionType(entry.flight_type_id as FlightTypeId);
             form.reset({
               date: entry.date ? parseISO(entry.date) : new Date(),
               pilot_id: entry.pilot_id || '',
@@ -274,7 +243,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               schedule_entry_id: entry.id,
               instructor_id: null,
               flight_purpose: prefilledFlightPurpose,
-              instruction_type: prefilledInstructionType,
               route_from_to: null,
               landings_count: 1,
               tows_count: 0,
@@ -291,7 +259,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 instructor_id: null,
                 engine_aircraft_id: '',
                 flight_purpose: undefined,
-                instruction_type: null,
                 departure_time: '',
                 arrival_time: '',
                 route_from_to: null,
@@ -314,11 +281,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
   const watchedFlightPurpose = form.watch('flight_purpose');
-  const watchedInstructionType = form.watch('instruction_type');
   const watchedEngineAircraftId = form.watch("engine_aircraft_id");
   
-  const isInstructionFlight = useMemo(() => watchedFlightPurpose === 'instrucción', [watchedFlightPurpose]);
-  const isInstructionTakenMode = useMemo(() => watchedInstructionType === 'Instrucción (Recibida)', [watchedInstructionType]);
+  const isInstructionTakenMode = useMemo(() => watchedFlightPurpose === 'Instrucción (Recibida)', [watchedFlightPurpose]);
   const picOrStudentLabel = "Piloto";
 
   useEffect(() => {
@@ -338,20 +303,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [watchedEngineAircraftId, aircraftWithCalculatedData, watchedDate]);
   
   useEffect(() => {
-    // If not instruction received, clear instructor
-    if (watchedInstructionType !== 'Instrucción (Recibida)') {
+    if (watchedFlightPurpose !== 'Instrucción (Recibida)') {
       if (form.getValues("instructor_id")) {
         form.setValue("instructor_id", null, { shouldValidate: true });
         setInstructorSearchTerm('');
       }
     }
-    // If not instruction at all, clear instruction type
-    if (watchedFlightPurpose !== 'instrucción') {
-        if (form.getValues("instruction_type")) {
-            form.setValue("instruction_type", null, { shouldValidate: true });
-        }
-    }
-  }, [watchedFlightPurpose, watchedInstructionType, form]);
+  }, [watchedFlightPurpose, form]);
 
 
   useEffect(() => {
@@ -574,7 +532,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           billableMins = durationMinutes;
         }
         
-        const isInstructionImparted = formData.instruction_type === 'Instrucción (Impartida)';
+        const isInstructionGiven = formData.flight_purpose === 'Instrucción (Impartida)';
 
         const submissionData: Omit<CompletedEngineFlight, 'id' | 'created_at'> = {
             ...formData,
@@ -583,14 +541,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             arrival_time: arrTimeCleaned,
             flight_duration_decimal: flightDurationDecimal,
             billable_minutes: billableMins,
-            instructor_id: isInstructionImparted ? null : formData.instructor_id,
+            instructor_id: isInstructionGiven ? null : formData.instructor_id,
             logbook_type: 'engine',
             auth_user_id: user.id
         };
-
-        // Remove the form-only field
-        delete (submissionData as any).instruction_type;
-
 
         let result;
         if (isEditMode) {
@@ -813,30 +767,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 </FormItem>
               )}
             />
-            
-            {isInstructionFlight && (
-              <FormField
-                control={form.control}
-                name="instruction_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Tipo de Instrucción</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''} disabled={isLoading}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar tipo de instrucción" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Instrucción (Recibida)">Recibida (Alumno)</SelectItem>
-                        <SelectItem value="Instrucción (Impartida)">Impartida (Instructor)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
 
             <FormField
               control={form.control}

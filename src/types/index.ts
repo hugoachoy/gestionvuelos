@@ -124,10 +124,10 @@ export const ENGINE_FLIGHT_PURPOSES = [
   'Remolque planeador',
   'local',
   'viaje',
-  'instrucción',
+  'Instrucción (Recibida)',
+  'Instrucción (Impartida)',
 ] as const;
 export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
-export type InstructionType = 'Instrucción (Recibida)' | 'Instrucción (Impartida)';
 
 export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
 
@@ -141,8 +141,6 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   
   // Engine-specific DB value
   'Remolque planeador': 'Remolque',
-
-  'instrucción': 'Instrucción', // The generic purpose for engine flights
 
   // Unified Instruction
   'Instrucción (Recibida)': 'Instrucción (Recibida)',

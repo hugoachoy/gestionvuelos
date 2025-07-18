@@ -37,7 +37,7 @@ function logSupabaseError(context: string, error: any) {
 type BillableItem = {
   id: string;
   date: string;
-  type: 'Vuelo a Motor' | 'Remolque de Planeador' | 'Instrucción Impartida' | 'Remolque de Planeador (En instruccion)';
+  type: 'Vuelo a Motor' | 'Remolque de Planeador' | 'Instrucción Impartida';
   aircraft: string;
   duration_hs: number;
   billable_minutes: number | null;
@@ -116,36 +116,35 @@ export function BillingReportClient() {
       let totalTowsCount = 0;
       
       engineFlights.forEach((flight) => {
-          if (flight.instructor_id === selectedPilotId) {
+        if (flight.flight_purpose === 'Instrucción (Impartida)' && flight.pilot_id === selectedPilotId) {
             billableItems.push({
-              id: `eng-inst-${flight.id}`,
-              date: flight.date,
-              type: 'Instrucción Impartida',
-              aircraft: getAircraftName(flight.engine_aircraft_id),
-              duration_hs: flight.flight_duration_decimal,
-              billable_minutes: null,
-              notes: `(Abona piloto ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
-              is_non_billable_for_pilot: true
-            });
-          } else if (flight.pilot_id === selectedPilotId) {
-            if (flight.flight_purpose !== 'Remolque planeador') {
-              billableItems.push({
-                id: `eng-${flight.id}`,
+                id: `eng-inst-${flight.id}`,
                 date: flight.date,
-                type: 'Vuelo a Motor',
+                type: 'Instrucción Impartida',
                 aircraft: getAircraftName(flight.engine_aircraft_id),
                 duration_hs: flight.flight_duration_decimal,
-                billable_minutes: flight.billable_minutes ?? 0,
-                notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`,
-                is_non_billable_for_pilot: false
-              });
-              totalMins += flight.billable_minutes ?? 0;
+                billable_minutes: null,
+                notes: `(El alumno abona por separado) - No facturable para ud.`,
+                is_non_billable_for_pilot: true
+            });
+        } else if (flight.pilot_id === selectedPilotId) {
+            if (flight.flight_purpose !== 'Remolque planeador') {
+                billableItems.push({
+                    id: `eng-${flight.id}`,
+                    date: flight.date,
+                    type: 'Vuelo a Motor',
+                    aircraft: getAircraftName(flight.engine_aircraft_id),
+                    duration_hs: flight.flight_duration_decimal,
+                    billable_minutes: flight.billable_minutes ?? 0,
+                    notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`,
+                    is_non_billable_for_pilot: false
+                });
+                totalMins += flight.billable_minutes ?? 0;
             }
-          }
+        }
       });
       
       gliderFlights.forEach((flight) => {
-          // If the selected pilot is the instructor for this flight, it's NOT billable to them.
           if (flight.instructor_id === selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
@@ -158,17 +157,11 @@ export function BillingReportClient() {
               is_non_billable_for_pilot: true
             });
           } 
-          // If the selected pilot is the student/PIC, the tow IS billable.
           else if (flight.pilot_id === selectedPilotId) {
-            const isInstructional = ['Instrucción (Recibida)', 'readaptación'].includes(flight.flight_purpose);
-            const typeText = isInstructional 
-                ? 'Remolque de Planeador (En instruccion)' 
-                : 'Remolque de Planeador';
-            
             billableItems.push({
               id: `gli-${flight.id}`,
               date: flight.date,
-              type: typeText,
+              type: 'Remolque de Planeador',
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,
