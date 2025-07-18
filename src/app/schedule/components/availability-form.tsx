@@ -222,7 +222,8 @@ export function AvailabilityForm({
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
 
   const pilotCategoriesForSelectedPilot = useMemo(() => {
-    return pilotDetails?.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[] || [];
+    if (!pilotDetails?.category_ids) return [];
+    return pilotDetails.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[];
   }, [pilotDetails, categories]);
 
   const isRemolcadorCategorySelectedForTurn = useMemo(() => {
@@ -450,17 +451,21 @@ export function AvailabilityForm({
 
 
   const filteredAircraftForSelect = useMemo(() => {
-    const currentFlightTypeId = form.getValues('flight_type_id');
-    const towageFlightType = FLIGHT_TYPES.find(ft => ft.id === 'towage');
-    const isFlightTypeRemolque = currentFlightTypeId === towageFlightType?.id;
+    const categoryForTurnDetails = categories.find(c => c.id === watchedPilotCategoryId);
+    const normalizedCategoryForTurn = normalizeCategoryName(categoryForTurnDetails?.name);
+    
+    if (!normalizedCategoryForTurn) return aircraft; // Show all if no category is selected
 
-    const availableAircraft = aircraft; // Show all aircraft regardless of service status
-
-    if (isRemolcadorCategorySelectedForTurn || isFlightTypeRemolque) {
-      return availableAircraft.filter(ac => ac.type === 'Tow Plane');
+    if (normalizedCategoryForTurn.includes("avion") || normalizedCategoryForTurn.includes("remolcador")) {
+        return aircraft.filter(ac => ac.type === 'Tow Plane' || ac.type === 'Avión');
     }
-    return availableAircraft;
-  }, [isRemolcadorCategorySelectedForTurn, aircraft, form]);
+    
+    if (normalizedCategoryForTurn.includes("planeador")) {
+        return aircraft.filter(ac => ac.type === 'Glider');
+    }
+
+    return aircraft; // Fallback to all aircraft
+  }, [watchedPilotCategoryId, categories, aircraft]);
 
 
   useEffect(() => {
