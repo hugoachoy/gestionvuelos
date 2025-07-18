@@ -516,6 +516,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
         
         const depTimeCleaned = formData.departure_time.substring(0, 5);
+        
         const { data: existingEngineFlights, error: engineFetchError } = await supabase
             .from('completed_engine_flights')
             .select('id, pilot_id, instructor_id, engine_aircraft_id, flight_purpose_id')
@@ -538,48 +539,27 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const currentPurposeName = getPurposeName(formData.flight_purpose_id) || "";
         const currentIsInstruction = currentPurposeName.includes('Instrucción');
 
-        // Check for pilot/instructor conflicts in any existing flight (engine or glider)
-        const allExistingFlights = [
-            ...(existingEngineFlights || []).map(f => ({ ...f, type: 'engine' })),
-            ...(existingGliderFlights || []).map(f => ({ ...f, type: 'glider' }))
-        ];
+        for (const f of (existingEngineFlights || [])) {
+            // Ignore if we are editing the same flight
+            if (isEditMode && f.id === flightIdToLoad) continue;
 
-        for (const f of allExistingFlights) {
-            // Ignore if editing the same flight
-            if (isEditMode && f.type === 'engine' && f.id === flightIdToLoad) {
-                continue;
-            }
-
-            // Check if existing flight is a valid instruction counterpart
-            const existingPurposeName = getPurposeName(f.flight_purpose_id) || "";
-            const existingIsInstruction = existingPurposeName.includes('Instrucción');
-            const isInstructionPair =
-                currentIsInstruction &&
-                existingIsInstruction &&
-                f.type === 'engine' &&
-                f.engine_aircraft_id === formData.engine_aircraft_id &&
-                ((f.pilot_id === formData.instructor_id && f.instructor_id === formData.pilot_id));
-
-            if (isInstructionPair) {
-                continue; // This is the other half of the instruction flight, not a conflict.
+            // Check if it's a valid instruction counterpart
+            const existingPurposeName = getPurposeName(f.flight_purpose_id);
+            if (currentIsInstruction && existingPurposeName?.includes('Instrucción') && f.engine_aircraft_id === formData.engine_aircraft_id) {
+                const isPair = (f.pilot_id === formData.instructor_id) && (f.instructor_id === formData.pilot_id);
+                if (isPair) continue; // This is the other half of the instruction flight, not a conflict.
             }
             
-            // Check for real conflicts
-            const pilotInvolved = (pId: string | null | undefined) =>
-                pId === f.pilot_id || pId === f.instructor_id || (f.type === 'glider' && pId === f.tow_pilot_id);
-
-            if (pilotInvolved(formData.pilot_id)) {
-                conflicts.push(`Piloto (${getPilotName(formData.pilot_id)}) (en vuelo de ${f.type})`);
-            }
-            if (formData.instructor_id && pilotInvolved(formData.instructor_id)) {
-                conflicts.push(`Instructor (${getPilotName(formData.instructor_id)}) (en vuelo de ${f.type})`);
-            }
-            if (f.type === 'engine' && f.engine_aircraft_id === formData.engine_aircraft_id) {
-                conflicts.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)}) (en vuelo de ${f.type})`);
-            }
-            if (f.type === 'glider' && f.tow_aircraft_id === formData.engine_aircraft_id) {
-                conflicts.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)}) (en vuelo de remolque)`);
-            }
+            // It's a real conflict
+            if (f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id) conflicts.push(`Piloto (${getPilotName(formData.pilot_id)}) (en Vuelo Motor)`);
+            if (formData.instructor_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id)) conflicts.push(`Instructor (${getPilotName(formData.instructor_id)}) (en Vuelo Motor)`);
+            if (f.engine_aircraft_id === formData.engine_aircraft_id) conflicts.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)})`);
+        }
+        
+        for (const f of (existingGliderFlights || [])) {
+            if (f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id || f.tow_pilot_id === formData.pilot_id) conflicts.push(`Piloto (${getPilotName(formData.pilot_id)}) (en Planeador)`);
+            if (formData.instructor_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id || f.tow_pilot_id === formData.instructor_id)) conflicts.push(`Instructor (${getPilotName(formData.instructor_id)}) (en Planeador)`);
+            if (f.tow_aircraft_id === formData.engine_aircraft_id) conflicts.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)}) (en Remolque)`);
         }
 
         if (conflicts.length > 0) {
