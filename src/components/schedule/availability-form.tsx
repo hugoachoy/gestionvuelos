@@ -53,7 +53,7 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } fro
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePilotsStore } from '@/store/data-hooks'; // Added to get getPilotName for conflict message
+import { usePilotsStore } from '@/store/data-hooks';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -78,6 +78,7 @@ interface MedicalWarningState {
 interface BookingConflictWarningState {
   show: boolean;
   message: string;
+  variant: 'destructive' | 'warning';
 }
 
 interface SportFlightAircraftWarningState {
@@ -354,45 +355,33 @@ export function AvailabilityForm({
     const dateString = format(formDate, 'yyyy-MM-dd');
     const formStartTimeHHMM = formStartTime.substring(0, 5);
 
-    // Find any entry with the same aircraft, at the same time and date.
     const conflictingEntry = existingEntries.find(
         (se) =>
             se.date === dateString &&
             se.start_time.substring(0, 5) === formStartTimeHHMM &&
             se.aircraft_id === formAircraftId &&
-            (!entry || se.id !== entry.id) // Exclude the entry being edited
+            (!entry || se.id !== entry.id)
     );
 
     if (conflictingEntry) {
         const isCurrentFormInstruction = formFlightTypeId === 'instruction_given' || formFlightTypeId === 'instruction_taken';
         const isConflictingEntryInstruction = conflictingEntry.flight_type_id === 'instruction_given' || conflictingEntry.flight_type_id === 'instruction_taken';
 
-        // Check for a valid instruction pair
         const isValidInstructionPair =
             isCurrentFormInstruction &&
             isConflictingEntryInstruction &&
-            // One is given, one is taken
             ((formFlightTypeId === 'instruction_given' && conflictingEntry.flight_type_id === 'instruction_taken') ||
-             (formFlightTypeId === 'instruction_taken' && conflictingEntry.flight_type_id === 'instruction_given')) &&
-            // The pilot of one is the instructor of the other (this part is tricky and might need pilot data)
-            // For now, we assume if one is "given" and one is "taken", it's a potential pair.
-            // This is a simplification. A more robust check would involve pilot/instructor IDs if available.
-            true; 
+             (formFlightTypeId === 'instruction_taken' && conflictingEntry.flight_type_id === 'instruction_given'));
 
-        if (isValidInstructionPair) {
-            // It's a valid instruction pair, no warning.
-            setBookingConflictWarning(null);
-        } else {
-            // It's a real conflict.
+        if (!isValidInstructionPair) {
             const aircraftDetails = aircraft.find(a => a.id === formAircraftId);
             const conflictingPilotName = getPilotName(conflictingEntry.pilot_id);
             setBookingConflictWarning({
                 show: true,
-                message: `La aeronave ${aircraftDetails?.name || ''} ya está reservada para las ${formStartTimeHHMM} por ${conflictingPilotName}.`,
+                message: `La aeronave ${aircraftDetails?.name || ''} ya está reservada para las ${formStartTimeHHMM} por ${conflictingPilotName}. Esto puede ser un conflicto.`,
+                variant: 'destructive',
             });
         }
-    } else {
-        setBookingConflictWarning(null); // No conflict found
     }
   }, [watchedAircraftId, watchedStartTime, watchedDate, watchedFlightTypeId, watchedPilotId, aircraft, existingEntries, entry, getPilotName, form]);
 
@@ -443,7 +432,7 @@ export function AvailabilityForm({
     const categoryForTurnDetails = categories.find(c => c.id === watchedPilotCategoryId);
     const normalizedCategoryForTurn = normalizeCategoryName(categoryForTurnDetails?.name);
     
-    if (!normalizedCategoryForTurn) return aircraft; // Show all if no category is selected
+    if (!normalizedCategoryForTurn) return aircraft;
 
     if (normalizedCategoryForTurn.includes("avion") || normalizedCategoryForTurn.includes("remolcador")) {
         return aircraft.filter(ac => ac.type === 'Tow Plane' || ac.type === 'Avión');
@@ -453,7 +442,7 @@ export function AvailabilityForm({
         return aircraft.filter(ac => ac.type === 'Glider');
     }
 
-    return aircraft; // Fallback to all aircraft
+    return aircraft;
   }, [watchedPilotCategoryId, categories, aircraft]);
 
 
@@ -469,10 +458,6 @@ export function AvailabilityForm({
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
-    if ((medicalWarning && medicalWarning.variant === 'destructive' && medicalWarning.show) || (bookingConflictWarning && bookingConflictWarning.show)) {
-        return;
-    }
-
     let authUserIdToSet: string | null = null;
     if (!entry && currentUser) {
         authUserIdToSet = currentUser.id;
@@ -533,10 +518,10 @@ export function AvailabilityForm({
   
   const isSubmitDisabled = useMemo(() => {
     const isMedicalBlocker = medicalWarning?.show && medicalWarning.variant === 'destructive';
-    const isBookingBlocker = bookingConflictWarning?.show;
     const isAircraftBlocker = !!aircraftWarning;
-    return isMedicalBlocker || isBookingBlocker || isAircraftBlocker;
-  }, [medicalWarning, bookingConflictWarning, aircraftWarning]);
+    // Conflict warning is informational, not a blocker for submission in the schedule.
+    return isMedicalBlocker || isAircraftBlocker;
+  }, [medicalWarning, aircraftWarning]);
 
 
   return (
@@ -846,7 +831,7 @@ export function AvailabilityForm({
                 </Alert>
             )}
              {bookingConflictWarning && bookingConflictWarning.show && (
-              <Alert variant="destructive" className="mt-2">
+              <Alert variant={bookingConflictWarning.variant} className="mt-2">
                 <PlaneIconLucide className="h-4 w-4" />
                 <AlertTitle>Conflicto de Reserva</AlertTitle>
                 <AlertDescription>{bookingConflictWarning.message}</AlertDescription>
