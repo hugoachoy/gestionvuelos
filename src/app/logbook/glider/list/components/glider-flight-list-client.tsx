@@ -141,6 +141,43 @@ export function GliderFlightListClient() {
     });
   }, [filteredFlights]);
 
+  const totalHours = useMemo(() => {
+    if (!sortedFlights || sortedFlights.length === 0) return 0;
+
+    let totalDuration = 0;
+    const processedFlightIds = new Set<string>();
+
+    for (const flight of sortedFlights) {
+        if (processedFlightIds.has(flight.id)) continue;
+
+        const purposeName = getPurposeName(flight.flight_purpose_id);
+        const isInstruction = purposeName.includes('Instrucción');
+        
+        // Always add current flight's duration
+        totalDuration += flight.flight_duration_decimal;
+        processedFlightIds.add(flight.id);
+
+        // If it's instruction, find its counterpart and mark it as processed
+        // This prevents its duration from being added again
+        if (isInstruction) {
+            const counterpart = sortedFlights.find(f => 
+                f.id !== flight.id &&
+                f.date === flight.date &&
+                f.departure_time === flight.departure_time &&
+                f.arrival_time === flight.arrival_time &&
+                f.glider_aircraft_id === flight.glider_aircraft_id &&
+                (f.pilot_id === flight.instructor_id || f.instructor_id === flight.pilot_id)
+            );
+            
+            if (counterpart) {
+                processedFlightIds.add(counterpart.id);
+            }
+        }
+    }
+    
+    return totalDuration;
+  }, [sortedFlights, getPurposeName]);
+
   const handleExportPdf = async () => {
     if (sortedFlights.length === 0) {
       toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
@@ -164,7 +201,7 @@ export function GliderFlightListClient() {
     const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Notas"];
     const tableRows: (string | null)[][] = [];
     
-    let totalDuration = 0;
+    let totalDurationForPdf = 0;
     const processedFlightIds = new Set<string>();
 
     const flightsForPdf = [...sortedFlights].sort((a, b) => {
@@ -190,7 +227,7 @@ export function GliderFlightListClient() {
                     processedFlightIds.add(counterpart.id);
                 }
             }
-            totalDuration += flight.flight_duration_decimal;
+            totalDurationForPdf += flight.flight_duration_decimal;
         }
 
         tableRows.push([
@@ -213,7 +250,7 @@ export function GliderFlightListClient() {
       body: tableRows,
       foot: [[
           { content: 'TOTAL', colSpan: 8, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: `${totalDuration.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
+          { content: `${totalDurationForPdf.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
           { content: '', colSpan: 2 },
       ]],
       startY: 28,
@@ -407,7 +444,7 @@ export function GliderFlightListClient() {
                 <TableRow>
                     <TableCell colSpan={8} className="text-right font-bold">TOTAL HORAS</TableCell>
                     <TableCell className="font-bold">
-                        {sortedFlights.reduce((acc, f) => acc + f.flight_duration_decimal, 0).toFixed(1)} hs
+                        {totalHours.toFixed(1)} hs
                     </TableCell>
                     <TableCell colSpan={3}></TableCell>
                 </TableRow>
