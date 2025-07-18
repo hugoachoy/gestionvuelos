@@ -87,7 +87,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const { pilots, loading: pilotsLoading, fetchPilots, getPilotName } = usePilotsStore();
   const aircraftStore = useAircraftStore(); 
-  const { aircraftWithCalculatedData, loading: aircraftLoading, fetchAircraft } = aircraftStore;
+  const { aircraftWithCalculatedData, loading: aircraftLoading, fetchAircraft, getAircraftName } = aircraftStore;
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
@@ -494,6 +494,44 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             setIsSubmittingForm(false);
             return;
         }
+
+        // --- CONFLICT VALIDATION ---
+        const { data: existingFlights, error: fetchError } = await supabase
+            .from('completed_glider_flights')
+            .select('id, pilot_id, instructor_id, tow_pilot_id, glider_aircraft_id, tow_aircraft_id')
+            .eq('date', format(formData.date, 'yyyy-MM-dd'))
+            .eq('departure_time', formData.departure_time.substring(0, 5));
+
+        if (fetchError) {
+            toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
+            setIsSubmittingForm(false);
+            return;
+        }
+        
+        const conflictingFlights = isEditMode
+            ? existingFlights.filter(f => f.id !== flightIdToLoad)
+            : existingFlights;
+        
+        if (conflictingFlights && conflictingFlights.length > 0) {
+            const conflicts: string[] = [];
+            if (conflictingFlights.some(f => f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id)) conflicts.push(`Piloto (${getPilotName(formData.pilot_id)})`);
+            if (formData.instructor_id && conflictingFlights.some(f => f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id)) conflicts.push(`Instructor (${getPilotName(formData.instructor_id)})`);
+            if (conflictingFlights.some(f => f.tow_pilot_id === formData.tow_pilot_id)) conflicts.push(`Piloto Remolcador (${getPilotName(formData.tow_pilot_id)})`);
+            if (conflictingFlights.some(f => f.glider_aircraft_id === formData.glider_aircraft_id)) conflicts.push(`Planeador (${getAircraftName(formData.glider_aircraft_id)})`);
+            if (conflictingFlights.some(f => f.tow_aircraft_id === formData.tow_aircraft_id)) conflicts.push(`Avión Remolcador (${getAircraftName(formData.tow_aircraft_id)})`);
+
+            if (conflicts.length > 0) {
+                toast({
+                    title: "Conflicto de Vuelo Detectado",
+                    description: `Ya existe un vuelo a la misma hora para: ${[...new Set(conflicts)].join(', ')}.`,
+                    variant: "destructive",
+                    duration: 7000,
+                });
+                setIsSubmittingForm(false);
+                return;
+            }
+        }
+        // --- END CONFLICT VALIDATION ---
         
         let finalInstructorId = isInstructionTakenMode ? formData.instructor_id : null;
         
