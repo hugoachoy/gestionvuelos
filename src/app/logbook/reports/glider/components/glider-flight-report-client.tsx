@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useCompletedGliderFlightsStore, usePilotsStore, useAircraftStore, usePilotCategoriesStore } from '@/store/data-hooks';
+import { useCompletedGliderFlightsStore, usePilotsStore, useAircraftStore, usePilotCategoriesStore, useFlightPurposesStore } from '@/store/data-hooks';
 import type { CompletedGliderFlight } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -29,7 +29,7 @@ export function GliderFlightReportClient() {
   const { fetchCompletedGliderFlightsForRange, loading: flightsLoading, error: flightsError } = useCompletedGliderFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
-  const { getCategoryName, categories, loading: categoriesLoading, fetchCategories } = usePilotCategoriesStore();
+  const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
@@ -50,8 +50,8 @@ export function GliderFlightReportClient() {
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
-    fetchCategories();
-  }, [fetchPilots, fetchAircraft, fetchCategories]);
+    fetchFlightPurposes();
+  }, [fetchPilots, fetchAircraft, fetchFlightPurposes]);
 
   useEffect(() => {
     if (currentUser && !currentUser.is_admin && pilots.length > 0) {
@@ -135,7 +135,7 @@ export function GliderFlightReportClient() {
           flight.departure_time,
           flight.arrival_time,
           `${flight.flight_duration_decimal.toFixed(1)} hs`,
-          flight.flight_purpose,
+          getPurposeName(flight.flight_purpose_id),
           '1',
           '1',
           flight.notes || '-',
@@ -208,7 +208,7 @@ export function GliderFlightReportClient() {
                 flight.departure_time,
                 flight.arrival_time,
                 flight.flight_duration_decimal.toFixed(1),
-                `"${flight.flight_purpose}"`,
+                `"${getPurposeName(flight.flight_purpose_id)}"`
                 '1',
                 '1',
                 `"${(flight.notes || '-').replace(/"/g, '""')}"`,
@@ -254,9 +254,9 @@ export function GliderFlightReportClient() {
     } finally {
       setIsGenerating(false);
     }
-  }, [reportData, toast, getPilotName, getAircraftName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate, totalDuration, totalLandings, totalTows]);
+  }, [reportData, toast, getPilotName, getAircraftName, getPurposeName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate, totalDuration, totalLandings, totalTows]);
 
-  const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || categoriesLoading || isGenerating;
+  const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || purposesLoading || isGenerating;
 
   if (flightsError) {
     return <div className="text-destructive">Error al cargar datos para el informe: {flightsError.message}</div>;
@@ -391,7 +391,7 @@ export function GliderFlightReportClient() {
                   <TableCell>{flight.departure_time}</TableCell>
                   <TableCell>{flight.arrival_time}</TableCell>
                   <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
-                  <TableCell>{flight.flight_purpose}</TableCell>
+                  <TableCell>{getPurposeName(flight.flight_purpose_id)}</TableCell>
                   <TableCell className="text-center">1</TableCell>
                   <TableCell className="text-center">1</TableCell>
                   <TableCell>{flight.notes || '-'}</TableCell>

@@ -2,9 +2,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore } from '@/store/data-hooks';
+import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore, useFlightPurposesStore } from '@/store/data-hooks';
 import type { CompletedEngineFlight, CompletedGliderFlight } from '@/types';
-import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from "@/hooks/use-toast";
 
@@ -50,6 +49,7 @@ export function BillingReportClient() {
   const { toast } = useToast();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
   const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
 
@@ -69,7 +69,8 @@ export function BillingReportClient() {
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
-  }, [fetchPilots, fetchAircraft]);
+    fetchFlightPurposes();
+  }, [fetchPilots, fetchAircraft, fetchFlightPurposes]);
 
   // Auto-select pilot for non-admins
   useEffect(() => {
@@ -132,24 +133,21 @@ export function BillingReportClient() {
         }
 
         // Case 2: The selected pilot was the PIC/STUDENT.
-        // This will only be reached if they were NOT the instructor of this flight.
         if (flight.pilot_id === selectedPilotId) {
-          const isInstructionFlight = flight.flight_purpose === 'instrucción';
-          const purposeText = isInstructionFlight
-            ? `Instrucción`
-            : FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose;
-
-          billableItems.push({
-            id: `eng-${flight.id}`,
-            date: flight.date,
-            type: 'Vuelo a Motor',
-            aircraft: getAircraftName(flight.engine_aircraft_id),
-            duration_hs: flight.flight_duration_decimal,
-            billable_minutes: flight.billable_minutes ?? 0,
-            notes: `Propósito: ${purposeText}`,
-            is_non_billable_for_pilot: false
-          });
-          totalMins += flight.billable_minutes ?? 0;
+            const purposeName = getPurposeName(flight.flight_purpose_id);
+            billableItems.push({
+                id: `eng-${flight.id}`,
+                date: flight.date,
+                type: 'Vuelo a Motor',
+                aircraft: getAircraftName(flight.engine_aircraft_id),
+                duration_hs: flight.flight_duration_decimal,
+                billable_minutes: flight.billable_minutes ?? 0,
+                notes: `Propósito: ${purposeName}`,
+                is_non_billable_for_pilot: false
+            });
+            if (purposeName !== 'Remolque planeador') {
+                totalMins += flight.billable_minutes ?? 0;
+            }
         }
       });
       
@@ -201,7 +199,7 @@ export function BillingReportClient() {
     } finally {
         setIsGenerating(false);
     }
-  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, toast, fetchCompletedEngineFlightsForRange, fetchCompletedGliderFlightsForRange]);
+  }, [startDate, endDate, selectedPilotId, getAircraftName, getPilotName, getPurposeName, toast, fetchCompletedEngineFlightsForRange, fetchCompletedGliderFlightsForRange]);
 
   const handleExportPdf = async () => {
     if (reportData.length === 0) {
@@ -339,7 +337,7 @@ export function BillingReportClient() {
   }, [reportData, toast, getPilotName, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows]);
 
 
-  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
+  const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || purposesLoading;
 
   if (authLoading) {
     return (

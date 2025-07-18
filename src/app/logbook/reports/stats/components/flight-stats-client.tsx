@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useCompletedGliderFlightsStore, useCompletedEngineFlightsStore, usePilotsStore } from '@/store/data-hooks';
+import { useCompletedGliderFlightsStore, useCompletedEngineFlightsStore, usePilotsStore, useFlightPurposesStore } from '@/store/data-hooks';
 import type { CompletedGliderFlight, CompletedEngineFlight } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -53,6 +53,7 @@ export function FlightStatsClient() {
   const { fetchCompletedGliderFlightsForRange, loading: gliderFlightsLoading } = useCompletedGliderFlightsStore();
   const { fetchCompletedEngineFlightsForRange, loading: engineFlightsLoading } = useCompletedEngineFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
+  const { getPurposeName, purposes, loading: purposesLoading } = useFlightPurposesStore();
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
@@ -134,10 +135,10 @@ export function FlightStatsClient() {
     // Process unique flights to avoid double counting
     const processedGliderIds = new Set<string>();
     for (const flight of gliderData) {
-        // Skip if this flight is the 'other half' of an already processed instruction flight
         if (processedGliderIds.has(flight.id)) continue;
+        const purposeName = getPurposeName(flight.flight_purpose_id);
+        const isInstruction = purposeName.includes('Instrucción');
 
-        const isInstruction = ['Instrucción (Recibida)', 'Instrucción (Impartida)', 'readaptación'].includes(flight.flight_purpose);
         newStats.gliderTotalHours += flight.flight_duration_decimal;
         newStats.gliderTotalFlights += 1;
         
@@ -145,7 +146,7 @@ export function FlightStatsClient() {
             newStats.gliderInstructionHours += flight.flight_duration_decimal;
             newStats.gliderInstructionFlights += 1;
             
-            if (pilotIdToFetch) { // Only calculate specific roles if a pilot is selected
+            if (pilotIdToFetch) { 
                 if (flight.pilot_id === pilotIdToFetch) newStats.pilotSpecific_gliderInstructionTakenHours += flight.flight_duration_decimal;
                 if (flight.instructor_id === pilotIdToFetch) newStats.pilotSpecific_gliderInstructionGivenHours += flight.flight_duration_decimal;
             }
@@ -158,8 +159,8 @@ export function FlightStatsClient() {
     const processedEngineIds = new Set<string>();
     for (const flight of engineData) {
         if (processedEngineIds.has(flight.id)) continue;
-        
-        const isInstruction = flight.flight_purpose === 'Instrucción (Recibida)' || flight.flight_purpose === 'Instrucción (Impartida)' || flight.flight_purpose === 'readaptación';
+        const purposeName = getPurposeName(flight.flight_purpose_id);
+        const isInstruction = purposeName.includes('Instrucción');
         
         if(isInstruction) {
             newStats.engineInstructionHours += flight.flight_duration_decimal;
@@ -169,7 +170,7 @@ export function FlightStatsClient() {
                 if(flight.pilot_id === pilotIdToFetch) newStats.pilotSpecific_engineInstructionTakenHours += flight.flight_duration_decimal;
                 if(flight.instructor_id === pilotIdToFetch) newStats.pilotSpecific_engineInstructionGivenHours += flight.flight_duration_decimal;
             }
-        } else if (flight.flight_purpose === 'Remolque planeador') {
+        } else if (purposeName === 'Remolque planeador') {
             newStats.engineTowHours += flight.flight_duration_decimal;
             newStats.engineTowFlights += flight.tows_count || 1;
         } else {
@@ -177,16 +178,15 @@ export function FlightStatsClient() {
             newStats.engineOtherFlights += 1;
         }
         
-        // Sum up total hours for all unique engine flights
         newStats.engineTotalHours += flight.flight_duration_decimal;
-        newStats.engineTotalFlights += (flight.flight_purpose === 'Remolque planeador') ? (flight.tows_count || 1) : 1;
+        newStats.engineTotalFlights += (purposeName === 'Remolque planeador') ? (flight.tows_count || 1) : 1;
     }
     
     setStatsData(newStats);
     setIsGenerating(false);
-  }, [startDate, endDate, currentUser?.is_admin, selectedPilotId, currentUserPilotId, fetchCompletedGliderFlightsForRange, fetchCompletedEngineFlightsForRange, toast]);
+  }, [startDate, endDate, currentUser?.is_admin, selectedPilotId, currentUserPilotId, fetchCompletedGliderFlightsForRange, fetchCompletedEngineFlightsForRange, toast, getPurposeName]);
 
-  const isLoadingUI = authLoading || gliderFlightsLoading || engineFlightsLoading || pilotsLoading || isGenerating;
+  const isLoadingUI = authLoading || gliderFlightsLoading || engineFlightsLoading || pilotsLoading || purposesLoading || isGenerating;
   
   const gliderChartData = useMemo(() => {
     if (!statsData) return [];

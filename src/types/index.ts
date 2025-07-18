@@ -56,7 +56,7 @@ export const FLIGHT_TYPES = [
   { id: 'local', name: 'Local' },
   { id: 'sport', name: 'Deportivo' },
   { id: 'towage', name: 'Remolque' },
-  { id: 'trip', name: 'Travesía'}, // Changed from Viaje
+  { id: 'trip', name: 'Travesía'},
 ] as const;
 
 export type FlightType = typeof FLIGHT_TYPES[number];
@@ -92,6 +92,14 @@ export interface DailyNews {
   created_at?: string;
 }
 
+// --- New Centralized Flight Purpose Type ---
+export interface FlightPurpose {
+    id: string;
+    name: string;
+    applies_to: ('engine' | 'glider')[];
+}
+
+
 // --- Libro de Vuelo Types ---
 export type LogbookEntryType = 'glider' | 'engine';
 
@@ -107,79 +115,19 @@ export interface BaseCompletedFlight {
   notes?: string | null;
   created_at?: string;
   auth_user_id?: string | null; // User who created this log entry
+  flight_purpose_id: string; // Foreign key to flight_purposes table
 }
-
-export const GLIDER_FLIGHT_PURPOSES = [
-  'entrenamiento',
-  'readaptación',
-  'deportivo',
-  'Instrucción (Recibida)',
-  'Instrucción (Impartida)'
-] as const;
-export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
-
-// These are the values accepted by the database's check constraint.
-export const ENGINE_FLIGHT_PURPOSES_DB = [
-  'entrenamiento',
-  'readaptación',
-  'Remolque planeador',
-  'local',
-  'viaje',
-  'instrucción', // The generic value for DB
-] as const;
-export type EngineFlightPurpose_DB = typeof ENGINE_FLIGHT_PURPOSES_DB[number];
-
-// These are the values presented to the user in the UI for a unified experience.
-export const ENGINE_FLIGHT_PURPOSES_UI = [
-  'entrenamiento',
-  'readaptación',
-  'Remolque planeador',
-  'local',
-  'viaje',
-  'Instrucción (Recibida)',
-  'Instrucción (Impartida)',
-] as const;
-export type EngineFlightPurpose_UI = typeof ENGINE_FLIGHT_PURPOSES_UI[number];
-
-
-export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose_UI;
-
-export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
-  // Common
-  'entrenamiento': 'Entrenamiento',
-  'readaptación': 'Readaptación',
-  'deportivo': 'Deportivo',
-  'viaje': 'Travesía',
-  'local': 'Local',
-  'instrucción': 'Instrucción',
-  
-  // Engine-specific DB value
-  'Remolque planeador': 'Remolque',
-
-  // Unified Instruction
-  'Instrucción (Recibida)': 'Instrucción (Recibida)',
-  'Instrucción (Impartida)': 'Instrucción (Impartida)',
-
-  // Schedule IDs for mapping in forms
-  'instruction_taken': 'Instrucción (Recibida)',
-  'instruction_given': 'Instrucción (Impartida)',
-  'towage': 'Remolque',
-  'trip': 'Travesía',
-  'sport': 'Deportivo',
-};
 
 export interface CompletedGliderFlight extends BaseCompletedFlight {
   logbook_type: 'glider';
   tow_pilot_id?: string | null; // Tow pilot, if applicable
   glider_aircraft_id: string;
   tow_aircraft_id?: string | null; // Tow plane used, if applicable
-  flight_purpose: GliderFlightPurpose;
 }
 
 export interface CompletedEngineFlight extends BaseCompletedFlight {
   logbook_type: 'engine';
   engine_aircraft_id: string;
-  flight_purpose: EngineFlightPurpose_DB;
   billable_minutes?: number | null; // Typically for engine flights
   route_from_to?: string | null;
   landings_count?: number | null;

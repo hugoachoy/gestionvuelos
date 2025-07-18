@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight, Rate } from '@/types';
+import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight, Rate, FlightPurpose } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -905,6 +905,48 @@ export function useDailyNewsStore() {
   }, [dailyNews]);
 
   return { dailyNews, loading, error, getNewsForDate, addDailyNewsItem, fetchDailyNews, fetchDailyNewsForRange, updateDailyNewsItem, deleteDailyNewsItem };
+}
+
+// --- Flight Purposes Store ---
+export function useFlightPurposesStore() {
+  const [purposes, setPurposes] = useState<FlightPurpose[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+  const fetchingRef = useRef(false);
+
+  const fetchFlightPurposes = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase.from('flight_purposes').select('*').order('name');
+      if (fetchError) {
+        logSupabaseError('Error fetching flight purposes', fetchError);
+        setError(fetchError);
+      } else {
+        setPurposes(data || []);
+      }
+    } catch (e) {
+      logSupabaseError('Unexpected error in fetchFlightPurposes', e);
+      setError(e);
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFlightPurposes();
+  }, [fetchFlightPurposes]);
+
+  const getPurposeName = useCallback((purposeId?: string | null): string => {
+    if (!purposeId) return 'N/A';
+    const purpose = purposes.find(p => p.id === purposeId);
+    return purpose ? purpose.name : 'Desconocido';
+  }, [purposes]);
+
+  return { purposes, loading, error, fetchFlightPurposes, getPurposeName };
 }
 
 

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useCompletedGliderFlightsStore } from '@/store/data-hooks';
+import { useCompletedGliderFlightsStore, useFlightPurposesStore } from '@/store/data-hooks';
 import type { CompletedGliderFlight } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,6 +32,7 @@ export function GliderFlightListClient() {
   const { fetchCompletedGliderFlightsForRange, loading: flightsLoading, error: flightsError, deleteCompletedGliderFlight } = useCompletedGliderFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -52,7 +53,8 @@ export function GliderFlightListClient() {
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
-  }, [fetchPilots, fetchAircraft]);
+    fetchFlightPurposes();
+  }, [fetchPilots, fetchAircraft, fetchFlightPurposes]);
 
   useEffect(() => {
     if (currentUser && !currentUser.is_admin && pilots.length > 0) {
@@ -105,7 +107,7 @@ export function GliderFlightListClient() {
   }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, handleFetchAndFilter]);
 
 
-  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading;
+  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading || purposesLoading;
 
   const handleDeleteRequest = (flight: CompletedGliderFlight) => {
     setFlightToDelete(flight);
@@ -173,7 +175,8 @@ export function GliderFlightListClient() {
 
     flightsForPdf.forEach(flight => {
         if (!processedFlightIds.has(flight.id)) {
-            const isInstruction = ['Instrucción (Recibida)', 'Instrucción (Impartida)', 'readaptación'].includes(flight.flight_purpose);
+            const purposeName = getPurposeName(flight.flight_purpose_id);
+            const isInstruction = purposeName.includes('Instrucción');
             if (isInstruction) {
                 const counterpart = flightsForPdf.find(f => 
                     f.id !== flight.id &&
@@ -200,7 +203,7 @@ export function GliderFlightListClient() {
             flight.departure_time,
             flight.arrival_time,
             `${flight.flight_duration_decimal.toFixed(1)} hs`,
-            flight.flight_purpose,
+            getPurposeName(flight.flight_purpose_id),
             flight.notes || '-',
         ]);
     });
@@ -378,7 +381,7 @@ export function GliderFlightListClient() {
                       <TableCell>{flight.departure_time}</TableCell>
                       <TableCell>{flight.arrival_time}</TableCell>
                       <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
-                      <TableCell>{flight.flight_purpose}</TableCell>
+                      <TableCell>{getPurposeName(flight.flight_purpose_id)}</TableCell>
                       <TableCell>{flight.notes || '-'}</TableCell>
                       <TableCell className="text-right">
                         {canEdit && (

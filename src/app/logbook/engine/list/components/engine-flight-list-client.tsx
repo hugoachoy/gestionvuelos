@@ -2,9 +2,8 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { useCompletedEngineFlightsStore } from '@/store/data-hooks';
+import { useCompletedEngineFlightsStore, useFlightPurposesStore } from '@/store/data-hooks';
 import type { CompletedEngineFlight } from '@/types';
-import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -34,6 +33,7 @@ export function EngineFlightListClient() {
   const { fetchCompletedEngineFlightsForRange, loading: flightsLoading, error: flightsError, deleteCompletedEngineFlight } = useCompletedEngineFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -54,7 +54,8 @@ export function EngineFlightListClient() {
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
-  }, [fetchPilots, fetchAircraft]);
+    fetchFlightPurposes();
+  }, [fetchPilots, fetchAircraft, fetchFlightPurposes]);
 
   useEffect(() => {
     if (currentUser && !currentUser.is_admin && pilots.length > 0) {
@@ -108,7 +109,7 @@ export function EngineFlightListClient() {
   }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, handleFetchAndFilter]);
 
 
-  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading;
+  const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading || purposesLoading;
 
   const handleDeleteRequest = (flight: CompletedEngineFlight) => {
     setFlightToDelete(flight);
@@ -186,9 +187,10 @@ export function EngineFlightListClient() {
     });
 
     flightsForPdf.forEach(flight => {
+        const purposeName = getPurposeName(flight.flight_purpose_id);
         if (!processedFlightIds.has(flight.id)) {
             // Check for instruction counterpart to avoid double counting totals
-            const isInstruction = flight.flight_purpose === 'instrucción' || flight.flight_purpose === 'readaptación';
+            const isInstruction = purposeName.includes('Instrucción');
             if (isInstruction) {
                 const counterpart = flightsForPdf.find(f => 
                     f.id !== flight.id &&
@@ -204,7 +206,7 @@ export function EngineFlightListClient() {
             }
             // Add totals for the current flight (which is either not instruction, or the first of an instruction pair)
             totalDuration += flight.flight_duration_decimal;
-            if (flight.flight_purpose !== 'Remolque planeador') {
+            if (purposeName !== 'Remolque planeador') {
                 totalBillableMinutes += flight.billable_minutes || 0;
             }
         }
@@ -214,11 +216,11 @@ export function EngineFlightListClient() {
             getPilotName(flight.pilot_id),
             getAircraftName(flight.engine_aircraft_id),
             flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
-            FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose,
+            purposeName,
             flight.departure_time,
             flight.arrival_time,
             `${flight.flight_duration_decimal.toFixed(1)} hs`,
-            flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
+            purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
             flight.route_from_to || '-',
             flight.landings_count?.toString() ?? '-',
             flight.tows_count?.toString() ?? '-',
@@ -389,6 +391,7 @@ export function EngineFlightListClient() {
                 sortedFlights.map((flight) => {
                   const canEdit = currentUser?.is_admin || (flight.auth_user_id && flight.auth_user_id === currentUser?.id);
                   const canDelete = currentUser?.is_admin;
+                  const purposeName = getPurposeName(flight.flight_purpose_id);
 
                   return (
                     <TableRow key={flight.id}>
@@ -396,12 +399,12 @@ export function EngineFlightListClient() {
                       <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
                       <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
-                      <TableCell>{FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}</TableCell>
+                      <TableCell>{purposeName}</TableCell>
                       <TableCell>{flight.departure_time}</TableCell>
                       <TableCell>{flight.arrival_time}</TableCell>
                       <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                       <TableCell>
-                        {flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'
+                        {purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'
                           ? `${flight.billable_minutes} min`
                           : '-'}
                       </TableCell>

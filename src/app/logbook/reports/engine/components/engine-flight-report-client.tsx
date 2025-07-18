@@ -2,9 +2,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useCompletedEngineFlightsStore, usePilotsStore, useAircraftStore } from '@/store/data-hooks';
+import { useCompletedEngineFlightsStore, usePilotsStore, useAircraftStore, useFlightPurposesStore } from '@/store/data-hooks';
 import type { CompletedEngineFlight } from '@/types';
-import { FLIGHT_PURPOSE_DISPLAY_MAP } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -30,6 +29,7 @@ export function EngineFlightReportClient() {
   const { fetchCompletedEngineFlightsForRange, loading: flightsLoading, error: flightsError } = useCompletedEngineFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
+  const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
@@ -51,7 +51,8 @@ export function EngineFlightReportClient() {
   useEffect(() => {
     fetchPilots();
     fetchAircraft();
-  }, [fetchPilots, fetchAircraft]);
+    fetchFlightPurposes();
+  }, [fetchPilots, fetchAircraft, fetchFlightPurposes]);
 
   useEffect(() => {
     if (currentUser && !currentUser.is_admin && pilots.length > 0) {
@@ -91,7 +92,8 @@ export function EngineFlightReportClient() {
       let landings = 0;
       data.forEach(flight => {
         duration += flight.flight_duration_decimal || 0;
-        if (flight.flight_purpose !== 'Remolque planeador') {
+        const purposeName = getPurposeName(flight.flight_purpose_id);
+        if (purposeName !== 'Remolque planeador') {
             billableMins += flight.billable_minutes || 0;
         }
         landings += flight.landings_count || 0;
@@ -109,7 +111,7 @@ export function EngineFlightReportClient() {
       toast({ title: "Error al Generar", description: "No se pudo obtener el informe.", variant: "destructive" });
     }
     setIsGenerating(false);
-  }, [startDate, endDate, fetchCompletedEngineFlightsForRange, toast, currentUser?.is_admin, selectedPilotId, currentUserPilotId]);
+  }, [startDate, endDate, fetchCompletedEngineFlightsForRange, toast, currentUser?.is_admin, selectedPilotId, currentUserPilotId, getPurposeName]);
   
   const handleExportPdf = async () => {
     if (reportData.length === 0) {
@@ -138,16 +140,17 @@ export function EngineFlightReportClient() {
       const tableRows: (string | null)[][] = [];
 
       reportData.forEach(flight => {
+        const purposeName = getPurposeName(flight.flight_purpose_id);
         tableRows.push([
           format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
           getPilotName(flight.pilot_id),
           getAircraftName(flight.engine_aircraft_id),
           flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
-          FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose,
+          purposeName,
           flight.departure_time,
           flight.arrival_time,
           `${flight.flight_duration_decimal.toFixed(1)} hs`,
-          flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
+          purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
           flight.route_from_to || '-',
           flight.landings_count?.toString() ?? '-',
           flight.tows_count?.toString() ?? '-',
@@ -215,16 +218,17 @@ export function EngineFlightReportClient() {
         const csvRows = [headers.join(',')];
 
         reportData.forEach(flight => {
+            const purposeName = getPurposeName(flight.flight_purpose_id);
             const row = [
                 format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
                 `"${getPilotName(flight.pilot_id)?.replace(/"/g, '""')}"`,
                 `"${getAircraftName(flight.engine_aircraft_id)?.replace(/"/g, '""')}"`,
                 `"${flight.instructor_id ? getPilotName(flight.instructor_id)?.replace(/"/g, '""') : '-'}"`,
-                `"${(FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose).replace(/"/g, '""')}"`,
+                `"${purposeName.replace(/"/g, '""')}"`,
                 flight.departure_time,
                 flight.arrival_time,
                 flight.flight_duration_decimal.toFixed(1),
-                flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? flight.billable_minutes : '-',
+                purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? flight.billable_minutes : '-',
                 `"${(flight.route_from_to || '-').replace(/"/g, '""')}"`,
                 flight.landings_count?.toString() ?? '-',
                 flight.tows_count?.toString() ?? '-',
@@ -274,10 +278,10 @@ export function EngineFlightReportClient() {
     } finally {
       setIsGenerating(false);
     }
-  }, [reportData, toast, getPilotName, getAircraftName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate, totalDuration, totalBillableMinutes, totalLandings]);
+  }, [reportData, toast, getPilotName, getAircraftName, getPurposeName, currentUser?.is_admin, selectedPilotId, currentUserPilotId, pilots, startDate, endDate, totalDuration, totalBillableMinutes, totalLandings]);
 
 
-  const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || isGenerating;
+  const isLoadingUI = authLoading || flightsLoading || pilotsLoading || aircraftLoading || purposesLoading || isGenerating;
 
   if (flightsError) {
     return <div className="text-destructive">Error al cargar datos para el informe: {flightsError.message}</div>;
@@ -403,18 +407,20 @@ export function EngineFlightReportClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reportData.map((flight) => (
+              {reportData.map((flight) => {
+                const purposeName = getPurposeName(flight.flight_purpose_id);
+                return (
                 <TableRow key={flight.id}>
                   <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                   <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                   <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
                   <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
-                  <TableCell>{FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}</TableCell>
+                  <TableCell>{purposeName}</TableCell>
                   <TableCell>{flight.departure_time}</TableCell>
                   <TableCell>{flight.arrival_time}</TableCell>
                   <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                   <TableCell>
-                    {flight.flight_purpose !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'
+                    {purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'
                       ? `${flight.billable_minutes} min`
                       : '-'}
                   </TableCell>
@@ -425,7 +431,7 @@ export function EngineFlightReportClient() {
                   <TableCell>{flight.fuel_added_liters ?? '-'}</TableCell>
                   <TableCell>{flight.notes || '-'}</TableCell>
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
             <TableFooter>
                 <TableRow>
