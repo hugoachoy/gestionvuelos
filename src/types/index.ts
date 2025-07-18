@@ -118,7 +118,19 @@ export const GLIDER_FLIGHT_PURPOSES = [
 ] as const;
 export type GliderFlightPurpose = typeof GLIDER_FLIGHT_PURPOSES[number];
 
-export const ENGINE_FLIGHT_PURPOSES = [
+// These are the values accepted by the database's check constraint.
+export const ENGINE_FLIGHT_PURPOSES_DB = [
+  'entrenamiento',
+  'readaptación',
+  'Remolque planeador',
+  'local',
+  'viaje',
+  'instrucción', // The generic value for DB
+] as const;
+export type EngineFlightPurpose_DB = typeof ENGINE_FLIGHT_PURPOSES_DB[number];
+
+// These are the values presented to the user in the UI for a unified experience.
+export const ENGINE_FLIGHT_PURPOSES_UI = [
   'entrenamiento',
   'readaptación',
   'Remolque planeador',
@@ -127,9 +139,10 @@ export const ENGINE_FLIGHT_PURPOSES = [
   'Instrucción (Recibida)',
   'Instrucción (Impartida)',
 ] as const;
-export type EngineFlightPurpose = typeof ENGINE_FLIGHT_PURPOSES[number];
+export type EngineFlightPurpose_UI = typeof ENGINE_FLIGHT_PURPOSES_UI[number];
 
-export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose;
+
+export type AnyFlightPurpose = GliderFlightPurpose | EngineFlightPurpose_UI;
 
 export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   // Common
@@ -138,6 +151,7 @@ export const FLIGHT_PURPOSE_DISPLAY_MAP: Record<string, string> = {
   'deportivo': 'Deportivo',
   'viaje': 'Travesía',
   'local': 'Local',
+  'instrucción': 'Instrucción',
   
   // Engine-specific DB value
   'Remolque planeador': 'Remolque',
@@ -165,7 +179,7 @@ export interface CompletedGliderFlight extends BaseCompletedFlight {
 export interface CompletedEngineFlight extends BaseCompletedFlight {
   logbook_type: 'engine';
   engine_aircraft_id: string;
-  flight_purpose: EngineFlightPurpose;
+  flight_purpose: EngineFlightPurpose_DB;
   billable_minutes?: number | null; // Typically for engine flights
   route_from_to?: string | null;
   landings_count?: number | null;

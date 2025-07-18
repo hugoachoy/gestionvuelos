@@ -116,35 +116,45 @@ export function BillingReportClient() {
       let totalTowsCount = 0;
       
       engineFlights.forEach((flight) => {
-        if (flight.flight_purpose === 'Instrucción (Impartida)' && flight.pilot_id === selectedPilotId) {
-            billableItems.push({
-                id: `eng-inst-${flight.id}`,
-                date: flight.date,
-                type: 'Instrucción Impartida',
-                aircraft: getAircraftName(flight.engine_aircraft_id),
-                duration_hs: flight.flight_duration_decimal,
-                billable_minutes: null,
-                notes: `(El alumno abona por separado) - No facturable para ud.`,
-                is_non_billable_for_pilot: true
-            });
-        } else if (flight.pilot_id === selectedPilotId) {
-            if (flight.flight_purpose !== 'Remolque planeador') {
-                billableItems.push({
-                    id: `eng-${flight.id}`,
-                    date: flight.date,
-                    type: 'Vuelo a Motor',
-                    aircraft: getAircraftName(flight.engine_aircraft_id),
-                    duration_hs: flight.flight_duration_decimal,
-                    billable_minutes: flight.billable_minutes ?? 0,
-                    notes: `Propósito: ${FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose}`,
-                    is_non_billable_for_pilot: false
-                });
-                totalMins += flight.billable_minutes ?? 0;
-            }
+        // Case 1: The selected pilot was the INSTRUCTOR.
+        if (flight.instructor_id === selectedPilotId) {
+          billableItems.push({
+            id: `eng-inst-${flight.id}`,
+            date: flight.date,
+            type: 'Instrucción Impartida',
+            aircraft: getAircraftName(flight.engine_aircraft_id),
+            duration_hs: flight.flight_duration_decimal,
+            billable_minutes: null,
+            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
+            is_non_billable_for_pilot: true
+          });
+          return; // IMPORTANT: Prevents double-processing for the instructor.
+        }
+
+        // Case 2: The selected pilot was the PIC/STUDENT.
+        // This will only be reached if they were NOT the instructor of this flight.
+        if (flight.pilot_id === selectedPilotId) {
+          const isInstructionFlight = flight.flight_purpose === 'instrucción';
+          const purposeText = isInstructionFlight
+            ? `Instrucción`
+            : FLIGHT_PURPOSE_DISPLAY_MAP[flight.flight_purpose as keyof typeof FLIGHT_PURPOSE_DISPLAY_MAP] || flight.flight_purpose;
+
+          billableItems.push({
+            id: `eng-${flight.id}`,
+            date: flight.date,
+            type: 'Vuelo a Motor',
+            aircraft: getAircraftName(flight.engine_aircraft_id),
+            duration_hs: flight.flight_duration_decimal,
+            billable_minutes: flight.billable_minutes ?? 0,
+            notes: `Propósito: ${purposeText}`,
+            is_non_billable_for_pilot: false
+          });
+          totalMins += flight.billable_minutes ?? 0;
         }
       });
       
       gliderFlights.forEach((flight) => {
+          // Case 1: The selected pilot was the INSTRUCTOR. This is the priority check.
           if (flight.instructor_id === selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
@@ -156,8 +166,11 @@ export function BillingReportClient() {
               notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
+            return; // IMPORTANT: Prevents double-processing this flight for the instructor.
           } 
-          else if (flight.pilot_id === selectedPilotId) {
+          
+          // Case 2: The selected pilot was the PIC/STUDENT. This is only checked if they were not the instructor.
+          if (flight.pilot_id === selectedPilotId) {
             billableItems.push({
               id: `gli-${flight.id}`,
               date: flight.date,
@@ -327,6 +340,15 @@ export function BillingReportClient() {
 
 
   const isLoadingUI = authLoading || pilotsLoading || aircraftLoading;
+
+  if (authLoading) {
+    return (
+        <div className="space-y-2 mt-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-10 w-full" />
+        </div>
+    )
+  }
 
   if (!currentUser?.is_admin) {
     return (
