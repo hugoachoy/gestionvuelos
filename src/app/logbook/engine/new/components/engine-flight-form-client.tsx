@@ -234,7 +234,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         } else if (scheduleEntryIdParam && scheduleEntries.length > 0 && aircraftWithCalculatedData.length > 0) {
           const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
           if (entry) {
-            const prefilledFlightPurpose = mapScheduleTypeToEnginePurpose(entry.flight_type_id);
+            const prefilledFlightPurpose = mapScheduleTypeToEnginePurpose(entry.flight_type_id as FlightTypeId);
             form.reset({
               date: entry.date ? parseISO(entry.date) : new Date(),
               pilot_id: entry.pilot_id || '',
@@ -1083,5 +1083,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
 
     
