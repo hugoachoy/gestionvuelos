@@ -241,8 +241,8 @@ export function EngineFlightListClient() {
       ]],
       startY: 28,
       theme: 'grid',
-      headStyles: { fillColor: [30, 100, 160], textColor: 255 },
-      styles: { fontSize: 7, cellPadding: 1 },
+      headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 1, fontStyle: 'bold' },
       columnStyles: {
           0: { cellWidth: 16 },
           1: { cellWidth: 'auto' },

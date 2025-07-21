@@ -124,8 +124,8 @@ export function AircraftReportButton({ aircraft, disabled }: AircraftReportButto
         body: tableRows,
         startY: currentY,
         theme: 'grid',
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-        styles: { fontSize: 9, cellPadding: 1.5 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
         columnStyles: {
           0: { cellWidth: 'auto' }, // Nombre
           1: { cellWidth: 'auto' }, // Tipo

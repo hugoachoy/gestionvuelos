@@ -236,8 +236,8 @@ export function BillingReportClient() {
         body: tableRows,
         startY: currentY,
         theme: 'grid',
-        headStyles: { fillColor: [30, 100, 160], textColor: 255 },
-        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
         columnStyles: {
             0: { cellWidth: 20 }, 
             1: { cellWidth: 'auto' }, 
@@ -462,5 +462,3 @@ export function BillingReportClient() {
     </div>
   );
 }
-
-    

@@ -117,7 +117,8 @@ export function RatesClient() {
         body: tableRows,
         startY: 35,
         theme: 'grid',
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+        styles: { fontStyle: 'bold' },
       });
 
       doc.save(`tarifas_aeroclub_${format(new Date(), "yyyy-MM-dd")}.pdf`);

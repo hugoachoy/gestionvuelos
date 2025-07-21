@@ -732,8 +732,8 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 body: tableRows,
                 startY: currentY,
                 theme: 'grid',
-                headStyles: { fillColor: [30, 100, 160], textColor: 255 }, 
-                styles: { fontSize: 8, cellPadding: 1.5 },
+                headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' }, 
+                styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
                 columnStyles: {
                     0: { cellWidth: 15 }, 
                     1: { cellWidth: 'auto' }, 
