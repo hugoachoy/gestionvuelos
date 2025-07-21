@@ -120,7 +120,8 @@ export function BillingReportClient() {
       
       engineFlights.forEach((flight) => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
-        // Case 1: The selected pilot was the INSTRUCTOR.
+        
+        // Check if the selected pilot is the instructor of this flight
         if (purposeName === instruccionImpartidaPurposeName && flight.pilot_id !== selectedPilotId) {
           billableItems.push({
             id: `eng-inst-${flight.id}`,
@@ -132,10 +133,10 @@ export function BillingReportClient() {
             notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
             is_non_billable_for_pilot: true
           });
-          return;
+          return; // Skip to next flight, do not process further for this instructor
         }
 
-        // Case 2: The selected pilot was the PIC/STUDENT.
+        // Process if the selected pilot is the PIC/Student for the flight
         if (flight.pilot_id === selectedPilotId) {
             billableItems.push({
                 id: `eng-${flight.id}`,
@@ -147,6 +148,7 @@ export function BillingReportClient() {
                 notes: `Propósito: ${purposeName}`,
                 is_non_billable_for_pilot: false
             });
+            // Only add to billable minutes if it's not a tow flight
             if (purposeName !== remolquePurposeName) {
                 totalMins += flight.billable_minutes ?? 0;
             }
@@ -155,7 +157,8 @@ export function BillingReportClient() {
       
       gliderFlights.forEach((flight) => {
           const purposeName = getPurposeName(flight.flight_purpose_id);
-          // Case 1: The selected pilot was the INSTRUCTOR.
+
+          // Check if the selected pilot is the instructor of this flight
           if (purposeName === instruccionImpartidaPurposeName && flight.pilot_id !== selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
@@ -163,14 +166,14 @@ export function BillingReportClient() {
               type: 'Instrucción Impartida',
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
-              billable_minutes: null,
+              billable_minutes: null, // Instructors are not billed for instruction
               notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
-            return;
+            return; // Skip to next flight
           } 
           
-          // Case 2: The selected pilot was the PIC/STUDENT. This is only checked if they were not the instructor.
+          // Process if the selected pilot is the PIC/Student
           if (flight.pilot_id === selectedPilotId) {
             billableItems.push({
               id: `gli-${flight.id}`,
@@ -249,8 +252,8 @@ export function BillingReportClient() {
         body: tableRows,
         startY: currentY,
         theme: 'grid',
-        headStyles: { fillColor: [30, 100, 160], textColor: 255 },
-        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
         columnStyles: {
             0: { cellWidth: 20 }, 
             1: { cellWidth: 'auto' }, 
@@ -351,12 +354,12 @@ export function BillingReportClient() {
     )
   }
 
-  if (!currentUser?.is_admin) {
+  if (!currentUser?.is_admin && !selectedPilotId) {
     return (
        <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Acceso Denegado</AlertTitle>
-            <AlertDescription>Esta sección está disponible solo para administradores.</AlertDescription>
+            <AlertTitle>Perfil no Vinculado</AlertTitle>
+            <AlertDescription>Tu usuario no está vinculado a un perfil de piloto. Contacta a un administrador.</AlertDescription>
         </Alert>
     );
   }
@@ -484,5 +487,3 @@ export function BillingReportClient() {
     </div>
   );
 }
-
-    
