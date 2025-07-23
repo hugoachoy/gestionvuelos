@@ -1,8 +1,10 @@
+
 import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plane, Feather, Library, History, BarChart3, Separator } from 'lucide-react';
+import { Plane, Feather, Library, History, BarChart3 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 import { FlightStats } from './components/flight-stats';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
