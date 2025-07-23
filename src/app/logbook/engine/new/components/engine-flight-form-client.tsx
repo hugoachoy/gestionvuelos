@@ -515,8 +515,60 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
 
-        const arrTimeCleaned = formData.arrival_time.substring(0,5);
         const depTimeCleaned = formData.departure_time.substring(0,5);
+        
+        // --- CONFLICT VALIDATION ---
+        const { data: existingEngineFlights, error: engineFetchError } = await supabase
+            .from('completed_engine_flights')
+            .select('*')
+            .eq('date', format(formData.date, 'yyyy-MM-dd'))
+            .eq('departure_time', depTimeCleaned);
+
+        if (engineFetchError) {
+            toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos de motor conflictivos.", variant: "destructive" });
+            setIsSubmittingForm(false);
+            return;
+        }
+        
+        // Exclude the current flight if in edit mode
+        const conflictingEngineFlights = isEditMode
+            ? existingEngineFlights?.filter(f => f.id !== flightIdToLoad)
+            : existingEngineFlights;
+
+        if (conflictingEngineFlights && conflictingEngineFlights.length > 0) {
+            const currentIsInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
+            
+            // Find a potential instruction counterpart
+            const instructionCounterpart = conflictingEngineFlights.find(f => {
+                const existingIsInstruction = getPurposeName(f.flight_purpose_id)?.includes('Instrucción');
+                // It's a counterpart if...
+                return (
+                    currentIsInstruction &&
+                    existingIsInstruction &&
+                    f.engine_aircraft_id === formData.engine_aircraft_id &&
+                    ((f.pilot_id === formData.instructor_id && f.instructor_id === formData.pilot_id) || // student is instr. and instr. is student
+                     (f.pilot_id === formData.pilot_id && f.instructor_id === formData.instructor_id)) // Or it's a direct duplicate, which is a conflict
+                );
+            });
+            
+            // Is the conflict *just* the counterpart?
+            const isConflictJustTheCounterpart = instructionCounterpart && conflictingEngineFlights.length === 1 && conflictingEngineFlights[0].id === instructionCounterpart.id;
+
+            if (!isConflictJustTheCounterpart) {
+                 const conflictDetails = conflictingEngineFlights.map(f => `${getAircraftName(f.engine_aircraft_id)} (${getPilotName(f.pilot_id)})`).join(', ');
+                 toast({
+                    title: "Conflicto de Vuelo Detectado",
+                    description: `Ya existe un vuelo a la misma hora para: ${conflictDetails}.`,
+                    variant: "destructive",
+                    duration: 7000,
+                });
+                setIsSubmittingForm(false);
+                return;
+            }
+        }
+        // --- END CONFLICT VALIDATION ---
+
+        const arrTimeCleaned = formData.arrival_time.substring(0,5);
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
         const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
         const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
