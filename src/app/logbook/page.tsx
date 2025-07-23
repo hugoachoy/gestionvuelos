@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plane, Feather, BarChart3 } from 'lucide-react';
+import { Plane, Feather, BarChart3, Library } from 'lucide-react';
 
 export default function LogbookPage() {
   return (
@@ -45,15 +45,32 @@ export default function LogbookPage() {
             </Button>
           </CardContent>
         </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Library className="mr-2 h-6 w-6 text-primary" />
+              Historial Unificado de Vuelos
+            </CardTitle>
+            <CardDescription>
+              Consulta un historial combinado de todos tus vuelos, tanto de motor como de planeador.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/logbook/reports/unified-history">Ver Historial Unificado</Link>
+            </Button>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <BarChart3 className="mr-2 h-6 w-6 text-primary" />
-              Informes y Resúmenes
+              Otros Informes y Resúmenes
             </CardTitle>
             <CardDescription>
-              Genera informes, resúmenes y estadísticas de tus vuelos.
+              Genera informes específicos, resúmenes y estadísticas de tus vuelos.
             </CardDescription>
           </CardHeader>
           <CardContent>

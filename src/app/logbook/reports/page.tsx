@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Feather, Plane, BarChart3, Library } from 'lucide-react';
+import { Feather, Plane, BarChart3 } from 'lucide-react';
 
 export default function LogbookReportsPage() {
   const { user } = useAuth();
@@ -15,23 +15,6 @@ export default function LogbookReportsPage() {
     <>
       <PageHeader title="Informes del Libro de Vuelo" />
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Library className="mr-2 h-6 w-6 text-primary" />
-              Historial Unificado de Vuelos
-            </CardTitle>
-            <CardDescription>
-              Consulta un historial combinado de todos tus vuelos, tanto de motor como de planeador.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full">
-              <Link href="/logbook/reports/unified-history">Ver Historial Unificado</Link>
-            </Button>
-          </CardContent>
-        </Card>
-        
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
