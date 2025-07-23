@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId } from '@/types';
+import type { CompletedEngineFlight, CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore, useFlightPurposesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -515,53 +515,59 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
         
-        // --- CONFLICT VALIDATION (REVISED) ---
+        // --- CONFLICT VALIDATION ---
         const depTimeCleaned = formData.departure_time.substring(0, 5);
-        
-        const { data: existingFlightsData, error: fetchError } = await supabase
-            .rpc('get_conflicting_flights', {
-                p_flight_date: format(formData.date, 'yyyy-MM-dd'),
-                p_departure_time: depTimeCleaned
-            });
+        const { data: existingGliderFlights, error: gliderFetchError } = await supabase
+            .from('completed_glider_flights')
+            .select('*')
+            .eq('date', format(formData.date, 'yyyy-MM-dd'))
+            .eq('departure_time', depTimeCleaned);
 
-        if (fetchError) {
+        const { data: existingEngineFlights, error: engineFetchError } = await supabase
+            .from('completed_engine_flights')
+            .select('*')
+            .eq('date', format(formData.date, 'yyyy-MM-dd'))
+            .eq('departure_time', depTimeCleaned);
+
+        if (gliderFetchError || engineFetchError) {
             toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
             setIsSubmittingForm(false);
             return;
         }
 
-        const allExistingFlights: (CompletedEngineFlight | CompletedGliderFlight)[] = existingFlightsData || [];
+        const allExistingFlights: (CompletedEngineFlight | CompletedGliderFlight)[] = [
+            ...(existingEngineFlights || []),
+            ...(existingGliderFlights || [])
+        ];
         
         const conflicts: string[] = [];
         
-        // Find if there's a valid instruction counterpart for THIS flight
         const isCurrentFlightInstruction = (getPurposeName(formData.flight_purpose_id) || '').includes('Instrucción');
-        const counterpart = allExistingFlights.find(f => {
-            if (f.logbook_type !== 'engine' || f.id === flightIdToLoad) return false;
-            
-            const existingIsInstruction = (getPurposeName(f.flight_purpose_id) || '').includes('Instrucción');
-            
-            return isCurrentFlightInstruction && existingIsInstruction &&
-                   f.engine_aircraft_id === formData.engine_aircraft_id &&
-                   f.pilot_id === formData.instructor_id &&
-                   f.instructor_id === formData.pilot_id;
-        });
 
         for (const f of allExistingFlights) {
-            if (f.id === flightIdToLoad || (counterpart && f.id === counterpart.id)) {
-                continue; // Skip self and valid counterpart
-            }
+            if (f.id === flightIdToLoad) continue;
 
-            // Check pilots
+            const existingIsInstruction = (getPurposeName(f.flight_purpose_id) || '').includes('Instrucción');
+            const isInstructionPair = 
+                f.logbook_type === 'engine' &&
+                isCurrentFlightInstruction && 
+                existingIsInstruction &&
+                (f as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id &&
+                (
+                    (f.pilot_id === formData.instructor_id && f.instructor_id === formData.pilot_id) ||
+                    (f.pilot_id === formData.pilot_id && f.instructor_id === formData.instructor_id)
+                );
+
+            if (isInstructionPair) continue;
+
             const pilotIdsInFlight = [f.pilot_id, (f as any).instructor_id, (f as any).tow_pilot_id].filter(Boolean);
             if (pilotIdsInFlight.includes(formData.pilot_id)) conflicts.push(getPilotName(formData.pilot_id));
             if (formData.instructor_id && pilotIdsInFlight.includes(formData.instructor_id)) conflicts.push(getPilotName(formData.instructor_id));
 
-            // Check aircraft
-            if (f.logbook_type === 'engine' && f.engine_aircraft_id === formData.engine_aircraft_id) {
+            if (f.logbook_type === 'engine' && (f as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id) {
                 conflicts.push(getAircraftName(formData.engine_aircraft_id));
             }
-            if (f.logbook_type === 'glider' && f.tow_aircraft_id === formData.engine_aircraft_id) {
+            if (f.logbook_type === 'glider' && (f as CompletedGliderFlight).tow_aircraft_id === formData.engine_aircraft_id) {
                  conflicts.push(getAircraftName(formData.engine_aircraft_id));
             }
         }
@@ -577,6 +583,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
         // --- END CONFLICT VALIDATION ---
+
 
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
 
