@@ -22,7 +22,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { CalendarIcon, FileText, Loader2, Check, ChevronsUpDown, Download } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { format, parseISO, startOfMonth } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,7 @@ export function UnifiedHistoryClient() {
   const { fetchCompletedEngineFlightsForRange, loading: engineLoading } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange, loading: gliderLoading } = useCompletedGliderFlightsStore();
 
-  const [startDate, setStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedPilotId, setSelectedPilotId] = useState<string>('all');
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
@@ -128,7 +128,6 @@ export function UnifiedHistoryClient() {
     let gliderHours = 0;
     let engineHours = 0;
     
-    // To avoid double-counting instruction hours
     const processedFlightKeys = new Set<string>();
 
     reportData.forEach(flight => {
@@ -149,6 +148,88 @@ export function UnifiedHistoryClient() {
 
     return [gliderHours.toFixed(1), engineHours.toFixed(1)];
   }, [reportData, getPurposeName]);
+
+  const handleExportPdf = async () => {
+    if (reportData.length === 0) {
+      toast({ title: "Sin Datos", description: "No hay datos para exportar.", variant: "default" });
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      
+      const doc = new jsPDF({ orientation: 'landscape' });
+      
+      const pilotNameForTitle = selectedPilotId === 'all' ? 'Todos los Pilotos' : getPilotName(selectedPilotId);
+      const pageTitle = `Historial Unificado de Vuelos: ${pilotNameForTitle}`;
+      const pageSubtitle = `Período: ${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''}`;
+
+      doc.setFontSize(16);
+      doc.text(pageTitle, 14, 15);
+      doc.setFontSize(10);
+      doc.text(pageSubtitle, 14, 22);
+
+      const tableColumn = ["Fecha", "Tipo Vuelo", "Aeronave", "Piloto", "Instructor", "Propósito", "Duración", "Notas"];
+      const tableRows: (string | null)[][] = [];
+
+      reportData.forEach(flight => {
+        const purposeName = getPurposeName(flight.flight_purpose_id);
+        const isInstruction = purposeName.includes('Instrucción');
+        let pilotText = getPilotName(flight.pilot_id);
+                 
+        if (isInstruction && flight.instructor_id === selectedPilotId && selectedPilotId !== 'all') {
+           pilotText = `${getPilotName(flight.instructor_id)} (Instr. de ${getPilotName(flight.pilot_id)})`;
+        }
+
+        tableRows.push([
+            format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
+            flight.logbook_type === 'engine' ? 'Motor' : 'Planeador',
+            getAircraftName(flight.logbook_type === 'engine' ? (flight as CompletedEngineFlight).engine_aircraft_id : (flight as CompletedGliderFlight).glider_aircraft_id),
+            pilotText,
+            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
+            purposeName,
+            `${flight.flight_duration_decimal.toFixed(1)} hs`,
+            flight.notes || '-',
+        ]);
+      });
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        foot: [[
+            { content: 'TOTAL HORAS', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: `Motor: ${totalEngineHours} hs, Planeador: ${totalGliderHours} hs`, styles: { fontStyle: 'bold' } },
+            { content: '' },
+        ]],
+        startY: 28,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: 18 },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 'auto' },
+            4: { cellWidth: 'auto' },
+            5: { cellWidth: 25 },
+            6: { cellWidth: 16 },
+            7: { cellWidth: 'auto' },
+        },
+      });
+      
+      const fileName = `historial_unificado_${pilotNameForTitle.replace(/, /g, '_').replace(/ /g, '_').toLowerCase()}_${format(new Date(), "yyyyMMdd")}.pdf`;
+      doc.save(fileName);
+      toast({ title: "PDF Exportado", description: `El historial se ha guardado como ${fileName}.` });
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error de Exportación", description: "No se pudo generar el PDF.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -210,6 +291,12 @@ export function UnifiedHistoryClient() {
           {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
           Filtrar / Refrescar
         </Button>
+         {reportData.length > 0 && !isLoadingUI && (
+            <Button onClick={handleExportPdf} variant="outline" disabled={isGenerating || isLoadingUI} className="w-full sm:w-auto">
+                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Exportar a PDF
+            </Button>
+        )}
       </div>
 
       {(isLoadingUI && !reportData.length) && (
@@ -241,7 +328,6 @@ export function UnifiedHistoryClient() {
                  const isInstruction = purposeName.includes('Instrucción');
                  let pilotText = getPilotName(flight.pilot_id);
                  
-                 // If the selected pilot is an instructor for this flight, show the student's name.
                  if (isInstruction && flight.instructor_id === selectedPilotId && selectedPilotId !== 'all') {
                     pilotText = `${getPilotName(flight.instructor_id)} (Instr. de ${getPilotName(flight.pilot_id)})`;
                  }
