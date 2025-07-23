@@ -64,6 +64,7 @@ export function BillingReportClient() {
   const [reportData, setReportData] = useState<BillableItem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [totalBillableMinutes, setTotalBillableMinutes] = useState(0);
+  const [totalMinutesByAircraft, setTotalMinutesByAircraft] = useState<Record<string, number>>({});
   const [totalTows, setTotalTows] = useState(0);
 
   useEffect(() => {
@@ -95,6 +96,7 @@ export function BillingReportClient() {
     setIsGenerating(true);
     setReportData([]);
     setTotalBillableMinutes(0);
+    setTotalMinutesByAircraft({});
     setTotalTows(0);
     
     try {
@@ -114,6 +116,7 @@ export function BillingReportClient() {
 
       const billableItems: BillableItem[] = [];
       let totalMins = 0;
+      const minutesByAircraft: Record<string, number> = {};
       let totalTowsCount = 0;
       
       const remolquePurposeName = "Remolque planeador";
@@ -146,6 +149,11 @@ export function BillingReportClient() {
             });
             if (purposeName !== remolquePurposeName) {
                 totalMins += flight.billable_minutes ?? 0;
+                const aircraftId = flight.engine_aircraft_id;
+                if (!minutesByAircraft[aircraftId]) {
+                    minutesByAircraft[aircraftId] = 0;
+                }
+                minutesByAircraft[aircraftId] += flight.billable_minutes ?? 0;
             }
         }
       });
@@ -183,6 +191,7 @@ export function BillingReportClient() {
       
       setReportData(sortedData);
       setTotalBillableMinutes(totalMins);
+      setTotalMinutesByAircraft(minutesByAircraft);
       setTotalTows(totalTowsCount);
 
       if (sortedData.length === 0) {
@@ -260,13 +269,20 @@ export function BillingReportClient() {
         }
       });
       
-      const finalY = (doc as any).lastAutoTable.finalY || currentY;
+      let finalY = (doc as any).lastAutoTable.finalY || currentY;
+      finalY += 10;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text("TOTALES A ABONAR:", 14, finalY + 10);
+      doc.text("TOTALES A ABONAR:", 14, finalY);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Total Minutos Vuelo Motor: ${totalBillableMinutes} min`, 14, finalY + 15);
-      doc.text(`Total Remolques de Planeador: ${totalTows}`, 14, finalY + 20);
+      finalY += 5;
+
+      Object.entries(totalMinutesByAircraft).forEach(([aircraftId, minutes]) => {
+          doc.text(`Total Minutos Vuelo Motor (${getAircraftName(aircraftId)}): ${minutes} min`, 14, finalY);
+          finalY += 5;
+      });
+      
+      doc.text(`Total Remolques de Planeador: ${totalTows}`, 14, finalY);
       
       const pilotFileNamePart = (getPilotName(selectedPilotId) || 'piloto').replace(/, /g, '_').replace(/ /g, '_').toLowerCase();
       const fileName = `facturacion_${pilotFileNamePart}_${startDate ? format(startDate, "yyyyMMdd") : 'inicio'}_a_${endDate ? format(endDate, "yyyyMMdd") : 'fin'}.pdf`;
@@ -306,6 +322,10 @@ export function BillingReportClient() {
         csvContent += "\n";
         csvContent += `"TOTALES A ABONAR",,,,"${totalBillableMinutes} min","${totalTows}"\n`;
 
+        Object.entries(totalMinutesByAircraft).forEach(([aircraftId, minutes]) => {
+            csvContent += `"Total Minutos (${getAircraftName(aircraftId)})",,,,"${minutes} min"\n`;
+        });
+
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
 
@@ -330,7 +350,7 @@ export function BillingReportClient() {
     } finally {
       setIsGenerating(false);
     }
-  }, [reportData, toast, getPilotName, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows]);
+  }, [reportData, toast, getPilotName, selectedPilotId, startDate, endDate, totalBillableMinutes, totalTows, totalMinutesByAircraft, getAircraftName]);
 
 
   const isLoadingUI = authLoading || pilotsLoading || aircraftLoading || purposesLoading;
@@ -477,3 +497,5 @@ export function BillingReportClient() {
     </div>
   );
 }
+
+    
