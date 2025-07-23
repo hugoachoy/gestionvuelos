@@ -6,50 +6,15 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Feather, Plane, BarChart3 } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 export default function LogbookReportsPage() {
   const { user } = useAuth();
 
   return (
     <>
-      <PageHeader title="Informes del Libro de Vuelo" />
+      <PageHeader title="Informes y Resúmenes" />
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Feather className="mr-2 h-6 w-6 text-primary" />
-              Informe de Vuelos en Planeador
-            </CardTitle>
-            <CardDescription>
-              Genera un informe detallado de los vuelos realizados en planeadores
-              dentro de un rango de fechas específico.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full">
-              <Link href="/logbook/reports/glider">Generar Informe de Planeador</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Plane className="mr-2 h-6 w-6 text-primary" />
-              Informe de Vuelos a Motor
-            </CardTitle>
-            <CardDescription>
-              Genera un informe detallado de los vuelos realizados en aviones a motor dentro de un rango de fechas específico.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full">
-              <Link href="/logbook/reports/engine">Generar Informe de Motor</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">

@@ -18,10 +18,11 @@ export default function GliderFlightListPage() {
 function ListSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap gap-2 justify-end">
+        <Skeleton className="h-10 w-24" />
         <Skeleton className="h-10 w-24" />
       </div>
-      <Skeleton className="h-12 w-full" /> {/* Header */}
+      <Skeleton className="h-12 w-full" /> 
       <Skeleton className="h-10 w-full" />
       <Skeleton className="h-10 w-full" />
       <Skeleton className="h-10 w-full" />
