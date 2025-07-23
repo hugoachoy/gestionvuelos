@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Rate } from '@/types';
 import { useRatesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,7 +23,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export function RatesClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -39,6 +40,25 @@ export function RatesClient() {
   useEffect(() => {
     fetchRates();
   }, [fetchRates]);
+
+  const lastUpdatedDate = useMemo(() => {
+    if (!rates || rates.length === 0) {
+      return null;
+    }
+    const mostRecentDate = rates.reduce((latest, current) => {
+      if (!current.created_at) return latest;
+      const currentDate = parseISO(current.created_at);
+      if (!isValid(currentDate)) return latest;
+
+      if (!latest || currentDate > latest) {
+        return currentDate;
+      }
+      return latest;
+    }, null as Date | null);
+
+    return mostRecentDate ? format(mostRecentDate, "dd/MM/yyyy") : null;
+  }, [rates]);
+
 
   const handleAddRate = () => {
     setEditingRate(undefined);
@@ -102,6 +122,9 @@ export function RatesClient() {
       doc.text("Listado de Tarifas", 14, 22);
       doc.setFontSize(10);
       doc.text(`Generado el: ${generationDate}`, 14, 28);
+      if(lastUpdatedDate) {
+        doc.text(`Tarifas vigentes desde: ${lastUpdatedDate}`, 14, 34);
+      }
       
       const tableColumn = ["Ítem", "Precio Socio", "Precio No Socio", "POS Socio", "POS No Socio"];
       const tableRows = rates.map(rate => [
@@ -115,7 +138,7 @@ export function RatesClient() {
       autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
-        startY: 35,
+        startY: 40,
         theme: 'grid',
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
         styles: { fontStyle: 'bold' },
@@ -151,8 +174,13 @@ export function RatesClient() {
 
   return (
     <>
-      <div className="flex justify-end mb-4">
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+        <div>
+           {lastUpdatedDate && (
+              <p className="text-sm text-muted-foreground">Tarifas vigentes desde el {lastUpdatedDate}</p>
+            )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
             <Button onClick={() => fetchRates()} variant="outline" size="icon" disabled={isLoadingUI}>
               <RefreshCw className={cn("h-4 w-4", isLoadingUI && "animate-spin")} />
             </Button>
