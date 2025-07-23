@@ -546,7 +546,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         };
         const checkAircraftConflict = (aircraftId: string, flightType: string) => {
             const aircraftName = getAircraftName(aircraftId) || 'Desconocida';
-            conflicts.push(`Aeronave (${aircraftName}) en vuelo de ${flightType}`);
+            conflicts.push(`Aeronave (${aircraftName}) en vuelo de ${flightType})`);
         };
 
         const currentFlightPurposeName = getPurposeName(formData.flight_purpose_id) || '';
@@ -559,17 +559,25 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         for (const f of conflictingEngineFlights) {
             const existingIsInstruction = (getPurposeName(f.flight_purpose_id) || '').includes('Instrucción');
+            
+            // Check if it's a valid instruction pair
             const isPairedInstruction = currentIsInstruction && existingIsInstruction && f.engine_aircraft_id === formData.engine_aircraft_id && (
                 (f.pilot_id === formData.instructor_id && f.instructor_id === formData.pilot_id) || // Existing is student, current is instructor
-                (f.pilot_id === formData.pilot_id && f.instructor_id === formData.instructor_id) // Both are student/instructor records of the same event
+                (f.pilot_id === formData.pilot_id && f.instructor_id === formData.instructor_id) // Same direction (e.g., both are student records), could be a duplicate attempt or an edit.
             );
+            
+            if (isPairedInstruction) {
+                // This is a valid pair (e.g., saving the instructor's record after the student's).
+                // Do not flag aircraft or pilot conflicts for this specific pair.
+                continue; 
+            }
 
-            if (isPairedInstruction) continue;
-
+            // If not a paired instruction, check for normal conflicts.
             if (f.engine_aircraft_id === formData.engine_aircraft_id) checkAircraftConflict(formData.engine_aircraft_id, 'motor');
             if (f.pilot_id === formData.pilot_id) checkPilotConflict(formData.pilot_id, 'Piloto', 'motor');
             if (formData.instructor_id && f.instructor_id === formData.instructor_id) checkPilotConflict(formData.instructor_id, 'Instructor', 'motor');
-            if (formData.instructor_id && f.pilot_id === formData.instructor_id) checkPilotConflict(formData.instructor_id, 'Instructor', 'motor');
+            if (formData.instructor_id && f.pilot_id === formData.instructor_id) checkPilotConflict(formData.instructor_id, 'Instructor como Piloto', 'motor');
+            if (f.instructor_id && f.instructor_id === formData.pilot_id) checkPilotConflict(formData.pilot_id, 'Piloto como Instructor', 'motor');
         }
 
         // Check against GLIDER flights (cross-conflict)
