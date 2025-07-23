@@ -1,9 +1,11 @@
-
 import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plane, Feather, BarChart3, Library, History } from 'lucide-react';
+import { Plane, Feather, Library, History, BarChart3, Separator } from 'lucide-react';
+import { FlightStats } from './components/flight-stats';
+import { Suspense } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function LogbookPage() {
   return (
@@ -11,7 +13,7 @@ export default function LogbookPage() {
       <PageHeader title="Libro de Vuelo" />
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* --- Primary Actions --- */}
-        <Card className="border-primary/50 shadow-lg">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <Feather className="mr-2 h-6 w-6 text-primary" />
@@ -26,7 +28,7 @@ export default function LogbookPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-primary/50 shadow-lg">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <Plane className="mr-2 h-6 w-6 text-primary" />
@@ -91,24 +93,39 @@ export default function LogbookPage() {
             </Button>
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <BarChart3 className="mr-2 h-6 w-6 text-primary" />
-              Otros Informes y Resúmenes
-            </CardTitle>
-            <CardDescription>
-              Genera estadísticas y otros informes de tus vuelos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full" variant="outline">
-              <Link href="/logbook/reports">Ir a Informes</Link>
-            </Button>
-          </CardContent>
-        </Card>
+      <Separator className="my-8" />
+      
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-primary" />
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Estadísticas Rápidas</h2>
+        </div>
+        <p className="text-muted-foreground">
+            Filtra por piloto y rango de fechas para obtener un resumen rápido de las horas de vuelo.
+        </p>
+        <Suspense fallback={<StatsSkeleton />}>
+          <FlightStats />
+        </Suspense>
       </div>
     </>
+  );
+}
+
+
+function StatsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <Skeleton className="h-10 w-full sm:w-64" />
+        <Skeleton className="h-10 w-full sm:w-64" />
+        <Skeleton className="h-10 w-full sm:w-48" />
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    </div>
   );
 }
