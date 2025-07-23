@@ -514,81 +514,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           setIsSubmittingForm(false);
           return;
         }
-        
-        const depTimeCleaned = formData.departure_time.substring(0, 5);
-        const { data: existingGliderFlights, error: gliderFetchError } = await supabase
-            .from('completed_glider_flights')
-            .select('*')
-            .eq('date', format(formData.date, 'yyyy-MM-dd'))
-            .eq('departure_time', depTimeCleaned);
-
-        const { data: existingEngineFlights, error: engineFetchError } = await supabase
-            .from('completed_engine_flights')
-            .select('*')
-            .eq('date', format(formData.date, 'yyyy-MM-dd'))
-            .eq('departure_time', depTimeCleaned);
-
-        if (gliderFetchError || engineFetchError) {
-            toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
-            setIsSubmittingForm(false);
-            return;
-        }
-        
-        const allExistingFlights: (CompletedEngineFlight | CompletedGliderFlight)[] = [
-            ...(existingEngineFlights || []),
-            ...(existingGliderFlights || [])
-        ];
-        
-        const conflicts: { type: 'pilot' | 'aircraft', name: string }[] = [];
-        const isCurrentFlightInstruction = (getPurposeName(formData.flight_purpose_id) || '').includes('Instrucción');
-
-        for (const existingFlight of allExistingFlights) {
-            if (existingFlight.id === flightIdToLoad) continue;
-
-            // Check for instruction counterpart to ignore conflicts
-            if (isCurrentFlightInstruction && existingFlight.logbook_type === 'engine') {
-                const existingEngineFlight = existingFlight as CompletedEngineFlight;
-                const existingIsInstruction = (getPurposeName(existingEngineFlight.flight_purpose_id) || '').includes('Instrucción');
-                
-                if (existingIsInstruction && existingEngineFlight.engine_aircraft_id === formData.engine_aircraft_id) {
-                    const isCounterpart = (existingEngineFlight.pilot_id === formData.instructor_id && existingEngineFlight.instructor_id === formData.pilot_id);
-                    if (isCounterpart) {
-                        continue; // This is a valid instruction pair, skip to the next existing flight
-                    }
-                }
-            }
-
-            // Check for pilot conflicts
-            const pilotsInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id, (existingFlight as CompletedGliderFlight).tow_pilot_id].filter(Boolean);
-            if (pilotsInExistingFlight.includes(formData.pilot_id)) {
-                conflicts.push({ type: 'pilot', name: getPilotName(formData.pilot_id) });
-            }
-            if (formData.instructor_id && pilotsInExistingFlight.includes(formData.instructor_id)) {
-                conflicts.push({ type: 'pilot', name: getPilotName(formData.instructor_id) });
-            }
-
-            // Check for aircraft conflicts
-            if (existingFlight.logbook_type === 'engine' && (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id) {
-                conflicts.push({ type: 'aircraft', name: getAircraftName(formData.engine_aircraft_id) });
-            }
-            if (existingFlight.logbook_type === 'glider' && (existingFlight as CompletedGliderFlight).tow_aircraft_id === formData.engine_aircraft_id) {
-                conflicts.push({ type: 'aircraft', name: getAircraftName(formData.engine_aircraft_id) });
-            }
-        }
-        
-        if (conflicts.length > 0) {
-            const uniqueConflictNames = [...new Set(conflicts.map(c => c.name))];
-            toast({
-                title: "Conflicto de Vuelo Detectado",
-                description: `Ya existe un vuelo a la misma hora para: ${uniqueConflictNames.join(', ')}.`,
-                variant: "destructive",
-                duration: 7000,
-            });
-            setIsSubmittingForm(false);
-            return;
-        }
 
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
+        const depTimeCleaned = formData.departure_time.substring(0,5);
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
         const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
         const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
