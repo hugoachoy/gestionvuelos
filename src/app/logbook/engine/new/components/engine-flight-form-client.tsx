@@ -515,25 +515,32 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
         
-        // --- VALIDATION LOGIC REWRITE ---
+        // --- CONFLICT VALIDATION ---
         const newDepTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.departure_time}`, 'yyyy-MM-dd HH:mm', new Date());
         const newArrTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.arrival_time}`, 'yyyy-MM-dd HH:mm', new Date());
 
-        const { data: allFlightsOnDate, error: fetchError } = await supabase
-            .from('v_all_flights')
+        const { data: engineFlightsOnDate, error: engineFetchError } = await supabase
+            .from('completed_engine_flights')
+            .select('*')
+            .eq('date', format(formData.date, 'yyyy-MM-dd'));
+
+        const { data: gliderFlightsOnDate, error: gliderFetchError } = await supabase
+            .from('completed_glider_flights')
             .select('*')
             .eq('date', format(formData.date, 'yyyy-MM-dd'));
         
-        if (fetchError) {
+        if (engineFetchError || gliderFetchError) {
              toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
              setIsSubmittingForm(false);
              return;
         }
 
-        const newFlightPilots = [formData.pilot_id, formData.instructor_id].filter(Boolean) as string[];
-        const isNewFlightInstruction = isInstructionTakenMode || isInstructionGivenMode;
+        const allFlightsOnDate: CompletedFlight[] = [...(engineFlightsOnDate || []), ...(gliderFlightsOnDate || [])];
+        
+        const newFlightPilots = [formData.pilot_id, formData.instructor_id].filter((id): id is string => !!id);
         
         for (const existingFlight of allFlightsOnDate) {
+            // Skip self in edit mode
             if (isEditMode && existingFlight.id === flightIdToLoad && existingFlight.logbook_type === 'engine') {
                 continue;
             }
@@ -545,77 +552,63 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const isOverlapping = newDepTime < existingArrTime && newArrTime > existingDepTime;
             if (!isOverlapping) continue;
 
-            // At this point, times overlap. Now check for resource conflicts.
-            let pilotConflict = false;
-            let aircraftConflict = false;
-            let conflictingPilotName = '';
-
-            const existingFlightPilots = [existingFlight.pilot_id, existingFlight.instructor_id, existingFlight.tow_pilot_id].filter(Boolean);
-            const commonPilots = newFlightPilots.filter(p => existingFlightPilots.includes(p));
-
-            if(commonPilots.length > 0) {
-                pilotConflict = true;
-                conflictingPilotName = getPilotName(commonPilots[0]);
-            }
-
-            if (existingFlight.aircraft_id === formData.engine_aircraft_id) {
-                aircraftConflict = true;
-            }
-
-            if (!pilotConflict && !aircraftConflict) continue;
-
-            // It's a conflict. Now check if it's a valid instruction pair exception.
-            const isExistingFlightInstruction = getPurposeName(existingFlight.flight_purpose_id)?.includes("Instrucción");
+            // --- At this point, times overlap. Now check for resource conflicts. ---
             
+            // 1. Check for Aircraft Conflict
+            const aircraftConflict = existingFlight.logbook_type === 'engine'
+                ? (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id
+                : (existingFlight as CompletedGliderFlight).tow_aircraft_id === formData.engine_aircraft_id;
+            
+            // 2. Check for Pilot Conflict
+            const existingFlightPilots = [existingFlight.pilot_id, existingFlight.instructor_id, (existingFlight as CompletedGliderFlight).tow_pilot_id].filter((id): id is string => !!id);
+            const pilotConflict = newFlightPilots.some(p => existingFlightPilots.includes(p));
+
+            if (!aircraftConflict && !pilotConflict) continue;
+
+            // --- It's a conflict. Check for instruction pair exception. ---
             let isAValidInstructionPair = false;
-            if (isNewFlightInstruction && isExistingFlightInstruction && aircraftConflict && existingFlight.logbook_type === 'engine') {
-                const existingIsStudent = getPurposeName(existingFlight.flight_purpose_id)?.includes("Recibida");
-                const existingIsInstructor = getPurposeName(existingFlight.flight_purpose_id)?.includes("Impartida");
+            const currentIsInstruction = isInstructionTakenMode || isInstructionGivenMode;
 
-                const newIsStudent = isInstructionTakenMode;
-                const newIsInstructor = isInstructionGivenMode;
-
-                // A valid pair is one student record and one instructor record for the same people.
-                if ((newIsStudent && existingIsInstructor) || (newIsInstructor && existingIsStudent)) {
-                    if (formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) {
-                        isAValidInstructionPair = true;
+            if (currentIsInstruction && existingFlight.logbook_type === 'engine' && aircraftConflict) {
+                const existingPurposeName = getPurposeName(existingFlight.flight_purpose_id);
+                const existingIsInstruction = existingPurposeName?.includes("Instrucción");
+                if (existingIsInstruction) {
+                    const existingFlightAsEngine = existingFlight as CompletedEngineFlight;
+                    const isCounterpart = (formData.pilot_id === existingFlightAsEngine.instructor_id && formData.instructor_id === existingFlightAsEngine.pilot_id);
+                    if (isCounterpart) {
+                         isAValidInstructionPair = true;
                     }
                 }
             }
+            
+            if (isAValidInstructionPair) continue; // It's an instruction pair, so ignore this conflict and check the next existing flight.
 
-            if (!isAValidInstructionPair) {
-                let conflictMessage = "";
-                if(pilotConflict) {
-                     conflictMessage = `El piloto ${conflictingPilotName} ya tiene un vuelo (${getPurposeName(existingFlight.flight_purpose_id)}) programado en ese horario.`;
-                } else if(aircraftConflict) {
-                    conflictMessage = `La aeronave ${getAircraftName(formData.engine_aircraft_id)} ya tiene un vuelo (${getPurposeName(existingFlight.flight_purpose_id)}) programado en ese horario.`;
-                }
-                
-                toast({ title: "Conflicto de Vuelo Detectado", description: conflictMessage, variant: "destructive", duration: 7000 });
-                setIsSubmittingForm(false);
-                return;
+            // If we are here, it's a real, non-exempt conflict.
+            let conflictMessage = "";
+            if (pilotConflict) {
+                 const conflictingPilotId = newFlightPilots.find(p => existingFlightPilots.includes(p));
+                 conflictMessage = `El piloto ${getPilotName(conflictingPilotId)} ya tiene un vuelo (${getPurposeName(existingFlight.flight_purpose_id)}) programado que se superpone con este horario.`;
+            } else if (aircraftConflict) {
+                conflictMessage = `La aeronave ${getAircraftName(formData.engine_aircraft_id)} ya tiene un vuelo (${getPurposeName(existingFlight.flight_purpose_id)}) programado que se superpone con este horario.`;
             }
+            
+            toast({ title: "Conflicto de Vuelo Detectado", description: conflictMessage, variant: "destructive", duration: 7000 });
+            setIsSubmittingForm(false);
+            return;
         }
         // --- END CONFLICT VALIDATION ---
 
         // --- FUEL/OIL DUPLICATION CHECK FOR INSTRUCTION FLIGHTS ---
         if (isInstructionTakenMode || isInstructionGivenMode) {
           if ((formData.oil_added_liters && formData.oil_added_liters > 0) || (formData.fuel_added_liters && formData.fuel_added_liters > 0)) {
-              const { data: counterpartFlight, error: counterpartError } = await supabase
-                  .from('completed_engine_flights')
-                  .select('oil_added_liters, fuel_added_liters')
-                  .eq('date', format(formData.date, 'yyyy-MM-dd'))
-                  .eq('departure_time', formData.departure_time.substring(0, 5))
-                  .eq('arrival_time', formData.arrival_time.substring(0, 5))
-                  .eq('engine_aircraft_id', formData.engine_aircraft_id)
-                  .or(`pilot_id.eq.${formData.instructor_id},instructor_id.eq.${formData.pilot_id}`)
-                  .maybeSingle();
-
-              if (counterpartError) {
-                  toast({ title: "Error de validación", description: "No se pudo verificar la carga de combustible/aceite en el vuelo de contrapartida.", variant: "destructive" });
-                  setIsSubmittingForm(false);
-                  return;
-              }
+              // Find the counterpart flight
+              const counterpartFlight = (engineFlightsOnDate || []).find(f =>
+                  f.engine_aircraft_id === formData.engine_aircraft_id &&
+                  f.departure_time === formData.departure_time &&
+                  f.arrival_time === formData.arrival_time &&
+                  f.pilot_id === formData.instructor_id &&
+                  f.instructor_id === formData.pilot_id
+              );
               
               if (counterpartFlight) {
                   if ((counterpartFlight.oil_added_liters ?? 0) > 0 && (formData.oil_added_liters ?? 0) > 0) {
