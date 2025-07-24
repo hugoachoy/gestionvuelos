@@ -205,16 +205,16 @@ export function UnifiedHistoryClient() {
         startY: 28,
         theme: 'grid',
         headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
         columnStyles: {
-            0: { cellWidth: 18 },
-            1: { cellWidth: 'auto' },
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 'auto' },
-            4: { cellWidth: 'auto' },
-            5: { cellWidth: 25 },
-            6: { cellWidth: 16 },
-            7: { cellWidth: 'auto' },
+            0: { cellWidth: 18 },    // Fecha
+            1: { cellWidth: 20 },    // Tipo Vuelo
+            2: { cellWidth: 22 },    // Aeronave
+            3: { cellWidth: 'auto' },// Piloto
+            4: { cellWidth: 40 },    // Instructor
+            5: { cellWidth: 35 },    // Propósito
+            6: { cellWidth: 16 },    // Duración
+            7: { cellWidth: 'auto' },// Notas
         },
       });
       
@@ -367,3 +367,5 @@ export function UnifiedHistoryClient() {
     </div>
   );
 }
+
+    
