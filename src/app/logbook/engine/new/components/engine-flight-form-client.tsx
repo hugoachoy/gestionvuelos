@@ -515,7 +515,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
         
-        // --- CONFLICT VALIDATION ---
+        // --- CONFLICT VALIDATION (replicated from glider form) ---
         const { data: allFlightsOnDate, error: fetchError } = await supabase
             .from('v_all_flights_for_validation')
             .select('*')
@@ -538,28 +538,25 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const existingEndTime = parse(`${existingFlight.date} ${existingFlight.arrival_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
             return newStartTime < existingEndTime && newEndTime > existingStartTime;
         });
-
-        let foundCounterpart = false;
+        
         const currentIsInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
+        let counterpartFlight: CompletedFlight | undefined;
 
-        const actualConflicts = overlappingFlights.filter(existingFlight => {
-            if (currentIsInstruction) {
-                const existingIsInstruction = getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción');
-                const isSameEngineAircraft = existingFlight.logbook_type === 'engine' && (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id;
+        if (currentIsInstruction) {
+             counterpartFlight = overlappingFlights.find(f => {
+                if (f.logbook_type !== 'engine') return false;
+                const fe = f as CompletedEngineFlight;
+                const existingIsInstruction = getPurposeName(fe.flight_purpose_id)?.includes('Instrucción');
+                if (!existingIsInstruction) return false;
+                
+                const isSameAircraft = fe.engine_aircraft_id === formData.engine_aircraft_id;
+                const isCounterpartRoles = (formData.pilot_id === fe.instructor_id && formData.instructor_id === fe.pilot_id);
+                
+                return isSameAircraft && isCounterpartRoles;
+            }) as CompletedEngineFlight | undefined;
+        }
 
-                if (existingIsInstruction && isSameEngineAircraft) {
-                    const isCounterpartRoles = 
-                        (formData.pilot_id === (existingFlight as CompletedEngineFlight).instructor_id && formData.instructor_id === existingFlight.pilot_id) ||
-                        (formData.instructor_id === (existingFlight as CompletedEngineFlight).pilot_id && formData.pilot_id === (existingFlight as CompletedEngineFlight).instructor_id);
-
-                    if (isCounterpartRoles) {
-                        foundCounterpart = true;
-                        return false; // This is a valid counterpart, not a conflict
-                    }
-                }
-            }
-            return true; // Not a counterpart, so it's a potential conflict
-        });
+        const actualConflicts = overlappingFlights.filter(f => f.id !== counterpartFlight?.id);
 
         if (actualConflicts.length > 0) {
             const pilotConflict = actualConflicts.find(f => {
@@ -588,28 +585,16 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
         
         // --- FUEL/OIL DUPLICATION CHECK FOR INSTRUCTION FLIGHTS ---
-        if ((isInstructionTakenMode || isInstructionGivenMode) && foundCounterpart) {
-          if ((formData.oil_added_liters && formData.oil_added_liters > 0) || (formData.fuel_added_liters && formData.fuel_added_liters > 0)) {
-              const counterpartFlight = overlappingFlights.find(f => {
-                  if (f.logbook_type !== 'engine') return false;
-                  const fe = f as CompletedEngineFlight;
-                  return fe.engine_aircraft_id === formData.engine_aircraft_id &&
-                         ((formData.pilot_id === fe.instructor_id && formData.instructor_id === fe.pilot_id) ||
-                          (formData.instructor_id === fe.pilot_id && formData.pilot_id === fe.instructor_id));
-              }) as CompletedEngineFlight | undefined;
-              
-              if (counterpartFlight && (!isEditMode || (isEditMode && counterpartFlight.id !== flightIdToLoad))) {
-                  if ((counterpartFlight.oil_added_liters ?? 0) > 0 && (formData.oil_added_liters ?? 0) > 0) {
-                      toast({ title: "Registro Duplicado", description: "El aceite ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
-                      setIsSubmittingForm(false);
-                      return;
-                  }
-                  if ((counterpartFlight.fuel_added_liters ?? 0) > 0 && (formData.fuel_added_liters ?? 0) > 0) {
-                      toast({ title: "Registro Duplicado", description: "El combustible ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
-                      setIsSubmittingForm(false);
-                      return;
-                  }
-              }
+        if (counterpartFlight) {
+          if ((formData.oil_added_liters ?? 0) > 0 && ((counterpartFlight as CompletedEngineFlight).oil_added_liters ?? 0) > 0) {
+              toast({ title: "Registro Duplicado", description: "El aceite ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
+              setIsSubmittingForm(false);
+              return;
+          }
+          if ((formData.fuel_added_liters ?? 0) > 0 && ((counterpartFlight as CompletedEngineFlight).fuel_added_liters ?? 0) > 0) {
+              toast({ title: "Registro Duplicado", description: "El combustible ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
+              setIsSubmittingForm(false);
+              return;
           }
         }
 
