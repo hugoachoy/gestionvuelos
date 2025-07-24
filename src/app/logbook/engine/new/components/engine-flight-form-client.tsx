@@ -586,12 +586,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 return;
             }
         }
-        // --- END CONFLICT VALIDATION ---
         
         // --- FUEL/OIL DUPLICATION CHECK FOR INSTRUCTION FLIGHTS ---
         if ((isInstructionTakenMode || isInstructionGivenMode) && foundCounterpart) {
           if ((formData.oil_added_liters && formData.oil_added_liters > 0) || (formData.fuel_added_liters && formData.fuel_added_liters > 0)) {
-              // Find the counterpart flight among the overlapping ones
               const counterpartFlight = overlappingFlights.find(f => {
                   if (f.logbook_type !== 'engine') return false;
                   const fe = f as CompletedEngineFlight;
@@ -614,8 +612,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               }
           }
         }
-        // --- END FUEL/OIL CHECK ---
-
 
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
