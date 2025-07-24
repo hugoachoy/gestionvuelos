@@ -199,8 +199,7 @@ export function UnifiedHistoryClient() {
         body: tableRows,
         foot: [[
             { content: 'TOTAL HORAS', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
-            { content: `Motor: ${totalEngineHours} hs, Planeador: ${totalGliderHours} hs`, styles: { fontStyle: 'bold' } },
-            { content: '' },
+            { content: `Motor: ${totalEngineHours} hs, Planeador: ${totalGliderHours} hs`, colSpan: 2, styles: { fontStyle: 'bold' } },
         ]],
         startY: 28,
         theme: 'grid',
@@ -209,11 +208,11 @@ export function UnifiedHistoryClient() {
         columnStyles: {
             0: { cellWidth: 18 },    // Fecha
             1: { cellWidth: 20 },    // Tipo Vuelo
-            2: { cellWidth: 22 },    // Aeronave
-            3: { cellWidth: 'auto' },// Piloto
-            4: { cellWidth: 40 },    // Instructor
+            2: { cellWidth: 40 },    // Aeronave
+            3: { cellWidth: 55 },    // Piloto
+            4: { cellWidth: 55 },    // Instructor
             5: { cellWidth: 35 },    // Propósito
-            6: { cellWidth: 16 },    // Duración
+            6: { cellWidth: 18 },    // Duración
             7: { cellWidth: 'auto' },// Notas
         },
       });
@@ -367,5 +366,3 @@ export function UnifiedHistoryClient() {
     </div>
   );
 }
-
-    
