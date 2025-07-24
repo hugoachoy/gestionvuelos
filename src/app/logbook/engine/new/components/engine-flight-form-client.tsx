@@ -515,7 +515,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
         
-        // --- CONFLICT VALIDATION ---
+        // --- CONFLICT VALIDATION (Simplified & Corrected) ---
         const { data: allFlightsOnDate, error: fetchError } = await supabase
             .from('v_all_flights_for_validation')
             .select('id, date, departure_time, arrival_time, logbook_type, pilot_id, instructor_id, tow_pilot_id, glider_aircraft_id, tow_aircraft_id, engine_aircraft_id, flight_purpose_id')
@@ -541,7 +541,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         
         const currentIsInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
         
-        // This is the instruction counterpart we are trying to register. It should be allowed.
         const validInstructionCounterpart = overlappingFlights.find(f => {
             if (f.logbook_type !== 'engine' || !currentIsInstruction) return false;
             
@@ -555,31 +554,24 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return isSameAircraft && isCounterpartRoles;
         });
         
-        // Filter out the valid counterpart from the list of conflicts.
         const actualConflicts = overlappingFlights.filter(f => f.id !== validInstructionCounterpart?.id);
 
         if (actualConflicts.length > 0) {
+            const pilotInvolvedIds = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+            const pilotConflict = actualConflicts.find(f => 
+                pilotInvolvedIds.some(pId => [f.pilot_id, f.instructor_id, (f as any).tow_pilot_id].filter(Boolean).includes(pId))
+            );
+
+            const aircraftConflict = actualConflicts.find(f => 
+                f.engine_aircraft_id === formData.engine_aircraft_id || (f as any).tow_aircraft_id === formData.engine_aircraft_id
+            );
+            
             let conflictMessage = "";
-
-            const pilotConflict = actualConflicts.find(f => {
-                const involvedPilots = [f.pilot_id, f.instructor_id].filter(Boolean); // Relevant for engine flight
-                if (f.logbook_type === 'glider') {
-                    involvedPilots.push((f as CompletedGliderFlight).tow_pilot_id);
-                }
-                return involvedPilots.includes(formData.pilot_id) || (formData.instructor_id && involvedPilots.includes(formData.instructor_id));
-            });
-
-            const aircraftConflict = actualConflicts.find(f => {
-                return (f.logbook_type === 'engine' && (f as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id) ||
-                       (f.logbook_type === 'glider' && (f as CompletedGliderFlight).tow_aircraft_id === formData.engine_aircraft_id);
-            });
-
             if (pilotConflict) {
-                 const conflictingPilotId = [formData.pilot_id, formData.instructor_id].find(pId => pId && [pilotConflict.pilot_id, pilotConflict.instructor_id].filter(Boolean).includes(pId));
-                 const conflictAircraftName = getAircraftName((pilotConflict as any).engine_aircraft_id || (pilotConflict as any).glider_aircraft_id);
-                 conflictMessage = `El piloto ${getPilotName(conflictingPilotId)} ya tiene un vuelo (${getPurposeName(pilotConflict.flight_purpose_id)} en ${conflictAircraftName}) que se superpone con este horario.`;
+                const conflictingPilotId = pilotInvolvedIds.find(pId => [pilotConflict.pilot_id, pilotConflict.instructor_id, (pilotConflict as any).tow_pilot_id].filter(Boolean).includes(pId));
+                conflictMessage = `El piloto ${getPilotName(conflictingPilotId)} ya tiene un vuelo que se superpone con este horario.`;
             } else if (aircraftConflict) {
-                conflictMessage = `La aeronave ${getAircraftName(formData.engine_aircraft_id)} ya tiene un vuelo (${getPurposeName(aircraftConflict.flight_purpose_id)}) que se superpone con este horario.`;
+                 conflictMessage = `La aeronave ${getAircraftName(formData.engine_aircraft_id)} ya tiene un vuelo que se superpone con este horario.`;
             }
 
             if(conflictMessage) {
@@ -589,7 +581,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             }
         }
         
-        // --- FUEL/OIL DUPLICATION CHECK FOR INSTRUCTION FLIGHTS ---
         if (validInstructionCounterpart) {
           if ((formData.oil_added_liters ?? 0) > 0 && ((validInstructionCounterpart as CompletedEngineFlight).oil_added_liters ?? 0) > 0) {
               toast({ title: "Registro Duplicado", description: "El aceite ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
@@ -1169,3 +1160,4 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
