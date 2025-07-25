@@ -7,10 +7,10 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes, addMinutes, subMinutes } from 'date-fns';
+import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedEngineFlight, CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId, CompletedFlight } from '@/types';
+import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId, CompletedFlight } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore, useFlightPurposesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -520,86 +520,71 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             .from('v_all_flights_for_validation')
             .select('*')
             .eq('date', format(formData.date, 'yyyy-MM-dd'));
-
+        
         if (fetchError) {
              toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
              setIsSubmittingForm(false);
              return;
         }
-        
+
         const newStartTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.departure_time}`, 'yyyy-MM-dd HH:mm', new Date());
         const newEndTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.arrival_time}`, 'yyyy-MM-dd HH:mm', new Date());
-        
-        const overlappingFlights = (allFlightsOnDate || []).filter(existingFlight => {
+
+        const actualConflicts = (allFlightsOnDate || []).filter(existingFlight => {
             if (isEditMode && existingFlight.logbook_type === 'engine' && existingFlight.id === flightIdToLoad) {
                 return false;
             }
             const existingStartTime = parse(`${existingFlight.date} ${existingFlight.departure_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
             const existingEndTime = parse(`${existingFlight.date} ${existingFlight.arrival_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
-            return newStartTime < existingEndTime && newEndTime > existingStartTime;
+            
+            const isOverlapping = newStartTime < existingEndTime && newEndTime > existingStartTime;
+            if (!isOverlapping) return false;
+
+            const isInstructionPair = 
+                getPurposeName(formData.flight_purpose_id)?.includes('Instrucción') &&
+                getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción') &&
+                existingFlight.logbook_type === 'engine' &&
+                (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id &&
+                (
+                    (formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) ||
+                    (formData.pilot_id === existingFlight.pilot_id && formData.instructor_id === existingFlight.instructor_id)
+                ) &&
+                Math.abs(differenceInMinutes(newStartTime, existingStartTime)) <= 5;
+
+            if (isInstructionPair) {
+                if ((formData.oil_added_liters ?? 0) > 0 && ((existingFlight as CompletedEngineFlight).oil_added_liters ?? 0) > 0) {
+                    toast({ title: "Registro Duplicado", description: "El aceite ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
+                    throw new Error("Duplicate oil"); 
+                }
+                if ((formData.fuel_added_liters ?? 0) > 0 && ((existingFlight as CompletedEngineFlight).fuel_added_liters ?? 0) > 0) {
+                    toast({ title: "Registro Duplicado", description: "El combustible ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
+                    throw new Error("Duplicate fuel");
+                }
+                return false; 
+            }
+            
+            const pilotIdsInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+            const pilotIdsInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id, (existingFlight as any).tow_pilot_id].filter(Boolean);
+            if (pilotIdsInNewFlight.some(pId => pilotIdsInExistingFlight.includes(pId))) {
+                return true;
+            }
+
+            if (existingFlight.logbook_type === 'engine' && (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id) {
+                return true;
+            }
+            if (existingFlight.logbook_type === 'glider' && (existingFlight as any).tow_aircraft_id === formData.engine_aircraft_id) {
+                return true;
+            }
+
+            return false;
         });
 
-        const currentIsInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
-        
-        // Allow a small time difference (e.g., 5 minutes) for instruction counterparts
-        const isInstructionCounterpart = (existingFlight: CompletedFlight): boolean => {
-            if (!currentIsInstruction) return false;
-            if (existingFlight.logbook_type !== 'engine') return false;
-
-            const fe = existingFlight as CompletedEngineFlight;
-            const existingIsInstruction = getPurposeName(fe.flight_purpose_id)?.includes('Instrucción');
-            if (!existingIsInstruction) return false;
-
-            const isSameAircraft = fe.engine_aircraft_id === formData.engine_aircraft_id;
-            const isCounterpartRoles = (formData.pilot_id === fe.instructor_id && formData.instructor_id === fe.pilot_id);
-
-            const existingStartTime = parse(`${fe.date} ${fe.departure_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
-            const timeDiff = Math.abs(differenceInMinutes(newStartTime, existingStartTime));
-
-            return isSameAircraft && isCounterpartRoles && timeDiff <= 5;
-        };
-
-        const validInstructionCounterparts = overlappingFlights.filter(isInstructionCounterpart);
-        const actualConflicts = overlappingFlights.filter(f => !validInstructionCounterparts.some(vc => vc.id === f.id));
-
         if (actualConflicts.length > 0) {
-            const pilotInvolvedIds = [formData.pilot_id, formData.instructor_id].filter(Boolean);
-            const pilotConflict = actualConflicts.find(f => 
-                pilotInvolvedIds.some(pId => [f.pilot_id, f.instructor_id, (f as any).tow_pilot_id].filter(Boolean).includes(pId))
-            );
-
-            const aircraftConflict = actualConflicts.find(f => 
-                (f.logbook_type === 'engine' && f.engine_aircraft_id === formData.engine_aircraft_id) || 
-                (f.logbook_type === 'glider' && (f as CompletedGliderFlight).tow_aircraft_id === formData.engine_aircraft_id)
-            );
-            
-            let conflictMessage = "";
-            if (pilotConflict) {
-                const conflictingPilotId = pilotInvolvedIds.find(pId => [pilotConflict.pilot_id, pilotConflict.instructor_id, (pilotConflict as any).tow_pilot_id].filter(Boolean).includes(pId));
-                conflictMessage = `El piloto ${getPilotName(conflictingPilotId)} ya tiene un vuelo que se superpone con este horario.`;
-            } else if (aircraftConflict) {
-                 conflictMessage = `La aeronave ${getAircraftName(formData.engine_aircraft_id)} ya tiene un vuelo que se superpone con este horario.`;
-            }
-
-            if(conflictMessage) {
-                toast({ title: "Conflicto de Vuelo Detectado", description: conflictMessage, variant: "destructive", duration: 7000 });
-                setIsSubmittingForm(false);
-                return;
-            }
-        }
-        
-        if (validInstructionCounterparts.length > 0) {
-          const counterpart = validInstructionCounterparts[0]; // Take the first valid counterpart
-          if ((formData.oil_added_liters ?? 0) > 0 && ((counterpart as CompletedEngineFlight).oil_added_liters ?? 0) > 0) {
-              toast({ title: "Registro Duplicado", description: "El aceite ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
-              setIsSubmittingForm(false);
-              return;
-          }
-          if ((formData.fuel_added_liters ?? 0) > 0 && ((counterpart as CompletedEngineFlight).fuel_added_liters ?? 0) > 0) {
-              toast({ title: "Registro Duplicado", description: "El combustible ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
-              setIsSubmittingForm(false);
-              return;
-          }
+            const firstConflict = actualConflicts[0];
+            const conflictMessage = `Conflicto con vuelo de ${getPilotName(firstConflict.pilot_id)} en ${getAircraftName(firstConflict.aircraft_id)} a las ${firstConflict.departure_time.substring(0,5)}.`;
+            toast({ title: "Conflicto de Vuelo Detectado", description: conflictMessage, variant: "destructive", duration: 7000 });
+            setIsSubmittingForm(false);
+            return;
         }
 
         const depTimeCleaned = formData.departure_time.substring(0,5);
@@ -648,9 +633,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         } else {
             toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
         }
-    } catch (error) {
-        console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
-        toast({ title: "Error Inesperado", description: "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
+    } catch (error: any) {
+        if (error.message !== "Duplicate oil" && error.message !== "Duplicate fuel") {
+            console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
+            toast({ title: "Error Inesperado", description: "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
+        }
     } finally {
         setIsSubmittingForm(false);
     }
@@ -1168,4 +1155,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
