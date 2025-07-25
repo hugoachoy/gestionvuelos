@@ -476,24 +476,23 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         setIsSubmittingForm(false);
         return;
     }
-
+    
     // --- CONFLICT VALIDATION ---
     const formattedDate = format(formData.date, 'yyyy-MM-dd');
-    const newDepTime = parse(formData.departure_time, 'HH:mm', formData.date).getTime();
-    const newArrTime = parse(formData.arrival_time, 'HH:mm', formData.date).getTime();
-    const pilotIdsToCheck = [formData.pilot_id, formData.instructor_id].filter(Boolean) as string[];
+    const newDepTime = parse(formData.departure_time, 'HH:mm', formData.date);
+    const newArrTime = parse(formData.arrival_time, 'HH:mm', formData.date);
+    
+    const participants = [formData.pilot_id, formData.instructor_id].filter(Boolean) as string[];
 
     const { data: engineConflicts, error: engineError } = await supabase
         .from('completed_engine_flights')
-        .select('id, pilot_id, instructor_id, departure_time, arrival_time')
+        .select('id, pilot_id, instructor_id, departure_time, arrival_time, engine_aircraft_id, flight_purpose_id')
         .eq('date', formattedDate)
-        .or(`pilot_id.in.(${pilotIdsToCheck.join(',')}),instructor_id.in.(${pilotIdsToCheck.join(',')})`);
-
+    
     const { data: gliderConflicts, error: gliderError } = await supabase
         .from('completed_glider_flights')
-        .select('id, pilot_id, instructor_id, tow_pilot_id, departure_time, arrival_time')
+        .select('id, pilot_id, instructor_id, tow_pilot_id, departure_time, arrival_time, glider_aircraft_id, tow_aircraft_id, flight_purpose_id')
         .eq('date', formattedDate)
-        .or(`pilot_id.in.(${pilotIdsToCheck.join(',')}),instructor_id.in.(${pilotIdsToCheck.join(',')}),tow_pilot_id.in.(${pilotIdsToCheck.join(',')})`);
 
     if (engineError || gliderError) {
         toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
@@ -501,26 +500,40 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         return;
     }
 
-    const allConflicts = [...(engineConflicts || []), ...(gliderConflicts || [])].filter(f => !isEditMode || f.id !== flightIdToLoad);
-    
-    let pilotConflictFound = false;
-    for (const flight of allConflicts) {
-        const existingDepTime = parse(flight.departure_time, 'HH:mm', formData.date).getTime();
-        const existingArrTime = parse(flight.arrival_time, 'HH:mm', formData.date).getTime();
+    const allExistingFlights: (CompletedEngineFlight | CompletedGliderFlight)[] = [...(engineConflicts || []), ...(gliderConflicts || [])];
 
-        if (newDepTime < existingArrTime && newArrTime > existingDepTime) {
-            pilotConflictFound = true;
-            break;
+    let conflictFound = false;
+    for (const pId of participants) {
+        for (const existingFlight of allExistingFlights) {
+            if (isEditMode && existingFlight.id === flightIdToLoad) continue;
+
+            const existingDepTime = parse(existingFlight.departure_time, 'HH:mm', formData.date);
+            const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', formData.date);
+
+            // Check for time overlap: (StartA < EndB) and (EndA > StartB)
+            if (newDepTime < existingArrTime && newArrTime > existingDepTime) {
+                const existingParticipants = [
+                    existingFlight.pilot_id,
+                    existingFlight.instructor_id,
+                    (existingFlight as CompletedGliderFlight).tow_pilot_id,
+                ].filter(Boolean);
+
+                if (existingParticipants.includes(pId)) {
+                    toast({
+                        title: "Conflicto de Horario",
+                        description: `El piloto ${getPilotName(pId)} ya tiene otro vuelo registrado en este horario.`,
+                        variant: "destructive",
+                        duration: 7000,
+                    });
+                    conflictFound = true;
+                    break;
+                }
+            }
         }
+        if (conflictFound) break;
     }
 
-    if (pilotConflictFound) {
-        toast({
-            title: "Conflicto de Vuelo Detectado",
-            description: `El piloto o instructor ya tiene otro vuelo registrado en este horario.`,
-            variant: "destructive",
-            duration: 7000,
-        });
+    if (conflictFound) {
         setIsSubmittingForm(false);
         return;
     }
@@ -1062,3 +1075,4 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
