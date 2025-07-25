@@ -515,7 +515,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
         
-        // --- START: CONFLICT VALIDATION ---
+        // --- START: CONFLICT VALIDATION (replicated from glider form) ---
         const { data: allFlightsOnDate, error: fetchError } = await supabase
             .from('v_all_flights_for_validation')
             .select('*')
@@ -540,9 +540,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const isOverlapping = newStartTime < existingEndTime && newEndTime > existingStartTime;
             if (!isOverlapping) return false;
 
+            const isCurrentInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
+            const isExistingInstruction = getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción');
             const isInstructionPair = 
-                getPurposeName(formData.flight_purpose_id)?.includes('Instrucción') &&
-                getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción') &&
+                isCurrentInstruction &&
+                isExistingInstruction &&
                 existingFlight.logbook_type === 'engine' &&
                 (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id &&
                 (
@@ -552,19 +554,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 Math.abs(differenceInMinutes(newStartTime, existingStartTime)) <= 5;
 
             if (isInstructionPair) {
-                if ((formData.oil_added_liters ?? 0) > 0 && ((existingFlight as CompletedEngineFlight).oil_added_liters ?? 0) > 0) {
-                    toast({ title: "Registro Duplicado", description: "El aceite ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
-                    throw new Error("Duplicate oil"); 
-                }
-                if ((formData.fuel_added_liters ?? 0) > 0 && ((existingFlight as CompletedEngineFlight).fuel_added_liters ?? 0) > 0) {
-                    toast({ title: "Registro Duplicado", description: "El combustible ya fue registrado en la contrapartida de este vuelo de instrucción. Ponga 0 en este campo.", variant: "destructive", duration: 7000 });
-                    throw new Error("Duplicate fuel");
-                }
                 return false; 
             }
             
             const pilotIdsInNewFlight = [formData.pilot_id, formData.instructor_id].filter(Boolean);
             const pilotIdsInExistingFlight = [existingFlight.pilot_id, existingFlight.instructor_id, (existingFlight as any).tow_pilot_id].filter(Boolean);
+            
             if (pilotIdsInNewFlight.some(pId => pilotIdsInExistingFlight.includes(pId))) {
                 return true;
             }
