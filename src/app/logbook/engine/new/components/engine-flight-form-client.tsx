@@ -464,19 +464,69 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const onSubmit = async (formData: EngineFlightFormData) => {
     setIsSubmittingForm(true);
-    try {
-        if (!user) {
-            toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
-            setIsSubmittingForm(false);
-            return;
-        }
 
-        if (aircraftWarning) {
-            toast({ title: "Error de Aeronave", description: aircraftWarning, variant: "destructive" });
-            setIsSubmittingForm(false);
-            return;
+    if (!user) {
+        toast({ title: "Error", description: "Debes estar autenticado para esta acción.", variant: "destructive" });
+        setIsSubmittingForm(false);
+        return;
+    }
+
+    if (aircraftWarning) {
+        toast({ title: "Error de Aeronave", description: aircraftWarning, variant: "destructive" });
+        setIsSubmittingForm(false);
+        return;
+    }
+
+    // --- CONFLICT VALIDATION ---
+    const formattedDate = format(formData.date, 'yyyy-MM-dd');
+    const newDepTime = parse(formData.departure_time, 'HH:mm', formData.date).getTime();
+    const newArrTime = parse(formData.arrival_time, 'HH:mm', formData.date).getTime();
+    const pilotIdsToCheck = [formData.pilot_id, formData.instructor_id].filter(Boolean) as string[];
+
+    const { data: engineConflicts, error: engineError } = await supabase
+        .from('completed_engine_flights')
+        .select('id, pilot_id, instructor_id, departure_time, arrival_time')
+        .eq('date', formattedDate)
+        .or(`pilot_id.in.(${pilotIdsToCheck.join(',')}),instructor_id.in.(${pilotIdsToCheck.join(',')})`);
+
+    const { data: gliderConflicts, error: gliderError } = await supabase
+        .from('completed_glider_flights')
+        .select('id, pilot_id, instructor_id, tow_pilot_id, departure_time, arrival_time')
+        .eq('date', formattedDate)
+        .or(`pilot_id.in.(${pilotIdsToCheck.join(',')}),instructor_id.in.(${pilotIdsToCheck.join(',')}),tow_pilot_id.in.(${pilotIdsToCheck.join(',')})`);
+
+    if (engineError || gliderError) {
+        toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
+        setIsSubmittingForm(false);
+        return;
+    }
+
+    const allConflicts = [...(engineConflicts || []), ...(gliderConflicts || [])].filter(f => !isEditMode || f.id !== flightIdToLoad);
+    
+    let pilotConflictFound = false;
+    for (const flight of allConflicts) {
+        const existingDepTime = parse(flight.departure_time, 'HH:mm', formData.date).getTime();
+        const existingArrTime = parse(flight.arrival_time, 'HH:mm', formData.date).getTime();
+
+        if (newDepTime < existingArrTime && newArrTime > existingDepTime) {
+            pilotConflictFound = true;
+            break;
         }
-        
+    }
+
+    if (pilotConflictFound) {
+        toast({
+            title: "Conflicto de Vuelo Detectado",
+            description: `El piloto o instructor ya tiene otro vuelo registrado en este horario.`,
+            variant: "destructive",
+            duration: 7000,
+        });
+        setIsSubmittingForm(false);
+        return;
+    }
+    // --- END CONFLICT VALIDATION ---
+
+    try {
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
@@ -977,35 +1027,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
                         <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || !isRemolqueMode} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                    control={form.control}
-                    name="fuel_added_liters"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Nafta Cargada (Lts) (Opcional)</FormLabel>
-                        <FormControl>
-                        <Input type="number" step="0.1" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="oil_added_liters"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aceite Cargado (Lts) (Opcional)</FormLabel>
-                        <FormControl>
-                        <Input type="number" min="0" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
