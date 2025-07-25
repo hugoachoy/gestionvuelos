@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId, CompletedFlight } from '@/types';
+import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId, CompletedFlight, CompletedGliderFlight } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore, useFlightPurposesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -516,83 +516,81 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
         
         // --- START: CONFLICT VALIDATION ---
-        const { data: allFlightsOnDate, error: fetchError } = await supabase
-            .from('v_all_flights_for_validation')
-            .select('*')
-            .eq('date', format(formData.date, 'yyyy-MM-dd'));
+        const { data: allEngineFlights, error: engineFetchError } = await supabase
+          .from('completed_engine_flights')
+          .select('*')
+          .eq('date', format(formData.date, 'yyyy-MM-dd'));
         
-        if (fetchError) {
-             toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
-             setIsSubmittingForm(false);
-             return;
+        const { data: allGliderFlights, error: gliderFetchError } = await supabase
+          .from('completed_glider_flights')
+          .select('*')
+          .eq('date', format(formData.date, 'yyyy-MM-dd'));
+
+        if (engineFetchError || gliderFetchError) {
+          toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
+          setIsSubmittingForm(false);
+          return;
         }
+
+        const allFlightsOnDate: CompletedFlight[] = [...(allEngineFlights || []), ...(allGliderFlights || [])];
 
         const newStartTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.departure_time}`, 'yyyy-MM-dd HH:mm', new Date());
         const newEndTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.arrival_time}`, 'yyyy-MM-dd HH:mm', new Date());
 
-        const overlappingFlights = (allFlightsOnDate || []).filter(existingFlight => {
-            // Exclude the flight being edited from the conflict check.
-            if (isEditMode && existingFlight.logbook_type === 'engine' && existingFlight.id === flightIdToLoad) {
-                return false;
-            }
-            const existingStartTime = parse(`${existingFlight.date} ${existingFlight.departure_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
-            const existingEndTime = parse(`${existingFlight.date} ${existingFlight.arrival_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
-            // Check for time overlap
-            return newStartTime < existingEndTime && newEndTime > existingStartTime;
-        });
+        let actualConflicts: string[] = [];
 
-        // Filter out valid instruction pairs from the list of overlapping flights.
-        // What remains in `actualConflicts` is a list of true conflicts.
-        const actualConflicts = overlappingFlights.filter(existingFlight => {
-            const isInstructionPair =
-                (getPurposeName(formData.flight_purpose_id)?.includes('Instrucción') &&
-                 getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción')) &&
-                existingFlight.logbook_type === 'engine' &&
-                (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id &&
-                (
-                    (formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) ||
-                    (formData.pilot_id === existingFlight.pilot_id && formData.instructor_id === existingFlight.instructor_id)
-                ) &&
-                Math.abs(differenceInMinutes(newStartTime, parse(`${existingFlight.date} ${existingFlight.departure_time}`, 'yyyy-MM-dd HH:mm:ss', new Date()))) <= 5;
-            
-            // If it's a valid instruction pair, it's NOT a conflict.
-            return !isInstructionPair;
-        });
+        for (const existingFlight of allFlightsOnDate) {
+          if (isEditMode && existingFlight.logbook_type === 'engine' && existingFlight.id === flightIdToLoad) {
+            continue;
+          }
+
+          const existingStartTime = parse(`${existingFlight.date} ${existingFlight.departure_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
+          const existingEndTime = parse(`${existingFlight.date} ${existingFlight.arrival_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
+
+          // Check for time overlap
+          if (newStartTime < existingEndTime && newEndTime > existingStartTime) {
+              const newFlightPilots = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+              const existingFlightPilots = [existingFlight.pilot_id, existingFlight.instructor_id, (existingFlight as CompletedGliderFlight).tow_pilot_id].filter(Boolean);
+              
+              const isInstructionPair =
+                  getPurposeName(formData.flight_purpose_id)?.includes('Instrucción') &&
+                  getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción') &&
+                  existingFlight.logbook_type === 'engine' &&
+                  (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id &&
+                  (
+                      (formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) ||
+                      (formData.pilot_id === existingFlight.pilot_id && formData.instructor_id === existingFlight.instructor_id)
+                  ) &&
+                  Math.abs(differenceInMinutes(newStartTime, existingStartTime)) <= 5;
+
+              if (isInstructionPair) {
+                  continue; 
+              }
+
+              const conflictingPilotId = newFlightPilots.find(pId => existingFlightPilots.includes(pId));
+              if (conflictingPilotId) {
+                  actualConflicts.push(`Piloto (${getPilotName(conflictingPilotId)}) ya tiene un vuelo conflictivo a las ${format(existingStartTime, 'HH:mm')}.`);
+              }
+
+              if (existingFlight.logbook_type === 'engine' && (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id) {
+                  actualConflicts.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)}) ya tiene un vuelo conflictivo a las ${format(existingStartTime, 'HH:mm')}.`);
+              }
+              if (existingFlight.logbook_type === 'glider' && (existingFlight as CompletedGliderFlight).tow_aircraft_id === formData.engine_aircraft_id) {
+                  actualConflicts.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)}) está asignada como remolcador en un vuelo conflictivo a las ${format(existingStartTime, 'HH:mm')}.`);
+              }
+          }
+        }
         
         if (actualConflicts.length > 0) {
-            const conflictMessages: string[] = [];
-            
-            for (const conflict of actualConflicts) {
-                const newFlightPilots = [formData.pilot_id, formData.instructor_id].filter(Boolean);
-                const existingFlightPilots = [conflict.pilot_id, conflict.instructor_id, (conflict as any).tow_pilot_id].filter(Boolean);
-                
-                // Check for pilot conflict
-                const conflictingPilotId = newFlightPilots.find(pId => existingFlightPilots.includes(pId));
-                if (conflictingPilotId) {
-                    conflictMessages.push(`Piloto (${getPilotName(conflictingPilotId)}) ya tiene un vuelo a las ${conflict.departure_time.substring(0,5)}.`);
-                }
-
-                // Check for aircraft conflict
-                if (
-                    (conflict.logbook_type === 'engine' && (conflict as any).engine_aircraft_id === formData.engine_aircraft_id) ||
-                    (conflict.logbook_type === 'glider' && (conflict as any).tow_aircraft_id === formData.engine_aircraft_id)
-                ) {
-                     conflictMessages.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)}) ya tiene un vuelo a las ${conflict.departure_time.substring(0,5)}.`);
-                }
-            }
-            
-            if (conflictMessages.length > 0) {
-                // Remove duplicates and show a single toast
-                const uniqueMessages = [...new Set(conflictMessages)];
-                toast({
-                    title: "Conflicto de Vuelo Detectado",
-                    description: uniqueMessages.join(' '),
-                    variant: "destructive",
-                    duration: 7000
-                });
-                setIsSubmittingForm(false);
-                return;
-            }
+            const uniqueMessages = [...new Set(actualConflicts)];
+            toast({
+                title: "Conflicto de Vuelo Detectado",
+                description: uniqueMessages.join(' '),
+                variant: "destructive",
+                duration: 7000
+            });
+            setIsSubmittingForm(false);
+            return;
         }
         
         // --- END CONFLICT VALIDATION ---
@@ -640,17 +638,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             toast({ title: `Vuelo a Motor ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
             await fetchAircraft(true);
             router.push('/logbook/engine/list'); 
-        } else {
-            // The specific error toast (like conflict) is now shown above, this is a fallback.
-            if (!toast.toasts.find(t => t.variant === 'destructive')) {
-                toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: "No se pudo guardar el vuelo. Intenta de nuevo.", variant: "destructive" });
-            }
-        }
+        } 
     } catch (error: any) {
-        if (error.message !== "Duplicate oil" && error.message !== "Duplicate fuel") {
-            console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
-            toast({ title: "Error Inesperado", description: "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
-        }
+        console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
+        toast({ title: "Error Inesperado", description: "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
     } finally {
         setIsSubmittingForm(false);
     }
