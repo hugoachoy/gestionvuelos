@@ -515,7 +515,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
           return;
         }
         
-        // --- START: CONFLICT VALIDATION ---
+        // --- CONFLICT VALIDATION ---
         const { data: allEngineFlightsOnDate, error: engineFetchError } = await supabase
             .from('completed_engine_flights')
             .select('*')
@@ -533,15 +533,16 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
         
         const allFlightsOnDate: CompletedFlight[] = [...(allEngineFlightsOnDate || []), ...(allGliderFlightsOnDate || [])];
+        
         const newStartTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.departure_time}`, 'yyyy-MM-dd HH:mm', new Date());
         const newEndTime = parse(`${format(formData.date, 'yyyy-MM-dd')} ${formData.arrival_time}`, 'yyyy-MM-dd HH:mm', new Date());
         let conflictMessages: string[] = [];
-
+        
         const newFlightPilots = [formData.pilot_id, formData.instructor_id].filter(Boolean);
 
         for (const existingFlight of allFlightsOnDate) {
             if (isEditMode && existingFlight.logbook_type === 'engine' && existingFlight.id === flightIdToLoad) {
-                continue;
+                continue; // Skip self-check in edit mode
             }
 
             const existingStartTime = parse(`${existingFlight.date} ${existingFlight.departure_time}`, 'yyyy-MM-dd HH:mm:ss', new Date());
@@ -551,15 +552,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             if (newStartTime < existingEndTime && newEndTime > existingStartTime) {
                 
                 const isCurrentInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
-                const isExistingInstruction = getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción');
-                const isExistingEngineFlight = existingFlight.logbook_type === 'engine';
                 
-                const isInstructionPair = isCurrentInstruction && isExistingInstruction && isExistingEngineFlight &&
+                const isInstructionPair = isCurrentInstruction &&
+                    existingFlight.logbook_type === 'engine' &&
+                    getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción') &&
                     (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id &&
                     (
-                        (formData.pilot_id === (existingFlight as CompletedEngineFlight).instructor_id && formData.instructor_id === (existingFlight as CompletedEngineFlight).pilot_id)
-                    ) &&
-                    Math.abs(differenceInMinutes(newStartTime, existingStartTime)) <= 5;
+                        (formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id)
+                    );
                 
                 if (isInstructionPair) {
                     continue; // Skip conflict check for valid instruction pairs
@@ -573,7 +573,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 }
 
                 // Check for aircraft conflicts
-                if (isExistingEngineFlight && (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id) {
+                if (existingFlight.logbook_type === 'engine' && (existingFlight as CompletedEngineFlight).engine_aircraft_id === formData.engine_aircraft_id) {
                     conflictMessages.push(`Aeronave (${getAircraftName(formData.engine_aircraft_id)})`);
                 }
                 if (existingFlight.logbook_type === 'glider' && (existingFlight as CompletedGliderFlight).tow_aircraft_id === formData.engine_aircraft_id) {
@@ -1159,5 +1159,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
-
