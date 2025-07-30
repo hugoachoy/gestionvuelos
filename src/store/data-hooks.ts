@@ -81,14 +81,10 @@ export function usePilotsStore() {
     if (!payload.hasOwnProperty('is_admin')) {
       payload.is_admin = false;
     }
-    
-    // TEMPORARY: Remove new fields until DB schema is updated
-    const { dni, birth_date, address, email, phone, ...corePayload } = payload as any;
-
 
     const { data: newPilot, error: insertError } = await supabase
       .from('pilots')
-      .insert([corePayload])
+      .insert([payload])
       .select()
       .single();
 
@@ -110,14 +106,9 @@ export function usePilotsStore() {
     setLoading(true);
     const { id, created_at, ...updatePayload } = updatedPilotData;
 
-    // TEMPORARY FIX: Remove fields that don't exist in the DB schema yet.
-    // The user needs to add these columns to their Supabase `pilots` table.
-    // Once they do, this cleanup can be removed.
-    const { dni, birth_date, address, email, phone, ...coreUpdatePayload } = updatePayload as any;
-
     const { error: supabaseUpdateError } = await supabase
       .from('pilots')
-      .update(coreUpdatePayload)
+      .update(updatePayload)
       .eq('id', id);
 
     if (supabaseUpdateError) {
@@ -1272,3 +1263,5 @@ export function useCompletedEngineFlightsStore() {
 
   return { completedEngineFlights, loading, error, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange, fetchCompletedEngineFlights, fetchCompletedEngineFlightsByAircraftForRange };
 }
+
+    
