@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId, CompletedFlight } from '@/types';
+import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId, CompletedFlight, CompletedEngineFlight } from '@/types';
 import { usePilotsStore, useAircraftStore, useCompletedGliderFlightsStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore, useFlightPurposesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient'; 
@@ -488,104 +488,107 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const onSubmit = async (formData: GliderFlightFormData) => {
     setIsSubmittingForm(true);
-    try {
-        if (!user) {
-            toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
-            setIsSubmittingForm(false);
-            return;
-        }
-        if (gliderWarning || towPlaneWarning || isAnyPilotInvalidForFlight) {
-            let errorMessages: string[] = [];
-            if (gliderWarning) errorMessages.push(gliderWarning);
-            if (towPlaneWarning) errorMessages.push(towPlaneWarning);
-            if (medicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(medicalWarning);
-            if (instructorMedicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(instructorMedicalWarning);
-            if (towPilotMedicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(towPilotMedicalWarning);
-            toast({
-                title: "Error de Validación",
-                description: `No se puede registrar el vuelo. Problemas: ${errorMessages.join(' ')}`,
-                variant: "destructive",
-                duration: 7000,
-            });
-            setIsSubmittingForm(false);
-            return;
-        }
 
-        const dateStr = format(formData.date, 'yyyy-MM-dd');
-        const [depH, depM] = formData.departure_time.split(':').map(Number);
-        const [arrH, arrM] = formData.arrival_time.split(':').map(Number);
-        const newFlightStart = new Date(formData.date).setHours(depH, depM, 0, 0);
-        const newFlightEnd = new Date(formData.date).setHours(arrH, arrM, 0, 0);
+    if (!user) {
+        toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
+        setIsSubmittingForm(false);
+        return;
+    }
+    if (gliderWarning || towPlaneWarning || isAnyPilotInvalidForFlight) {
+        let errorMessages: string[] = [];
+        if (gliderWarning) errorMessages.push(gliderWarning);
+        if (towPlaneWarning) errorMessages.push(towPlaneWarning);
+        if (medicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(medicalWarning);
+        if (instructorMedicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(instructorMedicalWarning);
+        if (towPilotMedicalWarning?.toUpperCase().includes("VENCIDO")) errorMessages.push(towPilotMedicalWarning);
+        toast({
+            title: "Error de Validación",
+            description: `No se puede registrar el vuelo. Problemas: ${errorMessages.join(' ')}`,
+            variant: "destructive",
+            duration: 7000,
+        });
+        setIsSubmittingForm(false);
+        return;
+    }
+    
+    // --- CONFLICT VALIDATION ---
+    const dateStr = format(formData.date, 'yyyy-MM-dd');
+    const newFlightDepTime = parse(formData.departure_time, "HH:mm", formData.date);
+    const newFlightArrTime = parse(formData.arrival_time, "HH:mm", formData.date);
 
-        const [gliderFlights, engineFlights] = await Promise.all([
-            fetchCompletedGliderFlightsForRange(dateStr, dateStr),
-            fetchCompletedEngineFlightsForRange(dateStr, dateStr)
-        ]);
-        
-        if (!gliderFlights || !engineFlights) {
-            toast({ title: "Error de Validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
-            setIsSubmittingForm(false);
-            return;
-        }
+    const [gliderFlights, engineFlights] = await Promise.all([
+        fetchCompletedGliderFlightsForRange(dateStr, dateStr),
+        fetchCompletedEngineFlightsForRange(dateStr, dateStr)
+    ]);
 
-        const allFlightsForDay: CompletedFlight[] = [...gliderFlights, ...engineFlights];
-        let conflictFound = false;
+    if (!gliderFlights || !engineFlights) {
+        toast({ title: "Error de Validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
+        setIsSubmittingForm(false);
+        return;
+    }
 
-        for (const existingFlight of allFlightsForDay) {
-            if (isEditMode && existingFlight.id === flightIdToLoad) continue;
+    const allExistingFlights: CompletedFlight[] = [...gliderFlights, ...engineFlights];
+    let conflictFound = false;
+
+    for (const existingFlight of allExistingFlights) {
+        if (isEditMode && existingFlight.id === flightIdToLoad) continue;
+
+        const existingDepTime = parse(existingFlight.departure_time, "HH:mm", parseISO(existingFlight.date));
+        const existingArrTime = parse(existingFlight.arrival_time, "HH:mm", parseISO(existingFlight.date));
+
+        // Check for time overlap
+        const isOverlapping = (newFlightDepTime < existingArrTime) && (newFlightArrTime > existingDepTime);
+
+        if (isOverlapping) {
+            const newParticipants = [formData.pilot_id, formData.instructor_id, formData.tow_pilot_id].filter(Boolean);
+            const newAircraft = [formData.glider_aircraft_id, formData.tow_aircraft_id].filter(Boolean);
             
-            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
-            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
-            const exFlightStart = new Date(existingFlight.date).setHours(exDepH, exDepM, 0, 0);
-            const exFlightEnd = new Date(existingFlight.date).setHours(exArrH, exArrM, 0, 0);
+            const existingParticipants = [existingFlight.pilot_id, existingFlight.instructor_id, (existingFlight as CompletedGliderFlight).tow_pilot_id].filter(Boolean);
+            const existingAircraft = [
+                (existingFlight as CompletedEngineFlight).engine_aircraft_id,
+                (existingFlight as CompletedGliderFlight).glider_aircraft_id,
+                (existingFlight as CompletedGliderFlight).tow_aircraft_id
+            ].filter(Boolean);
+            
+            let isInstructionPair = false;
+            const purposeNameNew = getPurposeName(formData.flight_purpose_id);
+            const purposeNameExisting = getPurposeName(existingFlight.flight_purpose_id);
 
-            const isOverlapping = (newFlightStart < exFlightEnd) && (newFlightEnd > exFlightStart);
-
-            if (isOverlapping) {
-                const newFlightParticipants = [formData.pilot_id, formData.instructor_id, formData.tow_pilot_id].filter(Boolean);
-                const newFlightAircraft = [formData.glider_aircraft_id, formData.tow_aircraft_id].filter(Boolean);
-
-                const existingFlightParticipants = [existingFlight.pilot_id, existingFlight.instructor_id, (existingFlight as CompletedGliderFlight).tow_pilot_id].filter(Boolean);
-                let existingFlightAircraft: (string | null)[] = [];
-                if (existingFlight.logbook_type === 'glider') {
-                    existingFlightAircraft = [existingFlight.glider_aircraft_id, existingFlight.tow_aircraft_id].filter(Boolean);
-                } else {
-                    existingFlightAircraft = [existingFlight.engine_aircraft_id].filter(Boolean);
-                }
-
-                const sharedParticipants = newFlightParticipants.some(p => existingFlightParticipants.includes(p));
-                const sharedAircraft = newFlightAircraft.some(a => existingFlightAircraft.includes(a));
-                
-                if (sharedParticipants || sharedAircraft) {
-                    const newFlightIsInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
-                    const existingFlightIsInstruction = getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción');
-
-                    const isInstructionPair = newFlightIsInstruction && existingFlightIsInstruction &&
-                        ((formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) ||
-                         (formData.pilot_id === existingFlight.pilot_id && formData.instructor_id === existingFlight.instructor_id));
-                    
-                    if (!isInstructionPair) {
-                        let conflictMessage = 'Conflicto de vuelo detectado: ';
-                        if (sharedParticipants) {
-                            const conflictingPilotId = newFlightParticipants.find(p => existingFlightParticipants.includes(p));
-                            conflictMessage += `${getPilotName(conflictingPilotId)} ya tiene un vuelo en ese horario.`;
-                        } else if (sharedAircraft) {
-                            const conflictingAircraftId = newFlightAircraft.find(a => existingFlightAircraft.includes(a));
-                            conflictMessage += `La aeronave ${getAircraftName(conflictingAircraftId)} ya está en uso en ese horario.`;
-                        }
-                        toast({ title: "Conflicto de Vuelo", description: conflictMessage, variant: "destructive", duration: 7000 });
-                        conflictFound = true;
-                        break;
+            if (purposeNameNew.includes("Instrucción") && purposeNameExisting.includes("Instrucción")) {
+                if (existingFlight.logbook_type === 'glider' && formData.glider_aircraft_id === (existingFlight as CompletedGliderFlight).glider_aircraft_id) {
+                     if (formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) {
+                        isInstructionPair = true;
                     }
                 }
             }
+            
+            if (isInstructionPair) continue;
+
+            const participantConflict = newParticipants.some(p => existingParticipants.includes(p));
+            if (participantConflict) {
+                const conflictingPilotId = newParticipants.find(p => existingParticipants.includes(p));
+                toast({ title: "Conflicto de Vuelo", description: `El piloto ${getPilotName(conflictingPilotId)} ya tiene un vuelo en ese horario.`, variant: "destructive", duration: 7000 });
+                conflictFound = true;
+                break;
+            }
+            
+            const aircraftConflict = newAircraft.some(a => existingAircraft.includes(a));
+            if (aircraftConflict) {
+                 const conflictingAircraftId = newAircraft.find(a => existingAircraft.includes(a));
+                 toast({ title: "Conflicto de Aeronave", description: `La aeronave ${getAircraftName(conflictingAircraftId)} ya está en uso en ese horario.`, variant: "destructive", duration: 7000 });
+                 conflictFound = true;
+                 break;
+            }
         }
-        
-        if (conflictFound) {
-            setIsSubmittingForm(false);
-            return;
-        }
-        
+    }
+
+    if (conflictFound) {
+        setIsSubmittingForm(false);
+        return;
+    }
+    // --- END CONFLICT VALIDATION ---
+
+    try {
         let finalInstructorId = isInstructionTakenMode ? formData.instructor_id : null;
         
         const depTimeCleaned = formData.departure_time.substring(0,5);
