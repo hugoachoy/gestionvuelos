@@ -11,7 +11,7 @@ import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBe
 import { es } from 'date-fns/locale';
 
 import type { CompletedEngineFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, FlightPurpose, FlightTypeId, CompletedFlight, CompletedGliderFlight } from '@/types';
-import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useScheduleStore, usePilotCategoriesStore, useFlightPurposesStore } from '@/store/data-hooks';
+import { usePilotsStore, useAircraftStore, useCompletedEngineFlightsStore, useCompletedGliderFlightsStore, useScheduleStore, usePilotCategoriesStore, useFlightPurposesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -94,6 +94,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
   const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate } = useCompletedEngineFlightsStore();
+  const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
+  const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -284,9 +286,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const picOrStudentLabel = "Piloto";
 
   const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>, fieldName: 'departure_time' | 'arrival_time') => {
-    let value = event.target.value.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+    let value = event.target.value.replace(/[^0-9]/g, '');
+    if (value.length > 4) {
+      value = value.substring(0, 4);
+    }
     if (value.length === 3) {
-        value = '0' + value; // Pad with leading zero if needed, e.g., 945 -> 0945
+      value = '0' + value;
     }
     if (value.length === 4) {
       const hours = value.substring(0, 2);
@@ -297,6 +302,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       }
     }
   };
+
 
   useEffect(() => {
     setAircraftWarning(null);
@@ -485,14 +491,89 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         setIsSubmittingForm(false);
         return;
     }
-
     if (aircraftWarning) {
         toast({ title: "Error de Aeronave", description: aircraftWarning, variant: "destructive" });
         setIsSubmittingForm(false);
         return;
     }
-    
+
     try {
+        const dateStr = format(formData.date, 'yyyy-MM-dd');
+        const [depH, depM] = formData.departure_time.split(':').map(Number);
+        const [arrH, arrM] = formData.arrival_time.split(':').map(Number);
+        const newFlightStart = new Date(formData.date).setHours(depH, depM, 0, 0);
+        const newFlightEnd = new Date(formData.date).setHours(arrH, arrM, 0, 0);
+
+        const [gliderFlights, engineFlights] = await Promise.all([
+            fetchCompletedGliderFlightsForRange(dateStr, dateStr),
+            fetchCompletedEngineFlightsForRange(dateStr, dateStr)
+        ]);
+
+        if (!gliderFlights || !engineFlights) {
+            toast({ title: "Error de Validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
+            setIsSubmittingForm(false);
+            return;
+        }
+
+        const allFlightsForDay: CompletedFlight[] = [...gliderFlights, ...engineFlights];
+        let conflictFound = false;
+
+        for (const existingFlight of allFlightsForDay) {
+            if (isEditMode && existingFlight.id === flightIdToLoad) continue;
+
+            const [exDepH, exDepM] = existingFlight.departure_time.split(':').map(Number);
+            const [exArrH, exArrM] = existingFlight.arrival_time.split(':').map(Number);
+            const exFlightStart = new Date(existingFlight.date).setHours(exDepH, exDepM, 0, 0);
+            const exFlightEnd = new Date(existingFlight.date).setHours(exArrH, exArrM, 0, 0);
+
+            const isOverlapping = (newFlightStart < exFlightEnd) && (newFlightEnd > exFlightStart);
+
+            if (isOverlapping) {
+                const newFlightParticipants = [formData.pilot_id, formData.instructor_id].filter(Boolean);
+                const existingFlightParticipants = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
+                
+                const sharedParticipants = newFlightParticipants.some(p => existingFlightParticipants.includes(p));
+                let aircraftConflict = false;
+
+                if (existingFlight.logbook_type === 'engine') {
+                    if (existingFlight.engine_aircraft_id === formData.engine_aircraft_id) {
+                        aircraftConflict = true;
+                    }
+                } else if (existingFlight.logbook_type === 'glider') {
+                    if (existingFlight.tow_aircraft_id === formData.engine_aircraft_id) {
+                        aircraftConflict = true;
+                    }
+                }
+                
+                if (sharedParticipants || aircraftConflict) {
+                    const newFlightIsInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
+                    const existingFlightIsInstruction = getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción');
+
+                    const isInstructionPair = newFlightIsInstruction && existingFlightIsInstruction &&
+                        ((formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) ||
+                         (formData.pilot_id === existingFlight.pilot_id && formData.instructor_id === existingFlight.instructor_id));
+                    
+                    if (!isInstructionPair) {
+                        let conflictMessage = 'Conflicto de vuelo detectado: ';
+                        if (sharedParticipants) {
+                            const conflictingPilotId = newFlightParticipants.find(p => existingFlightParticipants.includes(p));
+                            conflictMessage += `${getPilotName(conflictingPilotId)} ya tiene un vuelo en ese horario.`;
+                        } else if (aircraftConflict) {
+                            conflictMessage += `La aeronave ${getAircraftName(formData.engine_aircraft_id)} ya está en uso en ese horario.`;
+                        }
+                        toast({ title: "Conflicto de Vuelo", description: conflictMessage, variant: "destructive", duration: 7000 });
+                        conflictFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (conflictFound) {
+            setIsSubmittingForm(false);
+            return;
+        }
+
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
