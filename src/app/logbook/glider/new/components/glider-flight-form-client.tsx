@@ -535,10 +535,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const isOverlapping = (newFlightStart < existingEnd) && (newFlightEnd > existingStart);
         if (!isOverlapping) continue;
         
-        const existingAircraft = (existingFlight as CompletedEngineFlight).engine_aircraft_id || (existingFlight as CompletedGliderFlight).glider_aircraft_id;
+        const existingAircraftId = (existingFlight as CompletedEngineFlight).engine_aircraft_id || (existingFlight as CompletedGliderFlight).glider_aircraft_id;
         
         const isInstructionPair = 
-            formData.glider_aircraft_id === existingAircraft &&
+            formData.glider_aircraft_id === existingAircraftId &&
             formData.instructor_id === existingFlight.pilot_id &&
             formData.pilot_id === existingFlight.instructor_id &&
             ((formData.flight_purpose_id === purposeRecibida?.id && existingFlight.flight_purpose_id === purposeImpartida?.id) ||
@@ -554,11 +554,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             (existingFlight as CompletedGliderFlight).tow_pilot_id
         ].filter(Boolean);
 
-        const conflictingParticipant = newFlightParticipants.find(p => existingParticipants.includes(p));
-        if (conflictingParticipant) {
+        const conflictingParticipantId = newFlightParticipants.find(p => existingParticipants.includes(p));
+        if (conflictingParticipantId) {
             toast({
                 title: "Conflicto de Vuelo de Piloto",
-                description: `El piloto ${getPilotName(conflictingParticipant)} ya tiene un vuelo registrado que se solapa con este horario.`,
+                description: `El piloto ${getPilotName(conflictingParticipantId)} ya tiene un vuelo registrado que se solapa con este horario.`,
                 variant: "destructive", duration: 7000
             });
             setIsSubmittingForm(false);
@@ -571,11 +571,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             (existingFlight as CompletedGliderFlight).tow_aircraft_id
         ].filter(Boolean);
         
-        const conflictingAircraft = newFlightAircraft.find(a => existingAircraftInvolved.includes(a));
-        if (conflictingAircraft) {
+        const conflictingAircraftId = newFlightAircraft.find(a => existingAircraftInvolved.includes(a));
+        if (conflictingAircraftId) {
              toast({
                 title: "Conflicto de Vuelo de Aeronave",
-                description: `La aeronave ${getAircraftName(conflictingAircraft)} ya está en uso en un vuelo que se solapa con este horario.`,
+                description: `La aeronave ${getAircraftName(conflictingAircraftId)} ya está en uso en un vuelo que se solapa con este horario.`,
                 variant: "destructive", duration: 7000
              });
              setIsSubmittingForm(false);
