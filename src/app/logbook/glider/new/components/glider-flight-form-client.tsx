@@ -136,6 +136,21 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   
   const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
 
+  const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>, fieldName: 'departure_time' | 'arrival_time') => {
+    let value = event.target.value.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+    if (value.length === 3) {
+        value = '0' + value; // Pad with leading zero if needed, e.g., 945 -> 0945
+    }
+    if (value.length === 4) {
+      const hours = value.substring(0, 2);
+      const minutes = value.substring(2, 4);
+      if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
+        const formattedTime = `${hours}:${minutes}`;
+        form.setValue(fieldName, formattedTime, { shouldValidate: true });
+      }
+    }
+  };
+
   useEffect(() => {
     if (user && pilots && pilots.length > 0) {
       const userPilot = pilots.find(p => p.auth_user_id === user.id);
@@ -504,75 +519,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             return;
         }
         
-        // --- CONFLICT VALIDATION ---
-        const depTimeCleaned = formData.departure_time.substring(0, 5);
-        const conflicts = [];
-        
-        const { data: existingGliderFlights, error: gliderFetchError } = await supabase
-            .from('completed_glider_flights')
-            .select('id, pilot_id, instructor_id, tow_pilot_id, glider_aircraft_id, tow_aircraft_id, flight_purpose_id')
-            .eq('date', format(formData.date, 'yyyy-MM-dd'))
-            .eq('departure_time', depTimeCleaned);
-
-        const { data: existingEngineFlights, error: engineFetchError } = await supabase
-            .from('completed_engine_flights')
-            .select('id, pilot_id, instructor_id, engine_aircraft_id, flight_purpose_id')
-            .eq('date', format(formData.date, 'yyyy-MM-dd'))
-            .eq('departure_time', depTimeCleaned);
-
-        if (gliderFetchError || engineFetchError) {
-            toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
-            setIsSubmittingForm(false);
-            return;
-        }
-
-        const conflictingGliderFlights = isEditMode
-            ? existingGliderFlights?.filter(f => f.id !== flightIdToLoad)
-            : existingGliderFlights;
-
-        const checkPilotConflict = (pilotId: string, role: string, flightType: string) => {
-            conflicts.push(`${role} (${getPilotName(pilotId)}) (en vuelo de ${flightType})`);
-        };
-        const checkAircraftConflict = (aircraftId: string, flightType: string) => {
-            conflicts.push(`Aeronave (${getAircraftName(aircraftId)}) (en vuelo de ${flightType})`);
-        };
-
-        const currentIsInstruction = getPurposeName(formData.flight_purpose_id)?.includes('Instrucción');
-
-        for (const f of (conflictingGliderFlights || [])) {
-            const existingIsInstruction = getPurposeName(f.flight_purpose_id)?.includes('Instrucción');
-            const isInstructionPair = currentIsInstruction && existingIsInstruction && f.glider_aircraft_id === formData.glider_aircraft_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.pilot_id);
-            
-            if (isInstructionPair) continue;
-            
-            if (f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id || f.tow_pilot_id === formData.pilot_id) checkPilotConflict(formData.pilot_id, 'Piloto', 'planeador');
-            if (formData.instructor_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id || f.tow_pilot_id === formData.instructor_id)) checkPilotConflict(formData.instructor_id, 'Instructor', 'planeador');
-            if (f.tow_pilot_id === formData.tow_pilot_id) checkPilotConflict(formData.tow_pilot_id, 'Piloto Rem.', 'planeador');
-            if (f.glider_aircraft_id === formData.glider_aircraft_id) checkAircraftConflict(formData.glider_aircraft_id, 'planeador');
-            if (f.tow_aircraft_id === formData.tow_aircraft_id) checkAircraftConflict(formData.tow_aircraft_id, 'remolcador');
-        }
-
-        for (const f of (existingEngineFlights || [])) {
-             if (f.pilot_id === formData.pilot_id || f.instructor_id === formData.pilot_id) checkPilotConflict(formData.pilot_id, 'Piloto', 'motor');
-             if (f.pilot_id === formData.tow_pilot_id || f.instructor_id === formData.tow_pilot_id) checkPilotConflict(formData.tow_pilot_id, 'Piloto Rem.', 'motor');
-             if (formData.instructor_id && (f.pilot_id === formData.instructor_id || f.instructor_id === formData.instructor_id)) checkPilotConflict(formData.instructor_id, 'Instructor', 'motor');
-             if (f.engine_aircraft_id === formData.tow_aircraft_id) checkAircraftConflict(formData.tow_aircraft_id, 'remolcador');
-        }
-
-        if (conflicts.length > 0) {
-            toast({
-                title: "Conflicto de Vuelo Detectado",
-                description: `Ya existe un vuelo a la misma hora para: ${[...new Set(conflicts)].join(', ')}.`,
-                variant: "destructive",
-                duration: 7000,
-            });
-            setIsSubmittingForm(false);
-            return;
-        }
-        // --- END CONFLICT VALIDATION ---
-        
         let finalInstructorId = isInstructionTakenMode ? formData.instructor_id : null;
         
+        const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
 
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
@@ -1094,10 +1043,16 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="09:00" {...field} disabled={isAnyPilotInvalidForFlight || isLoading} />
+                      <Input
+                        type="text"
+                        placeholder="0900"
+                        {...field}
+                        onBlur={(e) => handleTimeInputBlur(e, 'departure_time')}
+                        disabled={isAnyPilotInvalidForFlight || isLoading}
+                      />
                     </FormControl>
                      <FormDescription className="text-xs">
-                      Use formato de 24 horas.
+                      Use formato 24hs (ej: 0900).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1110,10 +1065,16 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="10:30" {...field} disabled={isAnyPilotInvalidForFlight || isLoading} />
+                      <Input
+                        type="text"
+                        placeholder="1030"
+                        {...field}
+                        onBlur={(e) => handleTimeInputBlur(e, 'arrival_time')}
+                        disabled={isAnyPilotInvalidForFlight || isLoading}
+                      />
                     </FormControl>
                     <FormDescription className="text-xs">
-                      Use formato de 24 horas.
+                      Use formato 24hs (ej: 1030).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

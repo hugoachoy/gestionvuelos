@@ -283,6 +283,21 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const picOrStudentLabel = "Piloto";
 
+  const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>, fieldName: 'departure_time' | 'arrival_time') => {
+    let value = event.target.value.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+    if (value.length === 3) {
+        value = '0' + value; // Pad with leading zero if needed, e.g., 945 -> 0945
+    }
+    if (value.length === 4) {
+      const hours = value.substring(0, 2);
+      const minutes = value.substring(2, 4);
+      if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
+        const formattedTime = `${hours}:${minutes}`;
+        form.setValue(fieldName, formattedTime, { shouldValidate: true });
+      }
+    }
+  };
+
   useEffect(() => {
     setAircraftWarning(null);
     if (watchedEngineAircraftId && watchedDate && isValid(watchedDate)) {
@@ -477,68 +492,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         return;
     }
     
-    // --- CONFLICT VALIDATION ---
-    const formattedDate = format(formData.date, 'yyyy-MM-dd');
-    const newDepTime = parse(formData.departure_time, 'HH:mm', formData.date);
-    const newArrTime = parse(formData.arrival_time, 'HH:mm', formData.date);
-    
-    const participants = [formData.pilot_id, formData.instructor_id].filter(Boolean) as string[];
-
-    const { data: engineConflicts, error: engineError } = await supabase
-        .from('completed_engine_flights')
-        .select('id, pilot_id, instructor_id, departure_time, arrival_time, engine_aircraft_id, flight_purpose_id')
-        .eq('date', formattedDate)
-    
-    const { data: gliderConflicts, error: gliderError } = await supabase
-        .from('completed_glider_flights')
-        .select('id, pilot_id, instructor_id, tow_pilot_id, departure_time, arrival_time, glider_aircraft_id, tow_aircraft_id, flight_purpose_id')
-        .eq('date', formattedDate)
-
-    if (engineError || gliderError) {
-        toast({ title: "Error de validación", description: "No se pudo verificar si existen vuelos conflictivos.", variant: "destructive" });
-        setIsSubmittingForm(false);
-        return;
-    }
-
-    const allExistingFlights: (CompletedEngineFlight | CompletedGliderFlight)[] = [...(engineConflicts || []), ...(gliderConflicts || [])];
-
-    let conflictFound = false;
-    for (const pId of participants) {
-        for (const existingFlight of allExistingFlights) {
-            if (isEditMode && existingFlight.id === flightIdToLoad) continue;
-
-            const existingDepTime = parse(existingFlight.departure_time, 'HH:mm', formData.date);
-            const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', formData.date);
-
-            // Check for time overlap: (StartA < EndB) and (EndA > StartB)
-            if (newDepTime < existingArrTime && newArrTime > existingDepTime) {
-                const existingParticipants = [
-                    existingFlight.pilot_id,
-                    existingFlight.instructor_id,
-                    (existingFlight as CompletedGliderFlight).tow_pilot_id,
-                ].filter(Boolean);
-
-                if (existingParticipants.includes(pId)) {
-                    toast({
-                        title: "Conflicto de Horario",
-                        description: `El piloto ${getPilotName(pId)} ya tiene otro vuelo registrado en este horario.`,
-                        variant: "destructive",
-                        duration: 7000,
-                    });
-                    conflictFound = true;
-                    break;
-                }
-            }
-        }
-        if (conflictFound) break;
-    }
-
-    if (conflictFound) {
-        setIsSubmittingForm(false);
-        return;
-    }
-    // --- END CONFLICT VALIDATION ---
-
     try {
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
@@ -969,10 +922,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Salida (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="14:30" {...field} disabled={isLoading} />
+                      <Input 
+                        type="text" 
+                        placeholder="1430" 
+                        {...field} 
+                        onBlur={(e) => handleTimeInputBlur(e, 'departure_time')}
+                        disabled={isLoading} />
                     </FormControl>
                     <FormDescription className="text-xs">
-                      Use formato de 24 horas.
+                      Use formato 24hs (ej: 1430).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -985,10 +943,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                   <FormItem>
                     <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora de Llegada (HH:MM)</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="15:00" {...field} disabled={isLoading} />
+                      <Input 
+                        type="text" 
+                        placeholder="1500" 
+                        {...field} 
+                        onBlur={(e) => handleTimeInputBlur(e, 'arrival_time')}
+                        disabled={isLoading} />
                     </FormControl>
                      <FormDescription className="text-xs">
-                      Use formato de 24 horas.
+                       Use formato 24hs (ej: 1500).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1075,4 +1038,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
