@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Pilot, PilotCategory } from '@/types';
@@ -32,15 +33,15 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon, ChevronsUpDown } from "lucide-react";
+import { Separator } from '@/components/ui/separator';
 import { cn } from "@/lib/utils";
 import { format, parseISO, parse, isValid, startOfDay, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 type PilotFormData = z.infer<ReturnType<typeof createPilotSchema>>;
 
-// Function to create the schema dynamically based on the existing pilot's medical expiry
 const createPilotSchema = (originalMedicalExpiryDateString?: string | null) => {
   const originalExpiryDate = originalMedicalExpiryDateString && isValid(parseISO(originalMedicalExpiryDateString)) 
     ? startOfDay(parseISO(originalMedicalExpiryDateString)) 
@@ -60,23 +61,24 @@ const createPilotSchema = (originalMedicalExpiryDateString?: string | null) => {
 
         if (originalExpiryDate) { // Editing existing pilot
           if (isBefore(originalExpiryDate, today)) { // Original was already expired
-            // Valid if:
-            // 1. Submitted date is the same as the (already past) original expiry date.
-            // OR
-            // 2. Submitted date is a new date that is in the future (or today).
             return submittedDate.getTime() === originalExpiryDate.getTime() || submittedDate >= today;
-          } else { // Original was not expired (it was in the future)
-            // Submitted date must be in the future (or today).
+          } else { // Original was not expired
             return submittedDate >= today;
           }
         } else { // Creating new pilot
-          // Submitted date must be in the future (or today).
           return submittedDate >= today;
         }
       }, {
-        message: "La fecha de vencimiento no puede ser anterior a hoy. Si edita un piloto con psicofísico ya vencido, puede mantener la fecha vencida original o actualizarla a una fecha futura."
+        message: "El vencimiento no puede ser anterior a hoy. Si edita un psicofísico vencido, puede mantener la fecha original o actualizarla a una futura."
       }),
     is_admin: z.boolean().optional(),
+    
+    // Personal Info
+    dni: z.string().nullable().optional(),
+    birth_date: z.date().nullable().optional(),
+    address: z.string().nullable().optional(),
+    email: z.string().email({ message: "Correo electrónico inválido." }).nullable().optional(),
+    phone: z.string().nullable().optional(),
   });
 };
 
@@ -102,12 +104,17 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
       last_name: '',
       category_ids: [],
       medical_expiry: new Date(),
-      is_admin: false, 
+      is_admin: false,
+      dni: null,
+      birth_date: null,
+      address: null,
+      email: null,
+      phone: null,
     },
   });
 
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [medicalExpiryDateString, setMedicalExpiryDateString] = useState('');
+  const [isMedicalCalendarOpen, setIsMedicalCalendarOpen] = useState(false);
+  const [isBirthDateCalendarOpen, setIsBirthDateCalendarOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -117,58 +124,39 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             last_name: pilot.last_name || '',
             category_ids: pilot.category_ids || [],
             medical_expiry: pilot.medical_expiry && isValid(parseISO(pilot.medical_expiry)) ? parseISO(pilot.medical_expiry) : new Date(),
-            is_admin: pilot.is_admin ?? false, 
+            is_admin: pilot.is_admin ?? false,
+            dni: pilot.dni,
+            birth_date: pilot.birth_date && isValid(parseISO(pilot.birth_date)) ? parseISO(pilot.birth_date) : null,
+            address: pilot.address,
+            email: pilot.email,
+            phone: pilot.phone,
           }
         : {
             first_name: '',
             last_name: '',
             category_ids: [],
-            medical_expiry: new Date(), // For new pilot, default to today
+            medical_expiry: new Date(),
             is_admin: false,
+            dni: null,
+            birth_date: null,
+            address: null,
+            email: null,
+            phone: null,
           };
       form.reset(initialFormValues);
-      
-      // Update the schema in the resolver if pilot changes (specifically medical_expiry)
-      // This is implicitly handled because zodResolver takes the schema which is memoized by pilot.medical_expiry
-      // So when `pilot` changes, `pilotSchema` re-memoizes, and `form` instance uses the new schema for subsequent validations.
-
-      const currentMedicalDateInForm = initialFormValues.medical_expiry;
-      if (isValid(currentMedicalDateInForm)) {
-        setMedicalExpiryDateString(format(currentMedicalDateInForm, "dd/MM/yyyy", { locale: es }));
-      } else {
-         // Fallback for new pilot or invalid date
-        setMedicalExpiryDateString(format(initialFormValues.medical_expiry || new Date(), "dd/MM/yyyy", { locale: es }));
-      }
     }
-  }, [open, pilot, form, pilotSchema]); // Added pilotSchema to dependencies
+  }, [open, pilot, form, pilotSchema]);
 
-
-  const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>, fieldOnChange: (date: Date | undefined) => void) => {
-    const textValue = e.target.value;
-    setMedicalExpiryDateString(textValue);
-    const parsedDate = parse(textValue, "dd/MM/yyyy", new Date(), { locale: es });
-    if (isValid(parsedDate)) {
-      fieldOnChange(parsedDate);
-    } else {
-      fieldOnChange(undefined); 
-    }
-  };
-
-  const handleDateSelect = (date: Date | undefined, fieldOnChange: (date: Date | undefined) => void) => {
-    if (date) {
-      fieldOnChange(date);
-      setMedicalExpiryDateString(format(date, "dd/MM/yyyy", { locale: es }));
-    } else {
-      fieldOnChange(undefined);
-      setMedicalExpiryDateString('');
-    }
-    setIsCalendarOpen(false);
-  };
 
   const handleSubmit = (data: PilotFormData) => {
     const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
         ...data,
         medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
+        birth_date: data.birth_date ? format(data.birth_date, 'yyyy-MM-dd') : null,
+        email: data.email || null,
+        dni: data.dni || null,
+        address: data.address || null,
+        phone: data.phone || null,
         is_admin: data.is_admin ?? false, 
         auth_user_id: pilot?.auth_user_id 
     };
@@ -177,10 +165,8 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
-        onOpenChange(isOpen);
-    }}>
-      <DialogContent className="sm:max-w-[425px] md:max-w-lg">
+    <Dialog open={open} onOpenChange={(isOpen) => { onOpenChange(isOpen); }}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{pilot ? 'Editar Piloto' : 'Agregar Piloto'}</DialogTitle>
           <DialogDescription>
@@ -189,181 +175,101 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
-            <FormField
-              control={form.control}
-              name="first_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Nombre</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Juan" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="last_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Apellido</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Perez" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="category_ids"
-              render={({ field }) => {
+            
+            <h3 className="text-lg font-semibold text-foreground border-b pb-2">Datos Aeronáuticos</h3>
+
+            <FormField control={form.control} name="first_name" render={({ field }) => (
+                <FormItem><FormLabel>Nombre</FormLabel><FormControl><Input placeholder="Juan" {...field} /></FormControl><FormMessage /></FormItem>
+            )}/>
+            <FormField control={form.control} name="last_name" render={({ field }) => (
+                <FormItem><FormLabel>Apellido</FormLabel><FormControl><Input placeholder="Perez" {...field} /></FormControl><FormMessage /></FormItem>
+            )}/>
+            <FormField control={form.control} name="category_ids" render={({ field }) => {
                 const selectedCount = field.value?.length || 0;
-                const buttonText = selectedCount === 0
-                  ? "Seleccionar categorías"
-                  : `${selectedCount} categoría${selectedCount > 1 ? 's' : ''} seleccionada${selectedCount > 1 ? 's' : ''}`;
-                
+                const buttonText = selectedCount === 0 ? "Seleccionar categorías" : `${selectedCount} categoría${selectedCount > 1 ? 's' : ''} seleccionada${selectedCount > 1 ? 's' : ''}`;
                 return (
-                  <FormItem>
-                    <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Categorías</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className={cn(
-                              "w-full justify-between",
-                              !field.value?.length && "text-muted-foreground"
-                            )}
-                          >
-                            <span className="truncate">{buttonText}</span>
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <FormItem><FormLabel>Categorías</FormLabel>
+                    <Popover><PopoverTrigger asChild><FormControl>
+                          <Button variant="outline" role="combobox" className={cn("w-full justify-between",!field.value?.length && "text-muted-foreground")}>
+                            <span className="truncate">{buttonText}</span><ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <ScrollArea className="h-48">
-                          {categories.map((category) => (
-                            <FormItem
-                              key={category.id}
-                              className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md"
-                            >
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(category.id)}
-                                  onCheckedChange={(checked) => {
-                                    const currentCategoryIds = field.value || [];
-                                    return checked
-                                      ? field.onChange([...currentCategoryIds, category.id])
-                                      : field.onChange(
-                                          currentCategoryIds.filter(
-                                            (value) => value !== category.id
-                                          )
-                                        );
-                                  }}
-                                  id={`category-${category.id}`}
-                                  aria-labelledby={`category-label-${category.id}`}
-                                />
-                              </FormControl>
-                              <FormLabel
-                                htmlFor={`category-${category.id}`} 
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                                id={`category-label-${category.id}`}
-                              >
-                                {category.name}
-                              </FormLabel>
-                            </FormItem>
-                          ))}
-                        </ScrollArea>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
-            <FormField
-              control={form.control}
-              name="medical_expiry"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Vencimiento Psicofísico (dd/MM/yyyy)</FormLabel>
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                    <div className="flex items-center gap-2">
-                       <FormControl>
-                        <Input
-                          type="text"
-                          placeholder="dd/MM/yyyy"
-                          value={medicalExpiryDateString}
-                          onChange={(e) => handleDateInputChange(e, field.onChange)}
-                          onFocus={() => setIsCalendarOpen(true)}
-                          className={cn(!isValid(field.value) && form.formState.touchedFields.medical_expiry && "border-destructive focus-visible:ring-destructive")}
-                        />
-                      </FormControl>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="icon" type="button" className="shrink-0">
-                          <CalendarIcon className="h-4 w-4" />
-                          <span className="sr-only">Abrir calendario</span>
+                    </FormControl></PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0"><ScrollArea className="h-48">
+                        {categories.map((category) => (
+                          <FormItem key={category.id} className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-accent rounded-md">
+                            <FormControl>
+                              <Checkbox checked={field.value?.includes(category.id)} onCheckedChange={(checked) => {
+                                  const currentCategoryIds = field.value || [];
+                                  return checked ? field.onChange([...currentCategoryIds, category.id]) : field.onChange(currentCategoryIds.filter((value) => value !== category.id));
+                              }} id={`category-${category.id}`} aria-labelledby={`category-label-${category.id}`}/>
+                            </FormControl>
+                            <FormLabel htmlFor={`category-${category.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1" id={`category-label-${category.id}`}>{category.name}</FormLabel>
+                          </FormItem>
+                        ))}
+                    </ScrollArea></PopoverContent></Popover><FormMessage />
+                  </FormItem>);
+            }}/>
+            <FormField control={form.control} name="medical_expiry" render={({ field }) => (
+                <FormItem className="flex flex-col"><FormLabel>Vencimiento Psicofísico</FormLabel>
+                  <Popover open={isMedicalCalendarOpen} onOpenChange={setIsMedicalCalendarOpen}>
+                    <PopoverTrigger asChild><FormControl>
+                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                          {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
-                      </PopoverTrigger>
-                    </div>
+                    </FormControl></PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value instanceof Date && isValid(field.value) ? field.value : undefined}
-                        onSelect={(date) => handleDateSelect(date, field.onChange)}
-                        // The disabled prop on Calendar itself only prevents user from picking via UI.
-                        // Zod validation will handle the logic of what can be saved.
-                        // Keeping this for UI convenience:
-                        disabled={(date) =>
-                          date < startOfDay(new Date()) && // Can't pick past date unless
-                          !(pilot?.medical_expiry && startOfDay(parseISO(pilot.medical_expiry)).getTime() === startOfDay(date).getTime()) // it's the exact original past date
-                        }
-                        initialFocus
-                        locale={es}
-                      />
+                      <Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsMedicalCalendarOpen(false); }} initialFocus locale={es} />
                     </PopoverContent>
-                  </Popover>
-                  {pilot && !allowIsAdminChange && currentUser?.id !== pilot.auth_user_id && (
-                    <FormDescription className="text-xs text-muted-foreground/80 mt-1">
-                      Nota: Solo un administrador puede modificar este campo para otros pilotos.
-                    </FormDescription>
-                  )}
-                  <FormMessage />
+                  </Popover><FormMessage />
                 </FormItem>
-              )}
-            />
+            )}/>
             {(allowIsAdminChange) && (
-              <FormField
-                control={form.control}
-                name="is_admin"
-                render={({ field }) => (
+              <FormField control={form.control} name="is_admin" render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel htmlFor="is_admin_checkbox" id="is_admin_label">Administrador</FormLabel>
-                      <FormDescription>
-                        Permitir acceso administrativo al piloto.
-                      </FormDescription>
+                    <div className="space-y-0.5"><FormLabel htmlFor="is_admin_checkbox" id="is_admin_label">Administrador</FormLabel>
+                      <FormDescription>Permitir acceso administrativo al piloto.</FormDescription>
                     </div>
                     <FormControl>
-                      <Checkbox
-                        id="is_admin_checkbox"
-                        checked={field.value ?? false}
-                        onCheckedChange={field.onChange}
-                        aria-labelledby="is_admin_label"
-                        disabled={!currentUser?.is_admin} 
-                      />
+                      <Checkbox id="is_admin_checkbox" checked={field.value ?? false} onCheckedChange={field.onChange} aria-labelledby="is_admin_label" disabled={!currentUser?.is_admin} />
                     </FormControl>
                   </FormItem>
-                )}
-              />
+              )}/>
             )}
+
+            <Separator className="my-6" />
+            <h3 className="text-lg font-semibold text-foreground border-b pb-2">Datos Personales</h3>
+            
+            <FormField control={form.control} name="dni" render={({ field }) => (
+                <FormItem><FormLabel>DNI</FormLabel><FormControl><Input placeholder="30123456" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+            )}/>
+             <FormField control={form.control} name="birth_date" render={({ field }) => (
+                <FormItem className="flex flex-col"><FormLabel>Fecha de Nacimiento</FormLabel>
+                  <Popover open={isBirthDateCalendarOpen} onOpenChange={setIsBirthDateCalendarOpen}>
+                    <PopoverTrigger asChild><FormControl>
+                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                          {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                    </FormControl></PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsBirthDateCalendarOpen(false); }} captionLayout="dropdown-buttons" fromYear={1940} toYear={new Date().getFullYear()} initialFocus locale={es} />
+                    </PopoverContent>
+                  </Popover><FormMessage />
+                </FormItem>
+            )}/>
+             <FormField control={form.control} name="address" render={({ field }) => (
+                <FormItem><FormLabel>Dirección</FormLabel><FormControl><Input placeholder="Av. Siempre Viva 742" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+            )}/>
+            <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem><FormLabel>Correo Electrónico</FormLabel><FormControl><Input type="email" placeholder="piloto@email.com" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+            )}/>
+            <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem><FormLabel>Teléfono</FormLabel><FormControl><Input placeholder="2345678901" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+            )}/>
+
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => {
-                onOpenChange(false);
-              }}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => { onOpenChange(false); }}>Cancelar</Button>
               <Button type="submit">{pilot ? 'Guardar Cambios' : 'Crear Piloto'}</Button>
             </DialogFooter>
           </form>

@@ -13,6 +13,11 @@ export interface Pilot {
   id: string;
   first_name: string;
   last_name: string;
+  dni: string | null;
+  birth_date: string | null; // Store as ISO string YYYY-MM-DD
+  address: string | null;
+  email: string | null;
+  phone: string | null;
   category_ids: string[]; // IDs of PilotCategory
   medical_expiry: string; // Store as ISO string YYYY-MM-DD
   auth_user_id?: string | null; // ID del usuario de Supabase Auth vinculado

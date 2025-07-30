@@ -58,7 +58,6 @@ export function PilotClient() {
 
   const confirmDelete = async () => {
     if (pilotToDelete) {
-      // Double check to prevent admin self-deletion, though UI should prevent this.
       if (auth.user?.is_admin && pilotToDelete.auth_user_id === auth.user?.id) {
           toast({ title: "Operación no permitida", description: "Un administrador no puede eliminar su propio perfil de piloto directamente desde esta interfaz.", variant: "destructive" });
           setIsDeleteDialogOpen(false);
@@ -67,7 +66,6 @@ export function PilotClient() {
       }
       const success = await removePilot(pilotToDelete.id);
       if (!success) {
-        // The store might set a more specific error. This is a fallback.
         toast({ title: "Error al Eliminar", description: "No se pudo eliminar el piloto. Revise los logs o contacte soporte.", variant: "destructive" });
       } else {
         toast({ title: "Piloto Eliminado", description: `${pilotToDelete.first_name} ${pilotToDelete.last_name} ha sido eliminado.` });
@@ -103,7 +101,6 @@ export function PilotClient() {
   const combinedError = error || categoriesError || aircraftError;
 
   const sortedPilots = useMemo(() => {
-    // Ensure pilots is an array before trying to sort it.
     const safePilots = pilots || [];
     return [...safePilots].sort((a, b) => {
       const currentUserAuthId = auth.user?.id;

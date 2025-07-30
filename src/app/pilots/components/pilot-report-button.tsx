@@ -38,7 +38,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
       const { default: jsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
 
-      const doc = new jsPDF({ orientation: 'portrait' });
+      const doc = new jsPDF({ orientation: 'landscape' });
       const pageTitle = "Listado Total de Pilotos";
       let currentY = 15;
 
@@ -52,7 +52,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
         return a.first_name.localeCompare(b.first_name);
       });
 
-      const tableColumn = ["Apellido", "Nombre", "Categorías", "Venc. Psicofísico"];
+      const tableColumn = ["Apellido", "Nombre", "DNI", "Teléfono", "Email", "Categorías", "Venc. Psicofísico"];
       const tableRows: (string | { content: string; styles?: any })[][] = [];
 
       sortedPilots.forEach(pilot => {
@@ -67,6 +67,9 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
         tableRows.push([
           pilot.last_name,
           pilot.first_name,
+          pilot.dni || '-',
+          pilot.phone || '-',
+          pilot.email || '-',
           categoriesText,
           medicalExpiryDisplay,
         ]);
@@ -78,12 +81,15 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
         startY: currentY,
         theme: 'grid',
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
         columnStyles: {
-          0: { cellWidth: 'auto' },
-          1: { cellWidth: 'auto' },
-          2: { cellWidth: 'auto' },
-          3: { cellWidth: 35 },
+          0: { cellWidth: 'auto' }, // Apellido
+          1: { cellWidth: 'auto' }, // Nombre
+          2: { cellWidth: 20 },     // DNI
+          3: { cellWidth: 25 },     // Teléfono
+          4: { cellWidth: 40 },     // Email
+          5: { cellWidth: 'auto' }, // Categorías
+          6: { cellWidth: 25 },     // Vencimiento
         },
       });
 
