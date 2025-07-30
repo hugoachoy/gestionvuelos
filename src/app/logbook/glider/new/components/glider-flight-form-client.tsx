@@ -229,7 +229,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     } else if (!isEditMode && scheduleEntryIdParam && scheduleEntries && scheduleEntries.length > 0 && pilots.length > 0 && aircraftWithCalculatedData.length > 0 && purposes.length > 0) {
         const entry = scheduleEntries.find(e => e.id === scheduleEntryIdParam);
         if (entry) {
-            const purposeNameMap: Record<FlightTypeId, string | undefined> = {
+            const purposeNameMap: Record<string, string | undefined> = {
                 'instruction_taken': 'Instrucción (Recibida)',
                 'instruction_given': 'Instrucción (Impartida)',
                 'local': 'Local',
@@ -526,15 +526,17 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         return;
     }
     
-    const allExistingFlights: CompletedFlight[] = [...gliderFlights, ...engineFlights];
+    const allExistingFlightsOnDate: CompletedFlight[] = [...gliderFlights, ...engineFlights];
     const newFlightStart = parse(`${dateStr} ${formData.departure_time}`, "yyyy-MM-dd HH:mm", new Date());
     const newFlightEnd = parse(`${dateStr} ${formData.arrival_time}`, "yyyy-MM-dd HH:mm", new Date());
+    const newGliderAircraftId = formData.glider_aircraft_id;
+    const newTowAircraftId = formData.tow_aircraft_id;
 
-
-    for (const existingFlight of allExistingFlights) {
-        if (isEditMode && existingFlight.id === flightIdToLoad) {
-            continue;
-        }
+    const instructionTakenPurpose = purposes.find(p => p.name.includes("Recibida"));
+    const instructionGivenPurpose = purposes.find(p => p.name.includes("Impartida"));
+    
+    for (const existingFlight of allExistingFlightsOnDate) {
+        if (isEditMode && existingFlight.id === flightIdToLoad) continue;
 
         const existingStart = parse(`${existingFlight.date} ${existingFlight.departure_time}`, "yyyy-MM-dd HH:mm:ss", new Date());
         const existingEnd = parse(`${existingFlight.date} ${existingFlight.arrival_time}`, "yyyy-MM-dd HH:mm:ss", new Date());
@@ -542,22 +544,26 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const isOverlapping = (newFlightStart < existingEnd) && (newFlightEnd > existingStart);
         
         if (isOverlapping) {
-            // Exception for instruction pairs
-            const isNewFlightInstruction = !!formData.instructor_id;
-            const isExistingFlightInstruction = !!existingFlight.instructor_id;
+            const existingFlightAircraftId = existingFlight.logbook_type === 'glider'
+                ? (existingFlight as CompletedGliderFlight).glider_aircraft_id
+                : (existingFlight as CompletedEngineFlight).engine_aircraft_id;
 
-            if (isNewFlightInstruction && isExistingFlightInstruction) {
-                const newFlightAircraftId = formData.glider_aircraft_id;
-                const existingFlightAircraftId = existingFlight.logbook_type === 'glider' ? (existingFlight as CompletedGliderFlight).glider_aircraft_id : (existingFlight as CompletedEngineFlight).engine_aircraft_id;
+            const isSameAircraft = newGliderAircraftId === existingFlightAircraftId;
+            
+            const isNewFlightInstructionGiven = formData.flight_purpose_id === instructionGivenPurpose?.id;
+            const isExistingFlightInstructionTaken = existingFlight.flight_purpose_id === instructionTakenPurpose?.id;
+            const isNewFlightInstructionTaken = formData.flight_purpose_id === instructionTakenPurpose?.id;
+            const isExistingFlightInstructionGiven = existingFlight.flight_purpose_id === instructionGivenPurpose?.id;
 
-                if (newFlightAircraftId === existingFlightAircraftId &&
-                    formData.pilot_id === existingFlight.instructor_id &&
-                    formData.instructor_id === existingFlight.pilot_id) {
-                    continue; // This is a valid instruction pair, skip conflict
-                }
+            const isPairedInstruction = isSameAircraft && (
+                (isNewFlightInstructionGiven && isExistingFlightInstructionTaken && formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id) ||
+                (isNewFlightInstructionTaken && isExistingFlightInstructionGiven && formData.pilot_id === existingFlight.instructor_id && formData.instructor_id === existingFlight.pilot_id)
+            );
+
+            if (isPairedInstruction) {
+                continue; // It's a valid pair, skip to check other flights for other conflicts.
             }
-
-            // Check for participant or aircraft conflict
+            
             const existingParticipants = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
             if (existingFlight.logbook_type === 'glider') {
                 existingParticipants.push((existingFlight as CompletedGliderFlight).tow_pilot_id);
@@ -575,12 +581,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 return;
             }
 
-            const newAircraftIds = [formData.glider_aircraft_id, formData.tow_aircraft_id].filter(Boolean);
-            const existingAircraftIds = existingFlight.logbook_type === 'glider' 
+            const newAircraftIds = [newGliderAircraftId, newTowAircraftId].filter(Boolean);
+            const existingAircraftIdsInConflict = existingFlight.logbook_type === 'glider' 
                 ? [(existingFlight as CompletedGliderFlight).glider_aircraft_id, (existingFlight as CompletedGliderFlight).tow_aircraft_id]
                 : [(existingFlight as CompletedEngineFlight).engine_aircraft_id];
             
-            const conflictingAircraftId = newAircraftIds.find(id => existingAircraftIds.includes(id));
+            const conflictingAircraftId = newAircraftIds.find(id => existingAircraftIdsInConflict.includes(id));
 
             if (conflictingAircraftId) {
                  toast({
