@@ -52,11 +52,17 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
         return a.first_name.localeCompare(b.first_name);
       });
 
-      const tableColumn = ["Apellido", "Nombre", "DNI", "Teléfono", "Email", "Categorías", "Venc. Psicofísico"];
+      const tableColumn = ["Apellido", "Nombre", "DNI", "Fecha Nac.", "Teléfono", "Email", "Categorías", "Venc. Psicofísico"];
       const tableRows: (string | { content: string; styles?: any })[][] = [];
 
       sortedPilots.forEach(pilot => {
         const categoriesText = pilot.category_ids.map(catId => getCategoryName(catId)).join(', ');
+        
+        let birthDateDisplay = '-';
+        if (pilot.birth_date && isValid(parseISO(pilot.birth_date))) {
+          birthDateDisplay = format(parseISO(pilot.birth_date), "dd/MM/yyyy", { locale: es });
+        }
+        
         let medicalExpiryDisplay = 'N/A';
         if (pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -68,6 +74,7 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
           pilot.last_name,
           pilot.first_name,
           pilot.dni || '-',
+          birthDateDisplay,
           pilot.phone || '-',
           pilot.email || '-',
           categoriesText,
@@ -86,10 +93,11 @@ export function PilotReportButton({ pilots, getCategoryName, disabled }: PilotRe
           0: { cellWidth: 'auto' }, // Apellido
           1: { cellWidth: 'auto' }, // Nombre
           2: { cellWidth: 20 },     // DNI
-          3: { cellWidth: 25 },     // Teléfono
-          4: { cellWidth: 40 },     // Email
-          5: { cellWidth: 'auto' }, // Categorías
-          6: { cellWidth: 25 },     // Vencimiento
+          3: { cellWidth: 22 },     // Fecha Nac.
+          4: { cellWidth: 25 },     // Teléfono
+          5: { cellWidth: 40 },     // Email
+          6: { cellWidth: 'auto' }, // Categorías
+          7: { cellWidth: 25 },     // Vencimiento
         },
       });
 
