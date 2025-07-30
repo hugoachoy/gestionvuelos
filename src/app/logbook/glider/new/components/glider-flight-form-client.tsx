@@ -513,7 +513,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     
     // --- CONFLICT VALIDATION ---
     const dateStr = format(formData.date, 'yyyy-MM-dd');
-    const newFlightParticipants = [formData.pilot_id, formData.instructor_id, formData.tow_pilot_id].filter(Boolean);
+    const newFlightParticipants = [formData.pilot_id, formData.instructor_id, formData.tow_pilot_id].filter(Boolean) as string[];
 
     const [engineFlights, gliderFlights] = await Promise.all([
         fetchCompletedEngineFlightsForRange(dateStr, dateStr),
@@ -542,20 +542,50 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const isOverlapping = (newFlightStart < existingEnd) && (newFlightEnd > existingStart);
         
         if (isOverlapping) {
-             const existingParticipants: (string | null | undefined)[] = [
-                existingFlight.pilot_id,
-                existingFlight.instructor_id
-            ];
+            // Exception for instruction pairs
+            const isNewFlightInstruction = !!formData.instructor_id;
+            const isExistingFlightInstruction = !!existingFlight.instructor_id;
+
+            if (isNewFlightInstruction && isExistingFlightInstruction) {
+                const newFlightAircraftId = formData.glider_aircraft_id;
+                const existingFlightAircraftId = existingFlight.logbook_type === 'glider' ? (existingFlight as CompletedGliderFlight).glider_aircraft_id : (existingFlight as CompletedEngineFlight).engine_aircraft_id;
+
+                if (newFlightAircraftId === existingFlightAircraftId &&
+                    formData.pilot_id === existingFlight.instructor_id &&
+                    formData.instructor_id === existingFlight.pilot_id) {
+                    continue; // This is a valid instruction pair, skip conflict
+                }
+            }
+
+            // Check for participant or aircraft conflict
+            const existingParticipants = [existingFlight.pilot_id, existingFlight.instructor_id].filter(Boolean);
             if (existingFlight.logbook_type === 'glider') {
                 existingParticipants.push((existingFlight as CompletedGliderFlight).tow_pilot_id);
             }
-
             const conflictingParticipantId = newFlightParticipants.find(p => existingParticipants.includes(p));
 
             if (conflictingParticipantId) {
+                toast({
+                    title: "Conflicto de Vuelo de Piloto",
+                    description: `El piloto ${getPilotName(conflictingParticipantId)} ya tiene un vuelo registrado que se solapa con este horario.`,
+                    variant: "destructive",
+                    duration: 7000
+                });
+                setIsSubmittingForm(false);
+                return;
+            }
+
+            const newAircraftIds = [formData.glider_aircraft_id, formData.tow_aircraft_id].filter(Boolean);
+            const existingAircraftIds = existingFlight.logbook_type === 'glider' 
+                ? [(existingFlight as CompletedGliderFlight).glider_aircraft_id, (existingFlight as CompletedGliderFlight).tow_aircraft_id]
+                : [(existingFlight as CompletedEngineFlight).engine_aircraft_id];
+            
+            const conflictingAircraftId = newAircraftIds.find(id => existingAircraftIds.includes(id));
+
+            if (conflictingAircraftId) {
                  toast({
-                    title: "Conflicto de Vuelo",
-                    description: `El piloto ${getPilotName(conflictingParticipantId)} ya tiene un vuelo registrado en ese horario.`,
+                    title: "Conflicto de Vuelo de Aeronave",
+                    description: `La aeronave ${getAircraftName(conflictingAircraftId)} ya está en uso en un vuelo que se solapa con este horario.`,
                     variant: "destructive",
                     duration: 7000
                  });
