@@ -418,10 +418,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
-  const sortedPilots = useMemo(() => {
-    return [...pilots].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots]);
-
   const gliderPilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
     return categories
@@ -434,17 +430,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       .map(cat => cat.id);
   }, [categories, categoriesLoading]);
 
-  const sortedPilotsForPic = useMemo(() => {
+  const sortedPilotsForGlider = useMemo(() => {
     if (pilotsLoading || !pilots.length || !gliderPilotCategoryIds.length) return [];
-    let availablePilots = [...pilots];
-    if (isInstructionGivenMode && currentUserLinkedPilotId) {
-        availablePilots = availablePilots.filter(p => p.id !== currentUserLinkedPilotId);
-    }
-    
-    return availablePilots
+    return pilots
       .filter(pilot => pilot.category_ids.some(catId => gliderPilotCategoryIds.includes(catId)))
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, pilotsLoading, gliderPilotCategoryIds, isInstructionGivenMode, currentUserLinkedPilotId]);
+  }, [pilots, pilotsLoading, gliderPilotCategoryIds]);
 
   const instructorPlaneadorCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
@@ -464,28 +455,32 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     return category?.id;
   }, [categories, categoriesLoading]);
 
-  const sortedInstructors = useMemo(() => {
-    if (!instructorPlaneadorCategoryId) return [];
-    return sortedPilots.filter(pilot =>
-      pilot.category_ids.includes(instructorPlaneadorCategoryId) &&
-      pilot.id !== watchedPicPilotId
-    );
-  }, [sortedPilots, instructorPlaneadorCategoryId, watchedPicPilotId]);
+  const sortedInstructorsForPIC = useMemo(() => {
+      if (!instructorPlaneadorCategoryId) return [];
+      return sortedPilotsForGlider.filter(pilot => pilot.category_ids.includes(instructorPlaneadorCategoryId));
+  }, [sortedPilotsForGlider, instructorPlaneadorCategoryId]);
   
-  const sortedStudents = useMemo(() => {
-    if (pilotsLoading || !pilots.length || !gliderPilotCategoryIds.length) return [];
-    return sortedPilotsForPic.filter(p => p.id !== currentUserLinkedPilotId);
-  },[pilotsLoading, pilots.length, gliderPilotCategoryIds, sortedPilotsForPic, currentUserLinkedPilotId]);
+  const sortedInstructorsForDropdown = useMemo(() => {
+      if (!instructorPlaneadorCategoryId) return [];
+      return sortedPilotsForGlider.filter(pilot =>
+          pilot.category_ids.includes(instructorPlaneadorCategoryId) &&
+          pilot.id !== watchedPicPilotId
+      );
+  }, [sortedPilotsForGlider, instructorPlaneadorCategoryId, watchedPicPilotId]);
 
+  const sortedStudents = useMemo(() => {
+    // A student can be any pilot qualified to fly a glider, except the selected instructor.
+    return sortedPilotsForGlider.filter(p => p.id !== watchedPicPilotId);
+  }, [sortedPilotsForGlider, watchedPicPilotId]);
 
   const sortedTowPilots = useMemo(() => {
     if (!towPilotCategoryId) return [];
-    return sortedPilots.filter(pilot =>
+    return pilots.filter(pilot =>
       pilot.category_ids.includes(towPilotCategoryId) &&
       pilot.id !== watchedPicPilotId &&
       pilot.id !== watchedInstructorId
-    );
-  }, [sortedPilots, towPilotCategoryId, watchedPicPilotId, watchedInstructorId]);
+    ).sort((a,b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  }, [pilots, towPilotCategoryId, watchedPicPilotId, watchedInstructorId]);
 
 
   const filteredGliders = useMemo(() => {
@@ -748,13 +743,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                       <Command>
                         <CommandInput placeholder="Buscar piloto..." value={picPilotSearchTerm} onValueChange={setPicPilotSearchTerm}/>
                         <CommandList>
-                          {(!sortedPilotsForPic || sortedPilotsForPic.length === 0) && !pilotsLoading && !categoriesLoading ? (
+                          {(!sortedPilotsForGlider || sortedPilotsForGlider.length === 0) && !pilotsLoading && !categoriesLoading ? (
                             <CommandEmpty>No hay pilotos con categoría para vuelo en planeador.</CommandEmpty>
                           ) : (
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                           )}
                           <CommandGroup>
-                            {sortedPilotsForPic.map((pilot) => (
+                             {(isInstructionGivenMode ? sortedInstructorsForPIC : sortedPilotsForGlider).map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -772,7 +767,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                       </Command>
                     </PopoverContent>
                   </Popover>
-                  {(!sortedPilotsForPic || sortedPilotsForPic.length === 0) && !pilotsLoading && !categoriesLoading && (
+                  {(!sortedPilotsForGlider || sortedPilotsForGlider.length === 0) && !pilotsLoading && !categoriesLoading && (
                     <FormDescription className="text-xs text-destructive">
                         No hay pilotos habilitados para vuelos en planeador. Verifique las categorías de los pilotos.
                     </FormDescription>
@@ -908,7 +903,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                             )}
                             <CommandEmpty>No se encontraron instructores de planeador.</CommandEmpty>
                             <CommandGroup>
-                              {sortedInstructors.map((pilot) => (
+                              {sortedInstructorsForDropdown.map((pilot) => (
                                 <CommandItem
                                   value={`${pilot.last_name}, ${pilot.first_name}`}
                                   key={pilot.id}

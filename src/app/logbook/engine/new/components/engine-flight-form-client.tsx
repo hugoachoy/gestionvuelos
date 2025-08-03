@@ -457,9 +457,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const sortedPilotsForEngineFlights = useMemo(() => {
     if (pilotsLoading || !pilots.length || !enginePilotCategoryIds.length) return [];
-    let availablePilots = [...pilots];
-    
-    return availablePilots
+    return pilots
       .filter(pilot => pilot.category_ids.some(catId => enginePilotCategoryIds.includes(catId)))
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots, pilotsLoading, enginePilotCategoryIds]);
@@ -474,7 +472,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     return category?.id;
   }, [categories, categoriesLoading]);
 
-  const sortedInstructors = useMemo(() => {
+  const sortedInstructorsForPIC = useMemo(() => {
+    if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
+    return pilots.filter(pilot =>
+      pilot.category_ids.includes(instructorAvionCategoryId)
+    ).sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  }, [pilots, pilotsLoading, instructorAvionCategoryId]);
+
+  const sortedInstructorsForDropdown = useMemo(() => {
     if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
     
     return pilots.filter(pilot =>
@@ -485,8 +490,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   
   const sortedStudents = useMemo(() => {
     if (pilotsLoading || !pilots.length || !enginePilotCategoryIds.length) return [];
-    return sortedPilotsForEngineFlights.filter(p => p.id !== currentUserLinkedPilotId);
-  },[pilotsLoading, pilots.length, enginePilotCategoryIds, sortedPilotsForEngineFlights, currentUserLinkedPilotId]);
+    // The student list should contain all pilots qualified to fly an engine aircraft, excluding the instructor (who is the `watchedPilotId` in this mode).
+    return sortedPilotsForEngineFlights.filter(p => p.id !== watchedPilotId);
+  }, [pilotsLoading, pilots.length, enginePilotCategoryIds, sortedPilotsForEngineFlights, watchedPilotId]);
 
 
   const filteredEngineAircraft = useMemo(() => {
@@ -810,7 +816,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                           )}
                           <CommandGroup>
-                            {sortedPilotsForEngineFlights?.map((pilot) => (
+                            {(isInstructionGivenMode ? sortedInstructorsForPIC : sortedPilotsForEngineFlights)?.map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -927,7 +933,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                               )}
                               <CommandEmpty>No se encontraron instructores de avión.</CommandEmpty>
                               <CommandGroup>
-                                  {sortedInstructors.map((pilot) => (
+                                  {sortedInstructorsForDropdown.map((pilot) => (
                                   <CommandItem
                                       value={`${pilot.last_name}, ${pilot.first_name}`}
                                       key={pilot.id}
