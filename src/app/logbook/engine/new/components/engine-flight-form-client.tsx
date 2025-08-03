@@ -379,7 +379,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       arrivalDateTime.setHours(arrH, arrM, 0, 0);
 
       if (isValid(departureDateTime) && isValid(arrivalDateTime)) {
-        const durationMinutes = differenceInMinutes(arrivalDateTime, arrivalDateTime);
+        const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
         if (durationMinutes > 0) {
           const decimalHours = durationMinutes / 60;
           const roundedDecimalHours = Math.ceil(decimalHours * 10) / 10;
@@ -666,6 +666,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         </Card>
     );
   }
+
 
   if (isLoadingInitialData && !isEditMode) {
     return (
