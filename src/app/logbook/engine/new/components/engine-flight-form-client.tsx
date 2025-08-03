@@ -489,10 +489,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [pilots, pilotsLoading, instructorAvionCategoryId, watchedPilotId]);
   
   const sortedStudents = useMemo(() => {
-    if (pilotsLoading || !pilots.length || !enginePilotCategoryIds.length) return [];
+    if (pilotsLoading || !pilots.length) return [];
     // The student list should contain all pilots qualified to fly an engine aircraft, excluding the instructor (who is the `watchedPilotId` in this mode).
     return sortedPilotsForEngineFlights.filter(p => p.id !== watchedPilotId);
-  }, [pilotsLoading, pilots.length, enginePilotCategoryIds, sortedPilotsForEngineFlights, watchedPilotId]);
+  }, [pilotsLoading, pilots.length, sortedPilotsForEngineFlights, watchedPilotId]);
 
 
   const filteredEngineAircraft = useMemo(() => {
