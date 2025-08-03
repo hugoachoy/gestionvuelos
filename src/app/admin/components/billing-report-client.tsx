@@ -106,13 +106,12 @@ export function BillingReportClient() {
       let totalMins = 0;
       let totalTowsCount = 0;
       const remolquePurposeName = "Remolque planeador";
-      const instruccionImpartidaPurposeName = "Instrucción (Impartida)";
       
       engineFlights.forEach((flight) => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
         
-        // Check if the selected pilot is the instructor of this flight
-        if (purposeName === instruccionImpartidaPurposeName && flight.pilot_id !== selectedPilotId) {
+        // If the selected pilot was the instructor for this flight
+        if (flight.instructor_id === selectedPilotId) {
           billableItems.push({
             id: `eng-inst-${flight.id}`,
             date: flight.date,
@@ -123,7 +122,7 @@ export function BillingReportClient() {
             notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
             is_non_billable_for_pilot: true
           });
-          return; // Skip to next flight, do not process further for this instructor
+          return;
         }
 
         // Process if the selected pilot is the PIC/Student for the flight
@@ -146,10 +145,8 @@ export function BillingReportClient() {
       });
       
       gliderFlights.forEach((flight) => {
-          const purposeName = getPurposeName(flight.flight_purpose_id);
-
-          // Check if the selected pilot is the instructor of this flight
-          if (purposeName === instruccionImpartidaPurposeName && flight.pilot_id !== selectedPilotId) {
+          // If the selected pilot was the instructor for this flight
+          if (flight.instructor_id === selectedPilotId) {
             billableItems.push({
               id: `gli-inst-${flight.id}`,
               date: flight.date,
@@ -160,7 +157,7 @@ export function BillingReportClient() {
               notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
               is_non_billable_for_pilot: true
             });
-            return; // Skip to next flight
+            return; 
           } 
           
           // Process if the selected pilot is the PIC/Student
