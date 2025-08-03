@@ -511,16 +511,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     const purposeImpartidaId = purposes.find(p => p.name.includes('Impartida'))?.id;
 
     for (const existingFlight of allExistingFlights) {
-        // Skip check if we are editing and it's the same flight
         if (isEditMode && existingFlight.id === flightIdToLoad) continue;
 
         const existingStart = parse(`${existingFlight.date} ${existingFlight.departure_time}`, "yyyy-MM-dd HH:mm:ss", new Date());
         const existingEnd = parse(`${existingFlight.date} ${existingFlight.arrival_time}`, "yyyy-MM-dd HH:mm:ss", new Date());
 
-        // Check for time overlap
         const isOverlapping = (newFlightStart < existingEnd) && (newFlightEnd > existingStart);
         if (!isOverlapping) continue;
-        
+
         // --- Check for valid instruction pair ---
         const isEngineInstructionPair = 
             existingFlight.logbook_type === 'engine' &&
@@ -1115,4 +1113,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
