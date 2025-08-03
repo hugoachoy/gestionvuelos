@@ -308,11 +308,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             setStudentSearchTerm('');
         }
     } else {
-        if(currentUserLinkedPilotId) {
+        if(currentUserLinkedPilotId && !user?.is_admin) {
             form.setValue("pilot_id", currentUserLinkedPilotId, { shouldValidate: true });
         }
     }
-  }, [isInstructionTakenMode, isInstructionGivenMode, form, watchedInstructorId, watchedPicPilotId, currentUserLinkedPilotId]);
+  }, [isInstructionTakenMode, isInstructionGivenMode, form, watchedInstructorId, watchedPicPilotId, currentUserLinkedPilotId, user?.is_admin]);
 
 
   useEffect(() => {
@@ -737,7 +737,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || isInstructionGivenMode}
+                          disabled={isLoading || (isInstructionGivenMode && !user?.is_admin)}
                         >
                           {field.value ? getPilotName(field.value) : `Seleccionar ${picOrStudentLabel.toLowerCase()}`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

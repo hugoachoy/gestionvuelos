@@ -338,12 +338,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             setStudentSearchTerm('');
         }
     } else {
-        // If "Impartida" mode, the current user (if instructor) should be the pilot_id
-        if(currentUserLinkedPilotId) {
+        if(currentUserLinkedPilotId && !user?.is_admin) {
             form.setValue("pilot_id", currentUserLinkedPilotId, { shouldValidate: true });
         }
     }
-  }, [isInstructionTakenMode, isInstructionGivenMode, form, currentUserLinkedPilotId]);
+  }, [isInstructionTakenMode, isInstructionGivenMode, form, currentUserLinkedPilotId, user?.is_admin]);
 
 
   useEffect(() => {
@@ -794,7 +793,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                           variant="outline"
                           role="combobox"
                           className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                          disabled={isLoading || isInstructionGivenMode}
+                          disabled={isLoading || (isInstructionGivenMode && !user?.is_admin)}
                         >
                           {field.value ? getPilotName(field.value) : `Seleccionar ${picOrStudentLabel.toLowerCase()}`}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
