@@ -128,8 +128,15 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
 
+  const currentFlightPurposeIdFromParams = useSearchParams().get('flight_purpose_id');
+  const initialIsInstructionGivenMode = useMemo(() => {
+    if (!purposes.length) return false;
+    const purpose = purposes.find(p => p.id === currentFlightPurposeIdFromParams);
+    return purpose?.name.includes('Impartida') ?? false;
+  }, [currentFlightPurposeIdFromParams, purposes]);
+
   const form = useForm<EngineFlightFormData>({
-    resolver: zodResolver(createEngineFlightSchema(false)),
+    resolver: zodResolver(createEngineFlightSchema(initialIsInstructionGivenMode)),
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -498,9 +505,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [pilots, pilotsLoading, instructorAvionCategoryId]);
 
   const sortedInstructorsForDropdown = useMemo(() => {
-    if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
+    if (!instructorAvionCategoryId) return [];
     return sortedInstructorsForPIC;
-  }, [pilotsLoading, pilots, instructorAvionCategoryId, sortedInstructorsForPIC]);
+  }, [instructorAvionCategoryId, sortedInstructorsForPIC]);
   
   const sortedStudents = useMemo(() => {
     if (pilotsLoading || !pilots.length) return [];

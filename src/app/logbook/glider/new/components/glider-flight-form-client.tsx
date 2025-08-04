@@ -126,8 +126,15 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
 
+  const currentFlightPurposeIdFromParams = useSearchParams().get('flight_purpose_id');
+  const initialIsInstructionGivenMode = useMemo(() => {
+    if (!purposes.length) return false;
+    const purpose = purposes.find(p => p.id === currentFlightPurposeIdFromParams);
+    return purpose?.name.includes('Impartida') ?? false;
+  }, [currentFlightPurposeIdFromParams, purposes]);
+
   const form = useForm<GliderFlightFormData>({
-    resolver: zodResolver(createGliderFlightSchema(false)),
+    resolver: zodResolver(createGliderFlightSchema(initialIsInstructionGivenMode)),
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -481,7 +488,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const sortedInstructorsForDropdown = useMemo(() => {
       if (!instructorPlaneadorCategoryId) return [];
       return sortedInstructorsForPIC;
-  }, [sortedPilotsForGlider, instructorPlaneadorCategoryId, sortedInstructorsForPIC]);
+  }, [sortedInstructorsForPIC, instructorPlaneadorCategoryId]);
 
   const sortedStudents = useMemo(() => {
     return sortedPilotsForGlider.filter(p => p.id !== watchedPicPilotId);
