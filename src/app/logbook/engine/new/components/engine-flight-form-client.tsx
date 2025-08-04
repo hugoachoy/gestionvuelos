@@ -102,9 +102,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate } = useCompletedEngineFlightsStore();
+  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate, fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
-  const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -119,6 +118,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
   const [aircraftWarning, setAircraftWarning] = useState<string | null>(null);
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
   
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
   const [flightFetchError, setFlightFetchError] = useState<string | null>(null);
@@ -127,16 +127,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
 
   const isEditMode = !!flightIdToLoad;
-
-  const currentFlightPurposeIdFromParams = useSearchParams().get('flight_purpose_id');
-  const initialIsInstructionGivenMode = useMemo(() => {
-    if (!purposes.length) return false;
-    const purpose = purposes.find(p => p.id === currentFlightPurposeIdFromParams);
-    return purpose?.name.includes('Impartida') ?? false;
-  }, [currentFlightPurposeIdFromParams, purposes]);
-
+  
   const form = useForm<EngineFlightFormData>({
-    resolver: zodResolver(createEngineFlightSchema(initialIsInstructionGivenMode)),
+    resolver: zodResolver(createEngineFlightSchema(false)),
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -305,7 +298,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const watchedDate = form.watch("date");
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
-  
   const watchedEngineAircraftId = form.watch("engine_aircraft_id");
   
   
@@ -472,6 +464,68 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     checkPilotValidity();
   }, [checkPilotValidity]);
 
+  useEffect(() => {
+    const checkConflict = async () => {
+        if (!watchedDate || !watchedEngineAircraftId || !watchedDepartureTime || !/^\d{2}:\d{2}$/.test(watchedDepartureTime)) {
+            setConflictWarning(null);
+            return;
+        }
+
+        const dateStr = format(watchedDate, 'yyyy-MM-dd');
+        
+        // Fetch both engine and glider flights for conflict checking, as a tow plane could be used for glider flights
+        const { data: engineFlights, error: engineError } = await supabase
+            .from('completed_engine_flights')
+            .select('id, pilot_id, instructor_id, engine_aircraft_id, departure_time, arrival_time')
+            .eq('date', dateStr)
+            .eq('engine_aircraft_id', watchedEngineAircraftId);
+
+        const { data: gliderFlights, error: gliderError } = await supabase
+            .from('completed_glider_flights')
+            .select('id, pilot_id, instructor_id, tow_aircraft_id, departure_time, arrival_time')
+            .eq('date', dateStr)
+            .eq('tow_aircraft_id', watchedEngineAircraftId);
+
+        if (engineError || gliderError) {
+            console.error("Error fetching flights for conflict check:", engineError || gliderError);
+            setConflictWarning(null);
+            return;
+        }
+
+        const allFlightsForAircraft = [...(engineFlights || []), ...(gliderFlights || [])];
+
+        const formDepTime = parse(watchedDepartureTime, 'HH:mm', watchedDate).getTime();
+
+        const conflictingFlight = allFlightsForAircraft.find(flight => {
+            if (isEditMode && flight.id === flightIdToLoad) {
+                return false; // Don't conflict with itself
+            }
+            const existingDepTime = parse(flight.departure_time, 'HH:mm', watchedDate).getTime();
+            const existingArrTime = parse(flight.arrival_time, 'HH:mm', watchedDate).getTime();
+            return formDepTime >= existingDepTime && formDepTime < existingArrTime;
+        });
+
+        if (conflictingFlight) {
+            // Smart check for instruction pairs
+            const formIsInstruction = isInstructionTakenMode || isInstructionGivenMode;
+            if (formIsInstruction && conflictingFlight.instructor_id && conflictingFlight.pilot_id) {
+                const formPilot = isInstructionGivenMode ? watchedStudentId : watchedPilotId;
+                const formInstructor = isInstructionGivenMode ? watchedPilotId : watchedInstructorId;
+                
+                // If it's a valid pair (same pilot/instructor, just roles swapped), it's not a conflict
+                if (formPilot === conflictingFlight.instructor_id && formInstructor === conflictingFlight.pilot_id) {
+                    setConflictWarning(null);
+                    return;
+                }
+            }
+            setConflictWarning(`Conflicto de horario: La aeronave ya está en uso por ${getPilotName(conflictingFlight.pilot_id)} entre ${conflictingFlight.departure_time.substring(0,5)} y ${conflictingFlight.arrival_time.substring(0,5)}.`);
+        } else {
+            setConflictWarning(null);
+        }
+    };
+    checkConflict();
+  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, isEditMode, flightIdToLoad, isInstructionGivenMode, isInstructionTakenMode, getPilotName, watchedPilotId, watchedInstructorId, watchedStudentId]);
+
 
   const enginePilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
@@ -538,8 +592,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         setIsSubmittingForm(false);
         return;
     }
-    if (aircraftWarning) {
-        toast({ title: "Error de Aeronave", description: aircraftWarning, variant: "destructive" });
+    if (aircraftWarning || conflictWarning) {
+        toast({ title: "Error de Validación", description: aircraftWarning || conflictWarning || "Corrija los errores antes de guardar.", variant: "destructive" });
         setIsSubmittingForm(false);
         return;
     }
@@ -618,7 +672,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     isLoading ||
     isAnyPilotInvalidForFlight ||
     (categoryWarning != null && !user?.is_admin) ||
-    !!aircraftWarning;
+    !!aircraftWarning || !!conflictWarning;
 
 
   if (authLoading) {
@@ -733,6 +787,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
+            {conflictWarning && (
+                <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Conflicto de Horario</AlertTitle>
+                    <AlertDescription>{conflictWarning}</AlertDescription>
+                </Alert>
+            )}
             {medicalWarning && (
               <Alert variant={medicalWarning.toUpperCase().includes("VENCIDO") ? "destructive" : "default"} className={!medicalWarning.toUpperCase().includes("VENCIDO") ? "border-yellow-500" : ""}>
                 <AlertTriangle className={cn("h-4 w-4", !medicalWarning.toUpperCase().includes("VENCIDO") && "text-yellow-600")} />
@@ -1156,3 +1217,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+
+    
