@@ -145,33 +145,20 @@ export function GliderFlightListClient() {
     if (!sortedFlights || sortedFlights.length === 0) return 0;
 
     let totalDuration = 0;
-    const processedFlightIds = new Set<string>();
+    const processedFlightKeys = new Set<string>();
 
     for (const flight of sortedFlights) {
-        if (processedFlightIds.has(flight.id)) continue;
+        const key = `${flight.date}-${flight.departure_time}-${flight.arrival_time}-${flight.glider_aircraft_id}`;
+        
+        if (processedFlightKeys.has(key)) continue;
 
         const purposeName = getPurposeName(flight.flight_purpose_id);
         const isInstruction = purposeName.includes('Instrucción');
         
-        // Always add current flight's duration
         totalDuration += flight.flight_duration_decimal;
-        processedFlightIds.add(flight.id);
-
-        // If it's instruction, find its counterpart and mark it as processed
-        // This prevents its duration from being added again
+        
         if (isInstruction) {
-            const counterpart = sortedFlights.find(f => 
-                f.id !== flight.id &&
-                f.date === flight.date &&
-                f.departure_time === flight.departure_time &&
-                f.arrival_time === flight.arrival_time &&
-                f.glider_aircraft_id === flight.glider_aircraft_id &&
-                (f.pilot_id === flight.instructor_id || f.instructor_id === flight.pilot_id)
-            );
-            
-            if (counterpart) {
-                processedFlightIds.add(counterpart.id);
-            }
+            processedFlightKeys.add(key);
         }
     }
     
@@ -202,7 +189,7 @@ export function GliderFlightListClient() {
     const tableRows: (string | null)[][] = [];
     
     let totalDurationForPdf = 0;
-    const processedFlightIds = new Set<string>();
+    const processedFlightKeys = new Set<string>();
 
     const flightsForPdf = [...sortedFlights].sort((a, b) => {
         const dateComp = a.date.localeCompare(b.date);
@@ -211,21 +198,12 @@ export function GliderFlightListClient() {
     });
 
     flightsForPdf.forEach(flight => {
-        if (!processedFlightIds.has(flight.id)) {
+        const key = `${flight.date}-${flight.departure_time}-${flight.arrival_time}-${flight.glider_aircraft_id}`;
+        if (!processedFlightKeys.has(key)) {
             const purposeName = getPurposeName(flight.flight_purpose_id);
             const isInstruction = purposeName.includes('Instrucción');
             if (isInstruction) {
-                const counterpart = flightsForPdf.find(f => 
-                    f.id !== flight.id &&
-                    f.date === flight.date &&
-                    f.departure_time === flight.departure_time &&
-                    f.arrival_time === flight.arrival_time &&
-                    f.glider_aircraft_id === flight.glider_aircraft_id &&
-                    (f.pilot_id === flight.instructor_id || f.instructor_id === flight.pilot_id)
-                );
-                if (counterpart) {
-                    processedFlightIds.add(counterpart.id);
-                }
+                processedFlightKeys.add(key);
             }
             totalDurationForPdf += flight.flight_duration_decimal;
         }

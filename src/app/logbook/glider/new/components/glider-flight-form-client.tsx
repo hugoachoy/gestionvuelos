@@ -492,9 +492,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [pilots, instructorPlaneadorCategoryId]);
   
   const sortedInstructorsForDropdown = useMemo(() => {
-      if (!instructorPlaneadorCategoryId) return [];
-      return pilots.filter(pilot => pilot.category_ids.includes(instructorPlaneadorCategoryId));
-  }, [pilots, instructorPlaneadorCategoryId]);
+      return sortedInstructorsForPIC;
+  }, [sortedInstructorsForPIC]);
 
   const sortedStudents = useMemo(() => {
     return sortedPilotsForGlider.filter(p => p.id !== watchedPicPilotId);
@@ -1202,4 +1201,5 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
 
