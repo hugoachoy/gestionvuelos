@@ -365,7 +365,7 @@ export function EngineFlightListClient() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Piloto</TableHead>
                 <TableHead>Aeronave</TableHead>
-                <TableHead>Instructor</TableHead>
+                <TableHead>Instructor/Alumno</TableHead>
                 <TableHead>Propósito</TableHead>
                 <TableHead>Salida</TableHead>
                 <TableHead>Llegada</TableHead>
@@ -392,13 +392,14 @@ export function EngineFlightListClient() {
                   const canEdit = currentUser?.is_admin || (flight.auth_user_id && flight.auth_user_id === currentUser?.id);
                   const canDelete = currentUser?.is_admin;
                   const purposeName = getPurposeName(flight.flight_purpose_id);
+                  const isInstructionGiven = purposeName.includes('Impartida');
 
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                      <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
-                      <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
+                      <TableCell>{isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-')}</TableCell>
                       <TableCell>{purposeName}</TableCell>
                       <TableCell>{flight.departure_time}</TableCell>
                       <TableCell>{flight.arrival_time}</TableCell>
@@ -445,3 +446,4 @@ export function EngineFlightListClient() {
     </div>
   );
 }
+

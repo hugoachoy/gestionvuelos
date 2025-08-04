@@ -342,7 +342,7 @@ export function GliderFlightListClient() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Piloto</TableHead>
                 <TableHead>Planeador</TableHead>
-                <TableHead>Instructor</TableHead>
+                <TableHead>Instructor/Alumno</TableHead>
                 <TableHead>Piloto Rem.</TableHead>
                 <TableHead>Avión Rem.</TableHead>
                 <TableHead>Salida</TableHead>
@@ -364,19 +364,21 @@ export function GliderFlightListClient() {
                 sortedFlights.map((flight) => {
                   const canEdit = currentUser?.is_admin || (flight.auth_user_id && flight.auth_user_id === currentUser?.id);
                   const canDelete = currentUser?.is_admin;
+                  const purposeName = getPurposeName(flight.flight_purpose_id);
+                  const isInstructionGiven = purposeName.includes('Impartida');
 
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                      <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
+                      <TableCell>{isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-')}</TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time}</TableCell>
                       <TableCell>{flight.arrival_time}</TableCell>
                       <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
-                      <TableCell>{getPurposeName(flight.flight_purpose_id)}</TableCell>
+                      <TableCell>{purposeName}</TableCell>
                       <TableCell>{flight.notes || '-'}</TableCell>
                       <TableCell className="text-right">
                         {canEdit && (
@@ -420,3 +422,4 @@ export function GliderFlightListClient() {
     </div>
   );
 }
+
