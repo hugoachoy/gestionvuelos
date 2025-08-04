@@ -140,7 +140,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       schedule_entry_id: null,
     },
   });
-
+  
   const watchedFlightPurposeId = form.watch('flight_purpose_id');
   const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
   const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
@@ -159,9 +159,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   // Update resolver dynamically
   useEffect(() => {
-    form.reset(form.getValues(), {
-      resolver: zodResolver(dynamicSchema)
-    });
+    // This is a bit of a workaround to force re-validation with the new schema.
+    // It's not ideal, but it's a common pattern with react-hook-form and dynamic schemas.
+    form.trigger();
   }, [dynamicSchema, form]);
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
@@ -511,8 +511,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [pilots, pilotsLoading, instructorAvionCategoryId, watchedPilotId]);
   
   const sortedStudents = useMemo(() => {
+    // A student can be any pilot qualified to fly an engine aircraft, excluding the instructor (who is the `watchedPilotId` in this mode).
     if (pilotsLoading || !pilots.length) return [];
-    // The student list should contain all pilots qualified to fly an engine aircraft, excluding the instructor (who is the `watchedPilotId` in this mode).
     return sortedPilotsForEngineFlights.filter(p => p.id !== watchedPilotId);
   }, [pilotsLoading, pilots.length, sortedPilotsForEngineFlights, watchedPilotId]);
 
