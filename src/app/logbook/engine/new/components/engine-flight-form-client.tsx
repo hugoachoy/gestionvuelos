@@ -128,16 +128,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
 
-  const watchedFlightPurposeId = useMemo(() => {
-    if (typeof window !== 'undefined') {
-        // This is a bit of a trick to get the form instance and watch a value
-        // before the full component renders, which might be needed for the schema.
-        // It's a bit of a hack, but it works for this case.
-        // We can't use useForm outside the component body.
-    }
-    return ''; // default value
-  }, []);
-
   const form = useForm<EngineFlightFormData>({
     resolver: zodResolver(createEngineFlightSchema(false)),
     defaultValues: {
@@ -509,12 +499,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const sortedInstructorsForDropdown = useMemo(() => {
     if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
-    // The list of instructors for the dropdown should be complete
     return sortedInstructorsForPIC;
   }, [pilotsLoading, pilots, instructorAvionCategoryId, sortedInstructorsForPIC]);
   
   const sortedStudents = useMemo(() => {
-    // A student can be any pilot qualified to fly an engine aircraft, excluding the instructor (who is the `watchedPilotId` in this mode).
     if (pilotsLoading || !pilots.length) return [];
     return sortedPilotsForEngineFlights.filter(p => p.id !== watchedPilotId);
   }, [pilotsLoading, sortedPilotsForEngineFlights, watchedPilotId]);
@@ -846,7 +834,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                           )}
                           <CommandGroup>
-                            {(isInstructionGivenMode ? sortedInstructorsForPIC : sortedPilotsForEngineFlights)?.map((pilot) => (
+                            {(isInstructionGivenMode ? sortedInstructorsForPIC : sortedPilotsForEngineFlights).map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}

@@ -484,7 +484,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [sortedPilotsForGlider, instructorPlaneadorCategoryId, sortedInstructorsForPIC]);
 
   const sortedStudents = useMemo(() => {
-    // A student can be any pilot qualified to fly a glider, except the selected instructor.
     return sortedPilotsForGlider.filter(p => p.id !== watchedPicPilotId);
   }, [sortedPilotsForGlider, watchedPicPilotId]);
 
