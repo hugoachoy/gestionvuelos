@@ -118,6 +118,24 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
 
+  const form = useForm<GliderFlightFormData>({
+    resolver: zodResolver(gliderFlightSchema), // Initial resolver
+    defaultValues: {
+      date: new Date(),
+      pilot_id: '',
+      instructor_id: null,
+      student_id: null,
+      tow_pilot_id: '',
+      glider_aircraft_id: '',
+      tow_aircraft_id: '',
+      flight_purpose_id: '',
+      departure_time: '',
+      arrival_time: '',
+      notes: null,
+      schedule_entry_id: null,
+    },
+  });
+
   const watchedFlightPurposeId = form.watch('flight_purpose_id');
   const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
   const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
@@ -134,23 +152,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     });
   }, [isInstructionGivenMode]);
 
-  const form = useForm<GliderFlightFormData>({
-    resolver: zodResolver(dynamicSchema),
-    defaultValues: {
-      date: new Date(),
-      pilot_id: '',
-      instructor_id: null,
-      student_id: null,
-      tow_pilot_id: '',
-      glider_aircraft_id: '',
-      tow_aircraft_id: '',
-      flight_purpose_id: '',
-      departure_time: '',
-      arrival_time: '',
-      notes: null,
-      schedule_entry_id: null,
-    },
-  });
+  // Update resolver dynamically
+  useEffect(() => {
+    form.reset(form.getValues(), {
+      resolver: zodResolver(dynamicSchema),
+    });
+  }, [dynamicSchema, form]);
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
   

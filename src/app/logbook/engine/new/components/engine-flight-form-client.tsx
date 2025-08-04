@@ -120,25 +120,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
 
-  const watchedFlightPurposeId = form.watch('flight_purpose_id');
-  const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
-  const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
-
-  const dynamicSchema = useMemo(() => {
-    return engineFlightSchema.refine(data => {
-      if (isInstructionGivenMode) {
-        return !!data.student_id;
-      }
-      return true;
-    }, {
-      message: "Debe seleccionar un alumno/a para registrar una instrucción impartida.",
-      path: ["student_id"],
-    });
-  }, [isInstructionGivenMode]);
-
-
   const form = useForm<EngineFlightFormData>({
-    resolver: zodResolver(dynamicSchema),
+    resolver: zodResolver(engineFlightSchema), // Initial resolver
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -157,6 +140,29 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       schedule_entry_id: null,
     },
   });
+
+  const watchedFlightPurposeId = form.watch('flight_purpose_id');
+  const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
+  const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
+
+  const dynamicSchema = useMemo(() => {
+    return engineFlightSchema.refine(data => {
+      if (isInstructionGivenMode) {
+        return !!data.student_id;
+      }
+      return true;
+    }, {
+      message: "Debe seleccionar un alumno/a para registrar una instrucción impartida.",
+      path: ["student_id"],
+    });
+  }, [isInstructionGivenMode]);
+
+  // Update resolver dynamically
+  useEffect(() => {
+    form.reset(form.getValues(), {
+      resolver: zodResolver(dynamicSchema)
+    });
+  }, [dynamicSchema, form]);
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
 
