@@ -85,9 +85,7 @@ export function GliderFlightListClient() {
 
     const data = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
     if (data) {
-      const flightsForPIC = data.filter(flight => flight.pilot_id === pilotIdToFetch);
-      
-      const flightsToSet = pilotIdToFetch ? flightsForPIC : data;
+      const flightsToSet = data;
       setFilteredFlights(flightsToSet);
 
       if (flightsToSet.length === 0) {
@@ -144,26 +142,21 @@ export function GliderFlightListClient() {
   const totalHours = useMemo(() => {
     if (!sortedFlights || sortedFlights.length === 0) return 0;
 
-    let totalDuration = 0;
     const processedFlightKeys = new Set<string>();
+    let totalDuration = 0;
 
     for (const flight of sortedFlights) {
-        const key = `${flight.date}-${flight.departure_time}-${flight.arrival_time}-${flight.glider_aircraft_id}`;
+        // A unique key for a flight event, ignoring who logged it
+        const flightEventKey = `${flight.date}-${flight.departure_time}-${flight.arrival_time}-${flight.glider_aircraft_id}`;
         
-        if (processedFlightKeys.has(key)) continue;
-
-        const purposeName = getPurposeName(flight.flight_purpose_id);
-        const isInstruction = purposeName.includes('Instrucción');
-        
-        totalDuration += flight.flight_duration_decimal;
-        
-        if (isInstruction) {
-            processedFlightKeys.add(key);
+        if (!processedFlightKeys.has(flightEventKey)) {
+            totalDuration += flight.flight_duration_decimal;
+            processedFlightKeys.add(flightEventKey);
         }
     }
     
     return totalDuration;
-  }, [sortedFlights, getPurposeName]);
+  }, [sortedFlights]);
 
   const handleExportPdf = async () => {
     if (sortedFlights.length === 0) {
@@ -188,9 +181,6 @@ export function GliderFlightListClient() {
     const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Notas"];
     const tableRows: (string | null)[][] = [];
     
-    let totalDurationForPdf = 0;
-    const processedFlightKeys = new Set<string>();
-
     const flightsForPdf = [...sortedFlights].sort((a, b) => {
         const dateComp = a.date.localeCompare(b.date);
         if (dateComp !== 0) return dateComp;
@@ -198,16 +188,6 @@ export function GliderFlightListClient() {
     });
 
     flightsForPdf.forEach(flight => {
-        const key = `${flight.date}-${flight.departure_time}-${flight.arrival_time}-${flight.glider_aircraft_id}`;
-        if (!processedFlightKeys.has(key)) {
-            const purposeName = getPurposeName(flight.flight_purpose_id);
-            const isInstruction = purposeName.includes('Instrucción');
-            if (isInstruction) {
-                processedFlightKeys.add(key);
-            }
-            totalDurationForPdf += flight.flight_duration_decimal;
-        }
-
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
             getPilotName(flight.pilot_id),
@@ -228,7 +208,7 @@ export function GliderFlightListClient() {
       body: tableRows,
       foot: [[
           { content: 'TOTAL', colSpan: 8, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: `${totalDurationForPdf.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
+          { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
           { content: '', colSpan: 2 },
       ]],
       startY: 28,
