@@ -127,14 +127,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const isEditMode = !!flightIdToLoad;
 
   const currentFlightPurposeIdFromParams = useSearchParams().get('flight_purpose_id');
-  const initialIsInstructionGivenMode = useMemo(() => {
-    if (!purposes.length) return false;
-    const purpose = purposes.find(p => p.id === currentFlightPurposeIdFromParams);
-    return purpose?.name.includes('Impartida') ?? false;
-  }, [currentFlightPurposeIdFromParams, purposes]);
-
+  
   const form = useForm<GliderFlightFormData>({
-    resolver: zodResolver(createGliderFlightSchema(initialIsInstructionGivenMode)),
+    resolver: zodResolver(createGliderFlightSchema(false)), // Start with a default schema
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -150,17 +145,46 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       schedule_entry_id: null,
     },
   });
-
+  
   const currentFlightPurposeId = form.watch('flight_purpose_id');
   const selectedPurpose = useMemo(() => purposes.find(p => p.id === currentFlightPurposeId), [purposes, currentFlightPurposeId]);
   const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
 
+  const instructorPlaneadorCategoryId = useMemo(() => {
+    if (categoriesLoading) return undefined;
+    const category = categories.find(cat => {
+      const normalized = normalizeCategoryName(cat.name);
+      return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalized.includes(kw));
+    });
+    return category?.id;
+  }, [categories, categoriesLoading]);
+
+  // This effect updates the validation schema when the instruction mode changes
   useEffect(() => {
     form.reset(form.getValues(), {
       resolver: zodResolver(createGliderFlightSchema(isInstructionGivenMode)),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInstructionGivenMode]);
+
+  // This effect checks if a non-instructor is selected when "Instrucción Impartida" is chosen.
+  useEffect(() => {
+      if (isInstructionGivenMode) {
+          const currentPilotId = form.getValues('pilot_id');
+          if (currentPilotId && instructorPlaneadorCategoryId) {
+              const pilot = pilots.find(p => p.id === currentPilotId);
+              if (pilot && !pilot.category_ids.includes(instructorPlaneadorCategoryId)) {
+                  form.setValue('pilot_id', '', { shouldValidate: true });
+                  toast({
+                      title: "Selección de Piloto Inválida",
+                      description: "El piloto seleccionado no es instructor. Por favor, elija un instructor calificado.",
+                      variant: "destructive"
+                  });
+              }
+          }
+      }
+  }, [isInstructionGivenMode, form, instructorPlaneadorCategoryId, pilots, toast]);
+
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
   
@@ -462,14 +486,19 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots, pilotsLoading, gliderPilotCategoryIds]);
 
-  const instructorPlaneadorCategoryId = useMemo(() => {
-    if (categoriesLoading) return undefined;
-    const category = categories.find(cat => {
-      const normalized = normalizeCategoryName(cat.name);
-      return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalized.includes(kw));
-    });
-    return category?.id;
-  }, [categories, categoriesLoading]);
+  const sortedInstructorsForPIC = useMemo(() => {
+      if (!instructorPlaneadorCategoryId) return [];
+      return pilots.filter(pilot => pilot.category_ids.includes(instructorPlaneadorCategoryId));
+  }, [pilots, instructorPlaneadorCategoryId]);
+  
+  const sortedInstructorsForDropdown = useMemo(() => {
+      if (!instructorPlaneadorCategoryId) return [];
+      return pilots.filter(pilot => pilot.category_ids.includes(instructorPlaneadorCategoryId));
+  }, [pilots, instructorPlaneadorCategoryId]);
+
+  const sortedStudents = useMemo(() => {
+    return sortedPilotsForGlider.filter(p => p.id !== watchedPicPilotId);
+  }, [sortedPilotsForGlider, watchedPicPilotId]);
 
   const towPilotCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
@@ -479,21 +508,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     });
     return category?.id;
   }, [categories, categoriesLoading]);
-
-  const sortedInstructorsForPIC = useMemo(() => {
-      if (!instructorPlaneadorCategoryId) return [];
-      return sortedPilotsForGlider.filter(pilot => pilot.category_ids.includes(instructorPlaneadorCategoryId));
-  }, [sortedPilotsForGlider, instructorPlaneadorCategoryId]);
   
-  const sortedInstructorsForDropdown = useMemo(() => {
-      if (!instructorPlaneadorCategoryId) return [];
-      return sortedInstructorsForPIC;
-  }, [sortedInstructorsForPIC, instructorPlaneadorCategoryId]);
-
-  const sortedStudents = useMemo(() => {
-    return sortedPilotsForGlider.filter(p => p.id !== watchedPicPilotId);
-  }, [sortedPilotsForGlider, watchedPicPilotId]);
-
   const sortedTowPilots = useMemo(() => {
     if (!towPilotCategoryId) return [];
     return pilots.filter(pilot =>
@@ -1187,3 +1202,4 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
