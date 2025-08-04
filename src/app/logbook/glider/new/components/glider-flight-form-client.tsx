@@ -38,7 +38,7 @@ const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
 const PILOTO_PLANEADOR_KEYWORDS = ["piloto", "planeador"];
 const REMOLCADOR_KEYWORDS = ["remolcador"];
 
-const gliderFlightSchema = z.object({
+const createGliderFlightSchema = (isInstructionGivenMode: boolean) => z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   student_id: z.string().optional().nullable(),
@@ -70,10 +70,18 @@ const gliderFlightSchema = z.object({
 }).refine(data => !data.instructor_id || data.instructor_id !== data.tow_pilot_id, {
   message: "El instructor no puede ser el piloto remolcador.",
   path: ["tow_pilot_id"],
+}).refine(data => {
+    if (isInstructionGivenMode) {
+        return !!data.student_id;
+    }
+    return true;
+}, {
+    message: "Debe seleccionar un alumno/a para registrar una instrucción impartida.",
+    path: ["student_id"],
 });
 
 
-type GliderFlightFormData = z.infer<typeof gliderFlightSchema>;
+type GliderFlightFormData = z.infer<ReturnType<typeof createGliderFlightSchema>>;
 
 interface GliderFlightFormClientProps {
   flightIdToLoad?: string;
@@ -119,7 +127,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const isEditMode = !!flightIdToLoad;
 
   const form = useForm<GliderFlightFormData>({
-    resolver: zodResolver(gliderFlightSchema), // Initial resolver
+    resolver: zodResolver(createGliderFlightSchema(false)),
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -136,28 +144,16 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     },
   });
 
-  const watchedFlightPurposeId = form.watch('flight_purpose_id');
-  const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
+  const currentFlightPurposeId = form.watch('flight_purpose_id');
+  const selectedPurpose = useMemo(() => purposes.find(p => p.id === currentFlightPurposeId), [purposes, currentFlightPurposeId]);
   const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
 
-  const dynamicSchema = useMemo(() => {
-    return gliderFlightSchema.refine(data => {
-        if (isInstructionGivenMode) {
-            return !!data.student_id;
-        }
-        return true;
-    }, {
-        message: "Debe seleccionar un alumno/a para registrar una instrucción impartida.",
-        path: ["student_id"],
-    });
-  }, [isInstructionGivenMode]);
-
-  // Update resolver dynamically
   useEffect(() => {
     form.reset(form.getValues(), {
-      resolver: zodResolver(dynamicSchema),
+      resolver: zodResolver(createGliderFlightSchema(isInstructionGivenMode)),
     });
-  }, [dynamicSchema, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInstructionGivenMode]);
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
   
@@ -484,11 +480,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   
   const sortedInstructorsForDropdown = useMemo(() => {
       if (!instructorPlaneadorCategoryId) return [];
-      return sortedPilotsForGlider.filter(pilot =>
-          pilot.category_ids.includes(instructorPlaneadorCategoryId) &&
-          pilot.id !== watchedPicPilotId
-      );
-  }, [sortedPilotsForGlider, instructorPlaneadorCategoryId, watchedPicPilotId]);
+      return sortedInstructorsForPIC;
+  }, [sortedPilotsForGlider, instructorPlaneadorCategoryId, sortedInstructorsForPIC]);
 
   const sortedStudents = useMemo(() => {
     // A student can be any pilot qualified to fly a glider, except the selected instructor.

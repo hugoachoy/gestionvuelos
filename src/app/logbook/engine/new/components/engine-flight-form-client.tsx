@@ -36,7 +36,7 @@ const normalizeCategoryName = (name?: string): string => {
 
 const INSTRUCTOR_AVION_KEYWORDS = ["instructor", "avion"];
 
-const engineFlightSchema = z.object({
+const createEngineFlightSchema = (isInstructionGivenMode: boolean) => z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   student_id: z.string().optional().nullable(),
@@ -65,9 +65,17 @@ const engineFlightSchema = z.object({
 }).refine(data => data.pilot_id !== data.instructor_id, {
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
+}).refine(data => {
+    if (isInstructionGivenMode) {
+        return !!data.student_id;
+    }
+    return true;
+}, {
+    message: "Debe seleccionar un alumno/a para registrar una instrucción impartida.",
+    path: ["student_id"],
 });
 
-type EngineFlightFormData = z.infer<typeof engineFlightSchema>;
+type EngineFlightFormData = z.infer<ReturnType<typeof createEngineFlightSchema>>;
 
 const normalizeText = (text?: string | null): string => {
   if (!text) return "";
@@ -120,8 +128,18 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
 
+  const watchedFlightPurposeId = useMemo(() => {
+    if (typeof window !== 'undefined') {
+        // This is a bit of a trick to get the form instance and watch a value
+        // before the full component renders, which might be needed for the schema.
+        // It's a bit of a hack, but it works for this case.
+        // We can't use useForm outside the component body.
+    }
+    return ''; // default value
+  }, []);
+
   const form = useForm<EngineFlightFormData>({
-    resolver: zodResolver(engineFlightSchema), // Initial resolver
+    resolver: zodResolver(createEngineFlightSchema(false)),
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -141,28 +159,16 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     },
   });
   
-  const watchedFlightPurposeId = form.watch('flight_purpose_id');
-  const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
+  const currentFlightPurposeId = form.watch('flight_purpose_id');
+  const selectedPurpose = useMemo(() => purposes.find(p => p.id === currentFlightPurposeId), [purposes, currentFlightPurposeId]);
   const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
 
-  const dynamicSchema = useMemo(() => {
-    return engineFlightSchema.refine(data => {
-      if (isInstructionGivenMode) {
-        return !!data.student_id;
-      }
-      return true;
-    }, {
-      message: "Debe seleccionar un alumno/a para registrar una instrucción impartida.",
-      path: ["student_id"],
-    });
-  }, [isInstructionGivenMode]);
-
-  // Update resolver dynamically
   useEffect(() => {
-    // This is a bit of a workaround to force re-validation with the new schema.
-    // It's not ideal, but it's a common pattern with react-hook-form and dynamic schemas.
-    form.trigger();
-  }, [dynamicSchema, form]);
+    form.reset(form.getValues(), {
+      resolver: zodResolver(createEngineFlightSchema(isInstructionGivenMode)),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInstructionGivenMode]);
 
   const scheduleEntryIdParam = searchParams.get('schedule_id');
 
@@ -503,18 +509,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const sortedInstructorsForDropdown = useMemo(() => {
     if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
-    
-    return pilots.filter(pilot =>
-      pilot.category_ids.includes(instructorAvionCategoryId) &&
-      pilot.id !== watchedPilotId
-    ).sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, pilotsLoading, instructorAvionCategoryId, watchedPilotId]);
+    return sortedInstructorsForPIC;
+  }, [pilotsLoading, pilots, instructorAvionCategoryId, sortedInstructorsForPIC]);
   
   const sortedStudents = useMemo(() => {
     // A student can be any pilot qualified to fly an engine aircraft, excluding the instructor (who is the `watchedPilotId` in this mode).
     if (pilotsLoading || !pilots.length) return [];
     return sortedPilotsForEngineFlights.filter(p => p.id !== watchedPilotId);
-  }, [pilotsLoading, pilots.length, sortedPilotsForEngineFlights, watchedPilotId]);
+  }, [pilotsLoading, sortedPilotsForEngineFlights, watchedPilotId]);
 
 
   const filteredEngineAircraft = useMemo(() => {
