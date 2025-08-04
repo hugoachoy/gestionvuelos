@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Pilot, PilotCategory, Aircraft as BaseAircraft, ScheduleEntry, DailyObservation, DailyNews, CompletedGliderFlight, CompletedEngineFlight, CompletedFlight, Rate, FlightPurpose } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
-import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours } from 'date-fns';
+import { format, isValid as isValidDate, parseISO, startOfDay, isAfter, isBefore, differenceInHours, subYears } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
 type Aircraft = BaseAircraft & { hours_since_oil_change?: number | null, total_oil_added_since_review?: number | null };
@@ -302,9 +302,13 @@ export function useAircraftStore() {
         setLoading(true);
         setError(null);
         try {
+            // Fetch flights from the last year for performance
+            const oneYearAgo = format(subYears(new Date(), 1), 'yyyy-MM-dd');
+            
             const { data: flightsData, error: flightsError } = await supabase
                 .from('completed_engine_flights')
-                .select('engine_aircraft_id, date, flight_duration_decimal, oil_added_liters');
+                .select('engine_aircraft_id, date, flight_duration_decimal, oil_added_liters')
+                .gte('date', oneYearAgo);
             
             if (flightsError) throw flightsError;
 
