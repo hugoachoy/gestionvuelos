@@ -118,8 +118,24 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const isEditMode = !!flightIdToLoad;
 
+  const watchedFlightPurposeId = form.watch('flight_purpose_id');
+  const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
+  const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
+
+  const dynamicSchema = useMemo(() => {
+    return gliderFlightSchema.refine(data => {
+        if (isInstructionGivenMode) {
+            return !!data.student_id;
+        }
+        return true;
+    }, {
+        message: "Debe seleccionar un alumno/a para registrar una instrucción impartida.",
+        path: ["student_id"],
+    });
+  }, [isInstructionGivenMode]);
+
   const form = useForm<GliderFlightFormData>({
-    resolver: zodResolver(gliderFlightSchema),
+    resolver: zodResolver(dynamicSchema),
     defaultValues: {
       date: new Date(),
       pilot_id: '',
@@ -284,14 +300,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const watchedDate = form.watch("date");
   const watchedDepartureTime = form.watch('departure_time');
   const watchedArrivalTime = form.watch('arrival_time');
-  const watchedFlightPurposeId = form.watch('flight_purpose_id');
+  
   const watchedGliderAircraftId = form.watch("glider_aircraft_id");
   const watchedTowAircraftId = form.watch("tow_aircraft_id");
 
-  const selectedPurpose = useMemo(() => purposes.find(p => p.id === watchedFlightPurposeId), [purposes, watchedFlightPurposeId]);
   
   const isInstructionTakenMode = useMemo(() => selectedPurpose?.name.includes('Recibida'), [selectedPurpose]);
-  const isInstructionGivenMode = useMemo(() => selectedPurpose?.name.includes('Impartida'), [selectedPurpose]);
+  
   const picOrStudentLabel = isInstructionGivenMode ? "Instructor" : "Piloto";
 
   useEffect(() => {
@@ -532,7 +547,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         let finalInstructorId = formData.instructor_id;
 
         if (isInstructionGivenMode) {
-            finalPilotId = formData.student_id!;
+             if (!formData.student_id) {
+                 toast({ title: "Error de Validación", description: "Debe seleccionar un alumno para un vuelo de instrucción impartida.", variant: "destructive" });
+                 setIsSubmittingForm(false);
+                 return;
+            }
+            finalPilotId = formData.student_id;
             finalInstructorId = formData.pilot_id;
         }
 
