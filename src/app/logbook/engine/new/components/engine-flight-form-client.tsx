@@ -509,6 +509,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   const sortedInstructorsForDropdown = useMemo(() => {
     if (!instructorAvionCategoryId || pilotsLoading || !pilots.length) return [];
+    // The list of instructors for the dropdown should be complete
     return sortedInstructorsForPIC;
   }, [pilotsLoading, pilots, instructorAvionCategoryId, sortedInstructorsForPIC]);
   
