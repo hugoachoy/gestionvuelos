@@ -477,13 +477,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
         
-        const { data: engineFlights, error: engineError } = await supabase
+        const { data: engineFlightsData, error: engineError } = await supabase
             .from('completed_engine_flights')
             .select('id, pilot_id, instructor_id, engine_aircraft_id, departure_time, arrival_time')
             .eq('date', dateStr)
             .eq('engine_aircraft_id', watchedEngineAircraftId);
 
-        const { data: gliderFlights, error: gliderError } = await supabase
+        const { data: gliderFlightsData, error: gliderError } = await supabase
             .from('completed_glider_flights')
             .select('id, pilot_id, instructor_id, tow_aircraft_id, departure_time, arrival_time')
             .eq('date', dateStr)
@@ -494,12 +494,14 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
 
-        const allFlightsForAircraft: (CompletedEngineFlight | CompletedGliderFlight)[] = [...(engineFlights || []), ...(gliderFlights || [])];
+        const allFlightsForAircraft: (CompletedEngineFlight | CompletedGliderFlight)[] = [...(engineFlightsData || []), ...(gliderFlightsData || [])];
 
         const conflictingFlight = allFlightsForAircraft.find(flight => {
             if (isEditMode && flight.id === flightIdToLoad) {
                 return false;
             }
+            if (!flight.departure_time || !flight.arrival_time) return false;
+
             const existingDepTime = parse(flight.departure_time, 'HH:mm', watchedDate).getTime();
             const existingArrTime = parse(flight.arrival_time, 'HH:mm', watchedDate).getTime();
 
@@ -518,9 +520,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 const existingStudent = conflictingFlight.pilot_id;
                 const existingInstructor = conflictingFlight.instructor_id;
 
-                // Check if they are counterparts (student of one is instructor of other and vice-versa)
                 if (currentStudent === existingInstructor && currentInstructor === existingStudent) {
-                    setConflictWarning(null); // It's an instruction pair, not a conflict.
+                    setConflictWarning(null); // It's a valid instruction pair, not a conflict.
                     return;
                 }
             }
