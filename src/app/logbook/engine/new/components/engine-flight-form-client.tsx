@@ -463,8 +463,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [checkPilotValidity]);
 
   useEffect(() => {
+    setConflictWarning(null);
     const checkConflict = async () => {
-        setConflictWarning(null);
         if (!watchedDate || !watchedEngineAircraftId || !/^\d{2}:\d{2}$/.test(watchedDepartureTime) || !/^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
             return;
         }
@@ -488,12 +488,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             .eq('date', dateStr)
             .eq('tow_aircraft_id', watchedEngineAircraftId);
 
-        if (engineError || gliderError) {
-            console.error("Error fetching flights for conflict check:", engineError || gliderError);
-            return;
-        }
+        if (engineError) { console.error("Error fetching engine flights for conflict check:", engineError); return; }
+        if (gliderError) { console.error("Error fetching glider flights for conflict check:", gliderError); return; }
 
-        const allFlightsForAircraft = [
+        const allFlightsForAircraft: (CompletedEngineFlight | CompletedGliderFlight)[] = [
             ...(engineFlightsData || []),
             ...(gliderFlightsData || [])
         ];
@@ -504,7 +502,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const formInstructorId = form.getValues('instructor_id');
 
         for (const existingFlight of allFlightsForAircraft) {
-            if (isEditMode && existingFlight.id === flightIdToLoad) continue;
+            // Ignore the very flight we are editing
+            if (isEditMode && existingFlight.id === flightIdToLoad) {
+                continue;
+            }
 
             if (!existingFlight.departure_time || !existingFlight.arrival_time) continue;
 
@@ -512,16 +513,27 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', watchedDate).getTime();
             
             // Check for time overlap
-            if (formDepTime < existingArrTime && formArrTime > existingDepTime) {
-                // Time overlaps, now check if it's a valid instruction pair
+            const overlaps = formDepTime < existingArrTime && formArrTime > existingDepTime;
+            
+            if (overlaps) {
                  const existingPurposeName = getPurposeName(existingFlight.flight_purpose_id);
                  const existingIsInstruction = existingPurposeName.includes('Instrucción');
-
-                 // If both are instruction, check if they are a valid pair
+                 
+                 // If both are instruction, check if they are a valid pair to allow the overlap
                  if (formIsInstruction && existingIsInstruction) {
-                    const isPair = (formPilotId === existingFlight.instructor_id && formInstructorId === existingFlight.pilot_id) ||
-                                 (formPilotId === existingFlight.pilot_id && formInstructorId === existingFlight.instructor_id);
-                    if (isPair) {
+                    const studentInForm = form.getValues('student_id');
+                    const picInForm = form.getValues('pilot_id');
+                    const instructorInForm = form.getValues('instructor_id');
+
+                    const formActualPilot = isInstructionGivenMode ? studentInForm : picInForm;
+                    const formActualInstructor = isInstructionGivenMode ? picInForm : instructorInForm;
+
+                    const existingActualPilot = existingFlight.pilot_id;
+                    const existingActualInstructor = existingFlight.instructor_id;
+                    
+                    const isReciprocalPair = formActualPilot === existingActualInstructor && formActualInstructor === existingActualPilot;
+
+                    if (isReciprocalPair) {
                         continue; // This is a valid instruction pair, not a conflict
                     }
                  }
@@ -529,7 +541,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 // If it's not a valid instruction pair, it's a conflict
                 const conflictingPilotName = getPilotName(existingFlight.pilot_id);
                 setConflictWarning(`Conflicto: Aeronave en uso por ${conflictingPilotName} entre las ${existingFlight.departure_time.substring(0, 5)} y ${existingFlight.arrival_time.substring(0, 5)}.`);
-                return;
+                return; // Stop after finding the first conflict
             }
         }
     };
@@ -573,8 +585,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   
   const sortedStudents = useMemo(() => {
     if (pilotsLoading || !pilots.length) return [];
+    // If admin, show all pilots. Otherwise, filter out the current pilot.
+    if (user?.is_admin) {
+        return sortedPilotsForEngineFlights;
+    }
     return sortedPilotsForEngineFlights.filter(p => p.id !== watchedPilotId);
-  }, [pilotsLoading, sortedPilotsForEngineFlights, watchedPilotId]);
+  }, [pilotsLoading, sortedPilotsForEngineFlights, watchedPilotId, user?.is_admin]);
 
 
   const filteredEngineAircraft = useMemo(() => {
@@ -1225,5 +1241,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
-    
