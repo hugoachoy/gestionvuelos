@@ -178,7 +178,7 @@ export function GliderFlightListClient() {
     doc.setFontSize(10);
     doc.text(pageSubtitle, 14, 22);
 
-    const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Propósito", "Notas"];
+    const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Propósito", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Notas"];
     const tableRows: (string | null)[][] = [];
     
     const flightsForPdf = [...sortedFlights].sort((a, b) => {
@@ -188,17 +188,20 @@ export function GliderFlightListClient() {
     });
 
     flightsForPdf.forEach(flight => {
+        const purposeName = getPurposeName(flight.flight_purpose_id);
+        const isInstructionGiven = purposeName.includes('Impartida');
+
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-            getPilotName(flight.pilot_id),
+            isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
+            isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-'),
+            purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
-            flight.departure_time,
-            flight.arrival_time,
+            flight.departure_time.substring(0, 5),
+            flight.arrival_time.substring(0, 5),
             `${flight.flight_duration_decimal.toFixed(1)} hs`,
-            getPurposeName(flight.flight_purpose_id),
             flight.notes || '-',
         ]);
     });
@@ -207,26 +210,26 @@ export function GliderFlightListClient() {
       head: [tableColumn],
       body: tableRows,
       foot: [[
-          { content: 'TOTAL', colSpan: 8, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: 'TOTAL', colSpan: 9, styles: { halign: 'right', fontStyle: 'bold' } },
           { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
-          { content: '', colSpan: 2 },
+          { content: '', colSpan: 1 },
       ]],
       startY: 28,
       theme: 'grid',
       headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
       columnStyles: {
-          0: { cellWidth: 18 },
-          1: { cellWidth: 'auto' },
-          2: { cellWidth: 'auto' },
-          3: { cellWidth: 'auto' },
-          4: { cellWidth: 'auto' },
-          5: { cellWidth: 'auto' },
-          6: { cellWidth: 14 },
-          7: { cellWidth: 14 },
-          8: { cellWidth: 16 },
-          9: { cellWidth: 25 },
-          10: { cellWidth: 'auto' },
+          0: { cellWidth: 18 }, // Fecha
+          1: { cellWidth: 'auto' }, // Piloto
+          2: { cellWidth: 'auto' }, // Planeador
+          3: { cellWidth: 'auto' }, // Instructor
+          4: { cellWidth: 25 }, // Propósito
+          5: { cellWidth: 'auto' }, // Piloto Rem
+          6: { cellWidth: 'auto' }, // Avion Rem
+          7: { cellWidth: 14 }, // Salida
+          8: { cellWidth: 14 }, // Llegada
+          9: { cellWidth: 16 }, // Duracion
+          10: { cellWidth: 'auto' }, // Notas
       },
     });
 
@@ -422,4 +425,3 @@ export function GliderFlightListClient() {
     </div>
   );
 }
-
