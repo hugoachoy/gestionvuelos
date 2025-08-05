@@ -474,16 +474,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const formArrTime = parse(watchedArrivalTime, 'HH:mm', watchedDate).getTime();
 
         if (formArrTime <= formDepTime) return;
-        
+
+        // Fetch both engine flights and glider flights (for tow plane usage)
         const { data: engineFlightsData, error: engineError } = await supabase
             .from('completed_engine_flights')
-            .select('id, departure_time, arrival_time, pilot_id, instructor_id')
+            .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id')
             .eq('date', dateStr)
             .eq('engine_aircraft_id', watchedEngineAircraftId);
-        
+
         const { data: gliderFlightsData, error: gliderError } = await supabase
             .from('completed_glider_flights')
-            .select('id, departure_time, arrival_time, pilot_id, instructor_id')
+            .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id')
             .eq('date', dateStr)
             .eq('tow_aircraft_id', watchedEngineAircraftId);
 
@@ -491,11 +492,16 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             console.error("Error fetching flights for conflict check:", engineError || gliderError);
             return;
         }
-        
+
         const allFlightsForAircraft = [
             ...(engineFlightsData || []),
             ...(gliderFlightsData || [])
         ];
+        
+        const formPurposeName = getPurposeName(form.getValues('flight_purpose_id'));
+        const formIsInstruction = formPurposeName.includes('Instrucción');
+        const formPilotId = form.getValues('pilot_id');
+        const formInstructorId = form.getValues('instructor_id');
 
         for (const existingFlight of allFlightsForAircraft) {
             if (isEditMode && existingFlight.id === flightIdToLoad) continue;
@@ -504,17 +510,31 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
             const existingDepTime = parse(existingFlight.departure_time, 'HH:mm', watchedDate).getTime();
             const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', watchedDate).getTime();
-
-            // (StartA < EndB) and (EndA > StartB)
+            
+            // Check for time overlap
             if (formDepTime < existingArrTime && formArrTime > existingDepTime) {
+                // Time overlaps, now check if it's a valid instruction pair
+                 const existingPurposeName = getPurposeName(existingFlight.flight_purpose_id);
+                 const existingIsInstruction = existingPurposeName.includes('Instrucción');
+
+                 // If both are instruction, check if they are a valid pair
+                 if (formIsInstruction && existingIsInstruction) {
+                    const isPair = (formPilotId === existingFlight.instructor_id && formInstructorId === existingFlight.pilot_id) ||
+                                 (formPilotId === existingFlight.pilot_id && formInstructorId === existingFlight.instructor_id);
+                    if (isPair) {
+                        continue; // This is a valid instruction pair, not a conflict
+                    }
+                 }
+                
+                // If it's not a valid instruction pair, it's a conflict
                 const conflictingPilotName = getPilotName(existingFlight.pilot_id);
                 setConflictWarning(`Conflicto: Aeronave en uso por ${conflictingPilotName} entre las ${existingFlight.departure_time.substring(0, 5)} y ${existingFlight.arrival_time.substring(0, 5)}.`);
-                return; // Exit after finding the first conflict
+                return;
             }
         }
     };
     checkConflict();
-  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName]);
+  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getPurposeName, form]);
 
 
   const enginePilotCategoryIds = useMemo(() => {
