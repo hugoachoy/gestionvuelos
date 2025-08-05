@@ -62,7 +62,11 @@ const createEngineFlightSchema = (isInstructionGivenMode: boolean) => z.object({
 }, {
   message: "La hora de llegada debe ser posterior a la hora de salida.",
   path: ["arrival_time"],
-}).refine(data => data.pilot_id !== data.instructor_id, {
+}).refine(data => {
+    // Admin can be their own student, but normal users can't be their own instructor
+    if (isInstructionGivenMode) return true;
+    return data.pilot_id !== data.instructor_id;
+}, {
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => {
@@ -102,8 +106,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading, fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate, fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
-  const { fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
+  const { addCompletedEngineFlight, updateCompletedEngineFlight, loading: submittingAddUpdate } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -290,7 +293,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraftWithCalculatedData.length, categories.length, purposes.length]);
+  }, [isEditMode, flightIdToLoad, user, scheduleEntryIdParam, scheduleEntries.length, pilots.length, aircraftWithCalculatedData.length, categories.length, purposes.length]); 
 
 
   const watchedPilotId = form.watch("pilot_id");
@@ -476,13 +479,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         if (formArrTime <= formDepTime) return;
 
-        // Fetch both engine flights and glider flights (for tow plane usage)
+        // Fetch engine flights and glider flights (for tow plane usage) separately
         const { data: engineFlightsData, error: engineError } = await supabase
             .from('completed_engine_flights')
             .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id')
             .eq('date', dateStr)
             .eq('engine_aircraft_id', watchedEngineAircraftId);
-
+        
         const { data: gliderFlightsData, error: gliderError } = await supabase
             .from('completed_glider_flights')
             .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id')
@@ -497,11 +500,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             ...(gliderFlightsData || [])
         ];
         
-        const formPurposeName = getPurposeName(form.getValues('flight_purpose_id'));
-        const formIsInstruction = formPurposeName.includes('Instrucción');
-        const formPilotId = form.getValues('pilot_id');
-        const formInstructorId = form.getValues('instructor_id');
-
         for (const existingFlight of allFlightsForAircraft) {
             // Ignore the very flight we are editing
             if (isEditMode && existingFlight.id === flightIdToLoad) {
@@ -517,23 +515,21 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const overlaps = formDepTime < existingArrTime && formArrTime > existingDepTime;
             
             if (overlaps) {
-                 const existingPurposeName = getPurposeName(existingFlight.flight_purpose_id);
-                 const existingIsInstruction = existingPurposeName.includes('Instrucción');
-                 
-                 // If both are instruction, check if they are a valid pair to allow the overlap
-                 if (formIsInstruction && existingIsInstruction) {
-                    const studentInForm = form.getValues('student_id');
-                    const picInForm = form.getValues('pilot_id');
-                    const instructorInForm = form.getValues('instructor_id');
+                const formIsInstruction = selectedPurpose?.name.includes('Instrucción');
+                const existingIsInstruction = getPurposeName(existingFlight.flight_purpose_id)?.includes('Instrucción');
 
-                    const formActualPilot = isInstructionGivenMode ? studentInForm : picInForm;
-                    const formActualInstructor = isInstructionGivenMode ? picInForm : instructorInForm;
+                // Allow overlap only if it's a valid instruction pair
+                if (formIsInstruction && existingIsInstruction) {
+                    const studentInForm = isInstructionGivenMode ? form.getValues('student_id') : form.getValues('pilot_id');
+                    const instructorInForm = isInstructionGivenMode ? form.getValues('pilot_id') : form.getValues('instructor_id');
 
-                    const existingActualPilot = existingFlight.pilot_id;
-                    const existingActualInstructor = existingFlight.instructor_id;
+                    const existingIsInstructionGiven = getPurposeName(existingFlight.flight_purpose_id)?.includes('Impartida');
+                    const existingStudent = existingIsInstructionGiven ? null : existingFlight.pilot_id; // Approximation
+                    const existingInstructor = existingFlight.instructor_id;
+
+                    // This logic is complex; a simpler check is if pilots match in reverse roles
+                    const isReciprocalPair = studentInForm === existingInstructor && instructorInForm === existingStudent;
                     
-                    const isReciprocalPair = formActualPilot === existingActualInstructor && formActualInstructor === existingActualPilot;
-
                     if (isReciprocalPair) {
                         continue; // This is a valid instruction pair, not a conflict
                     }
@@ -547,7 +543,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         }
     };
     checkConflict();
-  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getPurposeName, form]);
+  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getPurposeName, form, selectedPurpose]);
 
 
   const enginePilotCategoryIds = useMemo(() => {

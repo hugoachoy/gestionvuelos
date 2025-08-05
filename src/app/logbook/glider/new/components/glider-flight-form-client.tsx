@@ -61,7 +61,11 @@ const createGliderFlightSchema = (isInstructionGivenMode: boolean) => z.object({
 }, {
   message: "La hora de llegada debe ser posterior a la hora de salida.",
   path: ["arrival_time"],
-}).refine(data => data.pilot_id !== data.instructor_id, {
+}).refine(data => {
+    // Admin can be their own student, but normal users can't be their own instructor
+    if (isInstructionGivenMode) return true; 
+    return data.pilot_id !== data.instructor_id;
+}, {
   message: "El piloto no puede ser su propio instructor.",
   path: ["instructor_id"],
 }).refine(data => data.pilot_id !== data.tow_pilot_id, {
@@ -99,8 +103,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate, fetchCompletedGliderFlightsForRange } = useCompletedGliderFlightsStore();
-  const { fetchCompletedEngineFlightsForRange } = useCompletedEngineFlightsStore();
+  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate } = useCompletedGliderFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -127,8 +130,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const [initialFlightData, setInitialFlightData] = useState<CompletedGliderFlight | null>(null);
 
   const isEditMode = !!flightIdToLoad;
-
-  const currentFlightPurposeIdFromParams = useSearchParams().get('flight_purpose_id');
   
   const form = useForm<GliderFlightFormData>({
     resolver: zodResolver(createGliderFlightSchema(false)), // Start with a default schema
@@ -411,82 +412,79 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   useEffect(() => {
     setConflictWarning(null);
 
-    const checkAircraftConflict = async (aircraftId: string, isGlider: boolean) => {
+    const checkConflict = async () => {
         if (!watchedDate || !/^\d{2}:\d{2}$/.test(watchedDepartureTime) || !/^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
-            return null;
+            return;
         }
+
         const dateStr = format(watchedDate, 'yyyy-MM-dd');
         const formDepTime = parse(watchedDepartureTime, 'HH:mm', watchedDate).getTime();
         const formArrTime = parse(watchedArrivalTime, 'HH:mm', watchedDate).getTime();
 
-        if (formArrTime <= formDepTime) return null;
+        if (formArrTime <= formDepTime) return;
 
-        let conflictingFlights: (CompletedGliderFlight | CompletedEngineFlight)[] = [];
+        let allFlightsForGlider: CompletedGliderFlight[] = [];
+        if (watchedGliderAircraftId) {
+            const { data, error } = await supabase.from('completed_glider_flights').select('*').eq('date', dateStr).eq('glider_aircraft_id', watchedGliderAircraftId);
+            if (error) { console.error("Error fetching glider flights for conflict check:", error); } 
+            else { allFlightsForGlider = data || []; }
+        }
+        
+        let allFlightsForTowPlane: (CompletedGliderFlight | CompletedEngineFlight)[] = [];
+        if (watchedTowAircraftId) {
+             const { data: towFlights, error: towError } = await supabase.from('completed_glider_flights').select('*').eq('date', dateStr).eq('tow_aircraft_id', watchedTowAircraftId);
+             if (towError) { console.error("Error fetching tow flights for conflict check:", towError); }
+             else { allFlightsForTowPlane.push(...(towFlights || [])); }
 
-        if (isGlider) {
-            const { data: gliderFlightsData, error } = await supabase
-                .from('completed_glider_flights').select('*')
-                .eq('date', dateStr).eq('glider_aircraft_id', aircraftId);
-            if (error) { console.error("Error fetching glider flights:", error); return null; }
-            conflictingFlights.push(...(gliderFlightsData || []));
-        } else { // Tow Plane
-            const { data: towFlightsData, error: towError } = await supabase
-                .from('completed_glider_flights').select('*')
-                .eq('date', dateStr).eq('tow_aircraft_id', aircraftId);
-            if (towError) { console.error("Error fetching tow flights:", towError); return null; }
-            conflictingFlights.push(...(towFlightsData || []));
-
-            const { data: engineFlightsData, error: engineError } = await supabase
-                .from('completed_engine_flights').select('*')
-                .eq('date', dateStr).eq('engine_aircraft_id', aircraftId);
-            if (engineError) { console.error("Error fetching engine flights:", engineError); return null; }
-            conflictingFlights.push(...(engineFlightsData || []));
+             const { data: engineFlights, error: engineError } = await supabase.from('completed_engine_flights').select('*').eq('date', dateStr).eq('engine_aircraft_id', watchedTowAircraftId);
+             if (engineError) { console.error("Error fetching engine flights for conflict check:", engineError); }
+             else { allFlightsForTowPlane.push(...(engineFlights || [])); }
         }
 
         const formPurposeName = getPurposeName(form.getValues('flight_purpose_id'));
         const formIsInstruction = formPurposeName.includes('Instrucción');
-        const formPilotId = form.getValues('pilot_id');
-        const formInstructorId = form.getValues('instructor_id');
 
-        for (const existingFlight of conflictingFlights) {
-            if (isEditMode && existingFlight.id === flightIdToLoad) continue;
+        const checkAircraftConflicts = (flights: (CompletedGliderFlight | CompletedEngineFlight)[], aircraftType: 'planeador' | 'remolcador'): string | null => {
+            for (const existingFlight of flights) {
+                if (isEditMode && existingFlight.id === flightIdToLoad) continue;
+                if (!existingFlight.departure_time || !existingFlight.arrival_time) continue;
 
-            if (!existingFlight.departure_time || !existingFlight.arrival_time) continue;
+                const existingDepTime = parse(existingFlight.departure_time, 'HH:mm', watchedDate).getTime();
+                const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', watchedDate).getTime();
 
-            const existingDepTime = parse(existingFlight.departure_time, 'HH:mm', watchedDate).getTime();
-            const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', watchedDate).getTime();
-
-            if (formDepTime < existingArrTime && formArrTime > existingDepTime) {
-                const existingPurposeName = getPurposeName(existingFlight.flight_purpose_id);
-                const existingIsInstruction = existingPurposeName.includes('Instrucción');
-
-                if (formIsInstruction && existingIsInstruction) {
-                    const isPair = (formPilotId === existingFlight.instructor_id && formInstructorId === existingFlight.pilot_id) ||
-                                   (formPilotId === existingFlight.pilot_id && formInstructorId === existingFlight.instructor_id);
-                    if (isPair) continue; 
+                if (formDepTime < existingArrTime && formArrTime > existingDepTime) {
+                    const existingPurposeName = getPurposeName(existingFlight.flight_purpose_id);
+                    const existingIsInstruction = existingPurposeName.includes('Instrucción');
+                    
+                    if (formIsInstruction && existingIsInstruction) {
+                        const isPaired = (form.getValues('pilot_id') === existingFlight.instructor_id && form.getValues('instructor_id') === existingFlight.pilot_id) ||
+                                       (form.getValues('pilot_id') === existingFlight.pilot_id && form.getValues('instructor_id') === existingFlight.instructor_id);
+                        if (isPaired) continue;
+                    }
+                    
+                    const conflictingPilotName = getPilotName(existingFlight.pilot_id);
+                    return `Conflicto: El ${aircraftType} está en uso por ${conflictingPilotName} entre las ${existingFlight.departure_time.substring(0, 5)} y ${existingFlight.arrival_time.substring(0, 5)}.`;
                 }
-
-                const conflictingPilotName = getPilotName(existingFlight.pilot_id);
-                const aircraftType = isGlider ? 'El planeador' : 'El avión remolcador';
-                return `${aircraftType} ya está en uso por ${conflictingPilotName} entre las ${existingFlight.departure_time.substring(0, 5)} y ${existingFlight.arrival_time.substring(0, 5)}.`;
             }
+            return null;
         }
-        return null;
+
+        const gliderConflict = checkAircraftConflicts(allFlightsForGlider, 'planeador');
+        if (gliderConflict) {
+            setConflictWarning(gliderConflict);
+            return;
+        }
+
+        const towPlaneConflict = checkAircraftConflicts(allFlightsForTowPlane, 'remolcador');
+        if (towPlaneConflict) {
+            setConflictWarning(towPlaneConflict);
+            return;
+        }
     };
 
-    const runChecks = async () => {
-        let finalConflictMessage: string | null = null;
-        if (watchedGliderAircraftId) {
-            finalConflictMessage = await checkAircraftConflict(watchedGliderAircraftId, true);
-        }
-        if (!finalConflictMessage && watchedTowAircraftId) {
-            finalConflictMessage = await checkAircraftConflict(watchedTowAircraftId, false);
-        }
-        setConflictWarning(finalConflictMessage);
-    };
-
-    runChecks();
+    checkConflict();
   }, [watchedDate, watchedGliderAircraftId, watchedTowAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getPurposeName, form]);
+
 
 
   useEffect(() => {
