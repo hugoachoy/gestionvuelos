@@ -1034,21 +1034,21 @@ export function useCompletedGliderFlightsStore() {
   }, []);
 
 
-  const addCompletedGliderFlight = useCallback(async (flightData: Omit<CompletedGliderFlight, 'id' | 'created_at'>) => {
+  const addCompletedGliderFlight = useCallback(async (flightData: Omit<CompletedGliderFlight, 'id' | 'created_at'>[]) => {
     let result = null;
     setError(null);
     setLoading(true);
     try {
-      const { data: newFlight, error: insertError } = await supabase
+      const recordsToInsert = flightData.map(fd => ({ ...fd, logbook_type: 'glider' as const }));
+      const { data: newFlights, error: insertError } = await supabase
         .from('completed_glider_flights')
-        .insert([{ ...flightData, logbook_type: 'glider' }])
-        .select()
-        .single();
+        .insert(recordsToInsert)
+        .select();
       if (insertError) {
         logSupabaseError('Error adding completed glider flight', insertError);
         setError(insertError);
       } else {
-        result = newFlight;
+        result = newFlights;
       }
     } catch (e) {
       logSupabaseError('Unexpected error adding completed glider flight', e);
@@ -1193,16 +1193,20 @@ export function useCompletedEngineFlightsStore() {
   }, []);
 
 
-  const addCompletedEngineFlight = useCallback(async (flightData: Omit<CompletedEngineFlight, 'id' | 'created_at'>) => {
+  const addCompletedEngineFlight = useCallback(async (flightData: Omit<CompletedEngineFlight, 'id' | 'created_at'> | Omit<CompletedEngineFlight, 'id' | 'created_at'>[]) => {
     let result = null;
     setError(null);
     setLoading(true);
     try {
+      const recordsToInsert = Array.isArray(flightData)
+        ? flightData.map(fd => ({ ...fd, logbook_type: 'engine' as const }))
+        : [{ ...flightData, logbook_type: 'engine' as const }];
+      
       const { data: newFlight, error: insertError } = await supabase
         .from('completed_engine_flights')
-        .insert([{ ...flightData, logbook_type: 'engine' }])
-        .select()
-        .single();
+        .insert(recordsToInsert)
+        .select();
+
       if (insertError) {
         logSupabaseError('Error adding completed engine flight', insertError);
         setError(insertError);
