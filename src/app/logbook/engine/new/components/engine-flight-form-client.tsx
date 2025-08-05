@@ -475,14 +475,12 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         if (formArrTime <= formDepTime) return;
         
-        // Fetch engine flights for the aircraft on the selected date
         const { data: engineFlightsData, error: engineError } = await supabase
             .from('completed_engine_flights')
             .select('id, departure_time, arrival_time, pilot_id, instructor_id')
             .eq('date', dateStr)
             .eq('engine_aircraft_id', watchedEngineAircraftId);
         
-        // Fetch glider flights where the aircraft was used as a tow plane
         const { data: gliderFlightsData, error: gliderError } = await supabase
             .from('completed_glider_flights')
             .select('id, departure_time, arrival_time, pilot_id, instructor_id')
@@ -494,7 +492,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             return;
         }
         
-        const allFlightsForAircraft: (Partial<CompletedEngineFlight> & Partial<CompletedGliderFlight> & { id: string; departure_time: string; arrival_time: string })[] = [
+        const allFlightsForAircraft = [
             ...(engineFlightsData || []),
             ...(gliderFlightsData || [])
         ];
@@ -507,34 +505,16 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             const existingDepTime = parse(existingFlight.departure_time, 'HH:mm', watchedDate).getTime();
             const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', watchedDate).getTime();
 
-            // Check for overlap: (StartA < EndB) and (EndA > StartB)
+            // (StartA < EndB) and (EndA > StartB)
             if (formDepTime < existingArrTime && formArrTime > existingDepTime) {
-                // Potential conflict, check if it's a valid instruction pair
-                const currentIsInstruction = isInstructionTakenMode || isInstructionGivenMode;
-                const existingIsInstruction = !!existingFlight.instructor_id;
-
-                if (currentIsInstruction && existingIsInstruction) {
-                    const currentStudentId = isInstructionGivenMode ? watchedStudentId : watchedPilotId;
-                    const currentInstructorId = isInstructionGivenMode ? watchedPilotId : watchedInstructorId;
-                    
-                    const existingStudentId = existingFlight.pilot_id;
-                    const existingInstructorId = existingFlight.instructor_id;
-
-                    // If it's a valid pair (same student and instructor, roles swapped), it's NOT a conflict.
-                    if (currentStudentId === existingStudentId && currentInstructorId === existingInstructorId) {
-                        continue; // This is the other half of an instruction flight, not a conflict.
-                    }
-                }
-                
-                // If it's not a valid instruction pair, it's a real conflict.
                 const conflictingPilotName = getPilotName(existingFlight.pilot_id);
-                setConflictWarning(`Conflicto de horario: La aeronave ya está en uso por ${conflictingPilotName} entre las ${existingFlight.departure_time.substring(0, 5)} y las ${existingFlight.arrival_time.substring(0, 5)}.`);
+                setConflictWarning(`Conflicto: Aeronave en uso por ${conflictingPilotName} entre las ${existingFlight.departure_time.substring(0, 5)} y ${existingFlight.arrival_time.substring(0, 5)}.`);
                 return; // Exit after finding the first conflict
             }
         }
     };
     checkConflict();
-  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, isInstructionTakenMode, isInstructionGivenMode, getPilotName, watchedPilotId, watchedStudentId, watchedInstructorId]);
+  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName]);
 
 
   const enginePilotCategoryIds = useMemo(() => {
@@ -1225,3 +1205,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
