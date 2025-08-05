@@ -464,6 +464,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   useEffect(() => {
     setConflictWarning(null);
+
     const checkConflict = async () => {
         if (!watchedDate || !watchedEngineAircraftId || !/^\d{2}:\d{2}$/.test(watchedDepartureTime) || !/^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
             return;
@@ -585,12 +586,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   
   const sortedStudents = useMemo(() => {
     if (pilotsLoading || !pilots.length) return [];
-    // If admin, show all pilots. Otherwise, filter out the current pilot.
-    if (user?.is_admin) {
-        return sortedPilotsForEngineFlights;
-    }
-    return sortedPilotsForEngineFlights.filter(p => p.id !== watchedPilotId);
-  }, [pilotsLoading, sortedPilotsForEngineFlights, watchedPilotId, user?.is_admin]);
+    return sortedPilotsForEngineFlights;
+  }, [pilotsLoading, sortedPilotsForEngineFlights]);
 
 
   const filteredEngineAircraft = useMemo(() => {

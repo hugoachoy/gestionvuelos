@@ -578,11 +578,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [sortedInstructorsForPIC]);
 
   const sortedStudents = useMemo(() => {
-    if (user?.is_admin) {
-        return sortedPilotsForGlider;
-    }
-    return sortedPilotsForGlider.filter(p => p.id !== watchedPicPilotId);
-  }, [sortedPilotsForGlider, watchedPicPilotId, user?.is_admin]);
+    if (pilotsLoading || !pilots.length) return [];
+    return sortedPilotsForGlider;
+  }, [pilotsLoading, sortedPilotsForGlider]);
 
   const towPilotCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
