@@ -217,8 +217,8 @@ export function EngineFlightListClient() {
             getAircraftName(flight.engine_aircraft_id),
             flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
             purposeName,
-            flight.departure_time,
-            flight.arrival_time,
+            flight.departure_time.substring(0, 5),
+            flight.arrival_time.substring(0, 5),
             `${flight.flight_duration_decimal.toFixed(1)} hs`,
             purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number' ? `${flight.billable_minutes} min` : '-',
             flight.route_from_to || '-',
@@ -446,4 +446,3 @@ export function EngineFlightListClient() {
     </div>
   );
 }
-
