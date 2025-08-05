@@ -53,7 +53,7 @@ import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } fro
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePilotsStore } from '@/store/data-hooks';
+import { usePilotsStore } from '@/store/data-hooks'; // Added to get getPilotName for conflict message
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -78,7 +78,6 @@ interface MedicalWarningState {
 interface BookingConflictWarningState {
   show: boolean;
   message: string;
-  variant: 'destructive' | 'warning';
 }
 
 interface SportFlightAircraftWarningState {
@@ -379,7 +378,6 @@ export function AvailabilityForm({
             setBookingConflictWarning({
                 show: true,
                 message: `La aeronave ${aircraftDetails?.name || ''} ya está reservada para las ${formStartTimeHHMM} por ${conflictingPilotName}. Esto puede ser un conflicto.`,
-                variant: 'destructive',
             });
         }
     }
@@ -458,6 +456,10 @@ export function AvailabilityForm({
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
+    if ((medicalWarning && medicalWarning.variant === 'destructive' && medicalWarning.show) || (bookingConflictWarning && bookingConflictWarning.show)) {
+        return;
+    }
+
     let authUserIdToSet: string | null = null;
     if (!entry && currentUser) {
         authUserIdToSet = currentUser.id;
@@ -518,10 +520,10 @@ export function AvailabilityForm({
   
   const isSubmitDisabled = useMemo(() => {
     const isMedicalBlocker = medicalWarning?.show && medicalWarning.variant === 'destructive';
+    const isBookingBlocker = bookingConflictWarning?.show;
     const isAircraftBlocker = !!aircraftWarning;
-    // Conflict warning is informational, not a blocker for submission in the schedule.
-    return isMedicalBlocker || isAircraftBlocker;
-  }, [medicalWarning, aircraftWarning]);
+    return isMedicalBlocker || isBookingBlocker || isAircraftBlocker;
+  }, [medicalWarning, bookingConflictWarning, aircraftWarning]);
 
 
   return (
@@ -831,9 +833,9 @@ export function AvailabilityForm({
                 </Alert>
             )}
              {bookingConflictWarning && bookingConflictWarning.show && (
-              <Alert variant={bookingConflictWarning.variant} className="mt-2">
+              <Alert variant={'warning'} className="mt-2">
                 <PlaneIconLucide className="h-4 w-4" />
-                <AlertTitle>Conflicto de Reserva</AlertTitle>
+                <AlertTitle>Posible Conflicto de Reserva</AlertTitle>
                 <AlertDescription>{bookingConflictWarning.message}</AlertDescription>
               </Alert>
             )}
