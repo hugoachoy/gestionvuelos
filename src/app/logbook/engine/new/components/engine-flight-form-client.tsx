@@ -51,16 +51,6 @@ const createEngineFlightSchema = () => z.object({
   fuel_added_liters: z.coerce.number().min(0, "Debe ser 0 o más.").optional().nullable(),
   notes: z.string().optional().nullable(),
   schedule_entry_id: z.string().optional().nullable(),
-}).refine(data => {
-  if (data.departure_time && data.arrival_time) {
-    const [depH, depM] = data.departure_time.split(':').map(Number);
-    const [arrH, arrM] = data.arrival_time.split(':').map(Number);
-    return (arrH * 60 + arrM) > (depH * 60 + depM);
-  }
-  return true;
-}, {
-  message: "La hora de llegada debe ser posterior a la hora de salida.",
-  path: ["arrival_time"],
 });
 
 type EngineFlightFormData = z.infer<ReturnType<typeof createEngineFlightSchema>>;
@@ -505,6 +495,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots, pilotsLoading, enginePilotCategoryIds]);
 
+  const sortedStudents = useMemo(() => {
+    if (pilotsLoading || !pilots.length) return [];
+    return sortedPilotsForEngineFlights;
+  }, [pilotsLoading, pilots, sortedPilotsForEngineFlights]);
+
 
   const instructorAvionCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
@@ -516,8 +511,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   }, [categories, categoriesLoading]);
 
   const sortedInstructorsForDropdown = useMemo(() => {
-    if (!instructorAvionCategoryId) return [];
-    return pilots
+      if (!instructorAvionCategoryId) return [];
+      return pilots
         .filter(pilot => pilot.category_ids.includes(instructorAvionCategoryId))
         .sort((a,b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots, instructorAvionCategoryId]);
@@ -598,7 +593,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: recibidaPurposeId,
-                auth_user_id: user.id, // Assign current user to both
+                auth_user_id: user.id,
                 oil_added_liters: baseSubmissionData.oil_added_liters,
                 fuel_added_liters: baseSubmissionData.fuel_added_liters,
             };
@@ -608,7 +603,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: impartidaPurposeId,
-                auth_user_id: user.id, // Assign current user to both
+                auth_user_id: user.id,
                 oil_added_liters: null,
                 fuel_added_liters: null,
             };
@@ -844,7 +839,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
               name="pilot_id"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Piloto / Alumno</FormLabel>
+                  <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">{isInstructionMode ? 'Alumno' : 'Piloto'}</FormLabel>
                    <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -863,13 +858,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                       <Command>
                         <CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} />
                         <CommandList>
-                           {(!sortedPilotsForEngineFlights || sortedPilotsForEngineFlights.length === 0) && !pilotsLoading && !categoriesLoading ? (
+                           {(!sortedStudents || sortedStudents.length === 0) && !pilotsLoading && !categoriesLoading ? (
                             <CommandEmpty>No hay pilotos con categoría para vuelo a motor.</CommandEmpty>
                           ) : (
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                           )}
                           <CommandGroup>
-                            {sortedPilotsForEngineFlights.map((pilot) => (
+                            {sortedStudents.map((pilot) => (
                               <CommandItem
                                 value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
@@ -1098,6 +1093,35 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                         <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Remolques Realizados (Opcional)</FormLabel>
                         <FormControl>
                         <Input type="number" min="0" {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading || !isRemolqueMode} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                    control={form.control}
+                    name="oil_added_liters"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Aceite Agregado (Lts) (Opcional)</FormLabel>
+                        <FormControl>
+                        <Input type="number" min="0" step="0.1" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading}/>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="fuel_added_liters"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Nafta Agregada (Lts) (Opcional)</FormLabel>
+                        <FormControl>
+                         <Input type="number" min="0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isLoading} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
