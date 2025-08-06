@@ -588,7 +588,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             result = await updateCompletedGliderFlight(flightIdToLoad, { ...restOfInitialData, auth_user_id: user.id });
         } else if (isInstructionMode) {
              const purposeName = getPurposeName(formData.flight_purpose_id);
-             const isRecibida = purposeName.includes('Recibida');
              const purposesForGlider = purposes.filter(p => p.applies_to.includes('glider'));
              const impartidaPurposeId = purposesForGlider.find(p => p.name.includes('Impartida'))?.id;
              const recibidaPurposeId = purposesForGlider.find(p => p.name.includes('Recibida'))?.id;
@@ -602,7 +601,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: recibidaPurposeId,
-                auth_user_id: isRecibida ? user.id : null,
+                auth_user_id: user.id, // Assign current user to both
              };
 
              const instructorRecord = {
@@ -610,7 +609,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: impartidaPurposeId,
-                auth_user_id: !isRecibida ? user.id : null,
+                auth_user_id: user.id, // Assign current user to both
              };
              
              result = await addCompletedGliderFlight([studentRecord, instructorRecord]);

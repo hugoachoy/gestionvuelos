@@ -443,7 +443,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         
         const { data: gliderFlightsData, error: gliderError } = await supabase
             .from('completed_glider_flights')
-            .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id')
+            .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id, tow_aircraft_id')
             .eq('date', dateStr)
             .eq('tow_aircraft_id', watchedEngineAircraftId);
 
@@ -585,7 +585,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
              result = await updateCompletedEngineFlight(flightIdToLoad!, { ...updatePayload, auth_user_id: user.id });
         } else if (isInstructionMode) {
             const purposeName = getPurposeName(formData.flight_purpose_id);
-            const isRecibida = purposeName.includes('Recibida');
             const purposesForEngine = purposes.filter(p => p.applies_to.includes('engine'));
             const impartidaPurposeId = purposesForEngine.find(p => p.name.includes('Impartida'))?.id;
             const recibidaPurposeId = purposesForEngine.find(p => p.name.includes('Recibida'))?.id;
@@ -599,7 +598,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: recibidaPurposeId,
-                auth_user_id: isRecibida ? user.id : null,
+                auth_user_id: user.id, // Assign current user to both
                 oil_added_liters: baseSubmissionData.oil_added_liters,
                 fuel_added_liters: baseSubmissionData.fuel_added_liters,
             };
@@ -609,7 +608,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: impartidaPurposeId,
-                auth_user_id: !isRecibida ? user.id : null,
+                auth_user_id: user.id, // Assign current user to both
                 oil_added_liters: null,
                 fuel_added_liters: null,
             };
