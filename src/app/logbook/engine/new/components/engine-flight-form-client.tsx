@@ -61,11 +61,6 @@ const createEngineFlightSchema = () => z.object({
 }, {
   message: "La hora de llegada debe ser posterior a la hora de salida.",
   path: ["arrival_time"],
-}).refine(data => {
-    return data.pilot_id !== data.instructor_id;
-}, {
-  message: "El piloto no puede ser su propio instructor.",
-  path: ["instructor_id"],
 });
 
 type EngineFlightFormData = z.infer<ReturnType<typeof createEngineFlightSchema>>;

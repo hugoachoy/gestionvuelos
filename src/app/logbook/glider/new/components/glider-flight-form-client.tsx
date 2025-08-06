@@ -60,17 +60,6 @@ const createGliderFlightSchema = () => z.object({
 }, {
   message: "La hora de llegada debe ser posterior a la hora de salida.",
   path: ["arrival_time"],
-}).refine(data => {
-    return data.pilot_id !== data.instructor_id;
-}, {
-  message: "El piloto no puede ser su propio instructor.",
-  path: ["instructor_id"],
-}).refine(data => data.pilot_id !== data.tow_pilot_id, {
-  message: "El piloto no puede ser su propio piloto remolcador.",
-  path: ["tow_pilot_id"],
-}).refine(data => !data.instructor_id || data.instructor_id !== data.tow_pilot_id, {
-  message: "El instructor no puede ser el piloto remolcador.",
-  path: ["tow_pilot_id"],
 });
 
 type GliderFlightFormData = z.infer<ReturnType<typeof createGliderFlightSchema>>;
