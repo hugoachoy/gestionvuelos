@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -391,11 +390,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
-   const checkAircraftConflict = useCallback(() => {
+    const checkConflict = useCallback(() => {
         const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
+        setConflictWarning(null);
 
         if (!date || !departure_time || !arrival_time || !glider_aircraft_id || !/^\d{2}:\d{2}/.test(departure_time) || !/^\d{2}:\d{2}/.test(arrival_time)) {
-            setConflictWarning(null);
             return;
         }
 
@@ -403,10 +402,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const newArrivalDateTime = parse(arrival_time, 'HH:mm', date);
 
         if (!isValid(newDepartureDateTime) || !isValid(newArrivalDateTime) || isBefore(newArrivalDateTime, newDepartureDateTime)) {
-            setConflictWarning(null);
             return;
         }
-        
+
         const conflictingGliderFlight = completedGliderFlights.find(flight => {
             if (isEditMode && flight.id === flightIdToLoad) return false;
             if (flight.glider_aircraft_id !== glider_aircraft_id) return false;
@@ -417,8 +415,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
             if (!isValid(existingDeparture) || !isValid(existingArrival)) return false;
             
-            // Check for overlap: max(start1, start2) < min(end1, end2)
-            return Math.max(newDepartureDateTime.getTime(), existingDeparture.getTime()) < Math.min(newArrivalDateTime.getTime(), existingArrival.getTime());
+            return newDepartureDateTime < existingArrival && newArrivalDateTime > existingDeparture;
         });
 
         if (conflictingGliderFlight) {
@@ -430,8 +427,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }, [form, completedGliderFlights, isEditMode, flightIdToLoad]);
     
     useEffect(() => {
-        checkAircraftConflict();
-    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, checkAircraftConflict]);
+        checkConflict();
+    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, checkConflict]);
 
 
   const gliderPilotCategoryIds = useMemo(() => {
