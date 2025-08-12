@@ -412,9 +412,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     checkConflict();
   }, [watchedDate, watchedGliderAircraftId, watchedTowAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getPurposeName, form, isInstructionMode]);
 
-
-  useEffect(() => {
-    const checkPilotMedical = (pilotId: string | null | undefined, date: Date | undefined, pilotRole: string): string | null => {
+  const checkPilotMedical = useCallback((pilotId: string | null | undefined, date: Date | undefined, pilotRole: string): string | null => {
       if (!pilotId || !date || !pilots.length) {
         return null;
       }
@@ -434,12 +432,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
       }
       return null;
-    };
+    }, [pilots]);
 
-    setMedicalWarning(checkMedical(watchedPicPilotId, watchedDate, 'Piloto'));
-    setInstructorMedicalWarning(checkMedical(watchedInstructorId, watchedDate, 'Instructor'));
-    setTowPilotMedicalWarning(checkMedical(watchedTowPilotId, watchedDate, 'Piloto Remolcador'));
-  }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedDate, pilots]);
+  useEffect(() => {
+    setMedicalWarning(checkPilotMedical(watchedPicPilotId, watchedDate, 'Piloto'));
+    setInstructorMedicalWarning(checkPilotMedical(watchedInstructorId, watchedDate, 'Instructor'));
+    setTowPilotMedicalWarning(checkPilotMedical(watchedTowPilotId, watchedDate, 'Piloto Remolcador'));
+  }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedDate, checkPilotMedical]);
 
   useEffect(() => {
     setGliderWarning(null);
@@ -491,6 +490,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       .filter(pilot => pilot.category_ids.some(catId => gliderPilotCategoryIds.includes(catId)))
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots, pilotsLoading, gliderPilotCategoryIds]);
+
+  const sortedStudents = useMemo(() => {
+    if (pilotsLoading || !pilots.length) return [];
+    return sortedPilotsForGlider;
+  }, [pilotsLoading, sortedPilotsForGlider]);
+
 
   const sortedInstructorsForDropdown = useMemo(() => {
       if (!instructorPlaneadorCategoryId) return [];
@@ -1164,3 +1169,5 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
+    
