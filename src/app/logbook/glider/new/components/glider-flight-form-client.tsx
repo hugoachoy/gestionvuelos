@@ -391,12 +391,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
-   useEffect(() => {
-        setConflictWarning(null);
-
+   const checkAircraftConflict = useCallback(() => {
         const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
 
         if (!date || !departure_time || !arrival_time || !glider_aircraft_id || !/^\d{2}:\d{2}/.test(departure_time) || !/^\d{2}:\d{2}/.test(arrival_time)) {
+            setConflictWarning(null);
             return;
         }
 
@@ -404,6 +403,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const newArrivalDateTime = parse(arrival_time, 'HH:mm', date);
 
         if (!isValid(newDepartureDateTime) || !isValid(newArrivalDateTime) || isBefore(newArrivalDateTime, newDepartureDateTime)) {
+            setConflictWarning(null);
             return;
         }
         
@@ -417,6 +417,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
             if (!isValid(existingDeparture) || !isValid(existingArrival)) return false;
             
+            // Check for overlap: max(start1, start2) < min(end1, end2)
             return Math.max(newDepartureDateTime.getTime(), existingDeparture.getTime()) < Math.min(newArrivalDateTime.getTime(), existingArrival.getTime());
         });
 
@@ -426,7 +427,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             setConflictWarning(null);
         }
 
-    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, completedGliderFlights, isEditMode, flightIdToLoad, form]);
+    }, [form, completedGliderFlights, isEditMode, flightIdToLoad]);
+    
+    useEffect(() => {
+        checkAircraftConflict();
+    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, checkAircraftConflict]);
 
 
   const gliderPilotCategoryIds = useMemo(() => {
@@ -1135,5 +1140,3 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
-
-    
