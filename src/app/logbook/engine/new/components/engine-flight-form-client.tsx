@@ -214,7 +214,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 'towage': 'Remolque planeador',
                 'trip': 'Travesía'
             };
-            const targetPurposeName = purposeNameMap[entry.flight_type_id];
+            const targetPurposeName = purposeNameMap[entry.flight_type_id as keyof typeof purposeNameMap];
             const correspondingPurpose = purposes.find(p => p.name === targetPurposeName);
 
             form.reset({
@@ -363,26 +363,26 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     }
   }, [watchedDepartureTime, watchedArrivalTime, watchedDate, form]);
 
-  const checkPilotValidity = useCallback(() => {
-    const checkMedical = (pilotId: string | null | undefined, date: Date | undefined, role: string): string | null => {
-        if (!pilotId || !date || pilots.length === 0) return null;
-        const pilot = pilots.find(p => p.id === pilotId);
-        if (!pilot?.medical_expiry) return null;
-        const medicalExpiryDate = parseISO(pilot.medical_expiry);
-        if (!isValid(medicalExpiryDate)) return null;
-        const flightDate = startOfDay(date);
-        if (isBefore(medicalExpiryDate, flightDate)) {
-            return `¡Psicofísico de ${role} VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
-        }
-        const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
-        if (daysDiff <= 30) {
-            return `Psicofísico de ${role} vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (${daysDiff} días).`;
-        }
-        return null;
-    }
+  const checkPilotMedical = useCallback((pilotId: string | null | undefined, date: Date | undefined, role: string): string | null => {
+      if (!pilotId || !date || pilots.length === 0) return null;
+      const pilot = pilots.find(p => p.id === pilotId);
+      if (!pilot?.medical_expiry) return null;
+      const medicalExpiryDate = parseISO(pilot.medical_expiry);
+      if (!isValid(medicalExpiryDate)) return null;
+      const flightDate = startOfDay(date);
+      if (isBefore(medicalExpiryDate, flightDate)) {
+          return `¡Psicofísico de ${role} VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
+      }
+      const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
+      if (daysDiff <= 30) {
+          return `Psicofísico de ${role} vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (${daysDiff} días).`;
+      }
+      return null;
+  }, [pilots]);
 
-    setMedicalWarning(checkMedical(watchedPilotId, watchedDate, 'Piloto'));
-    setInstructorMedicalWarning(checkMedical(watchedInstructorId, watchedDate, 'Instructor'));
+  useEffect(() => {
+    setMedicalWarning(checkPilotMedical(watchedPilotId, watchedDate, 'Piloto'));
+    setInstructorMedicalWarning(checkPilotMedical(watchedInstructorId, watchedDate, 'Instructor'));
     
     setCategoryWarning(null);
     if (!watchedPilotId || !watchedDate || pilots.length === 0 || categories.length === 0) {
@@ -406,11 +406,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       setCategoryWarning("El piloto seleccionado no tiene la categoría requerida (Piloto de Avión, Remolcador, o Instructor de Avión) para registrar este vuelo.");
     }
 
-  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories]);
-
-  useEffect(() => {
-    checkPilotValidity();
-  }, [checkPilotValidity]);
+  }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, checkPilotMedical]);
 
   useEffect(() => {
     const checkConflict = async () => {
@@ -422,63 +418,64 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const dateStr = format(watchedDate, 'yyyy-MM-dd');
         const formDepTime = parse(watchedDepartureTime, 'HH:mm', watchedDate).getTime();
         const formArrTime = parse(watchedArrivalTime, 'HH:mm', watchedDate).getTime();
-
         if (formArrTime <= formDepTime) return;
 
-        const { data: engineFlightsData, error: engineError } = await supabase
-            .from('completed_engine_flights')
-            .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id')
-            .eq('date', dateStr)
-            .eq('engine_aircraft_id', watchedEngineAircraftId);
+        const formPilots = new Set([watchedPilotId, watchedInstructorId].filter(Boolean));
         
-        const { data: gliderFlightsData, error: gliderError } = await supabase
-            .from('completed_glider_flights')
-            .select('id, departure_time, arrival_time, pilot_id, instructor_id, flight_purpose_id, tow_aircraft_id')
-            .eq('date', dateStr)
-            .eq('tow_aircraft_id', watchedEngineAircraftId);
+        // Fetch all potentially conflicting flights for the day
+        const { data: engineFlights, error: engineError } = await supabase.from('completed_engine_flights').select('*').eq('date', dateStr);
+        const { data: gliderFlights, error: gliderError } = await supabase.from('completed_glider_flights').select('*').eq('date', dateStr);
 
         if (engineError || gliderError) {
             console.error("Error fetching flights for conflict check:", engineError || gliderError);
             return;
         }
 
-        const allFlightsForAircraft: (CompletedEngineFlight | CompletedGliderFlight)[] = [
-            ...(engineFlightsData || []),
-            ...(gliderFlightsData || [])
-        ];
-        
-        for (const existingFlight of allFlightsForAircraft) {
-            if (isEditMode && existingFlight.id === flightIdToLoad) {
-                continue;
+        const allExistingFlights: (CompletedEngineFlight | CompletedGliderFlight)[] = [...(engineFlights || []), ...(gliderFlights || [])];
+
+        for (const existing of allExistingFlights) {
+            if (isEditMode && existing.id === flightIdToLoad && existing.logbook_type === 'engine') continue;
+            if (!existing.departure_time || !existing.arrival_time) continue;
+
+            const existingDepTime = parse(existing.departure_time, 'HH:mm', watchedDate).getTime();
+            const existingArrTime = parse(existing.arrival_time, 'HH:mm', watchedDate).getTime();
+
+            const isOverlap = formDepTime < existingArrTime && formArrTime > existingDepTime;
+            if (!isOverlap) continue;
+
+            // Check Aircraft Conflict
+            let existingAircraftId: string | null = null;
+            if(existing.logbook_type === 'engine') existingAircraftId = existing.engine_aircraft_id;
+            if(existing.logbook_type === 'glider') existingAircraftId = existing.tow_aircraft_id;
+
+            if (watchedEngineAircraftId === existingAircraftId) {
+                // If it's the same flight being edited, but split into two records for instruction, ignore it
+                const purposeName = getPurposeName(existing.flight_purpose_id) || '';
+                if(isEditMode && isInstructionMode && purposeName.includes('Instrucción')) {
+                   continue;
+                }
+                 setConflictWarning(`Conflicto: La aeronave ${getAircraftName(watchedEngineAircraftId)} ya está en uso.`);
+                 return;
             }
 
-            if (!existingFlight.departure_time || !existingFlight.arrival_time) continue;
+            // Check Pilot Conflicts
+            const existingPilots = new Set([
+                existing.pilot_id, 
+                existing.instructor_id, 
+                (existing.logbook_type === 'glider' ? (existing as CompletedGliderFlight).tow_pilot_id : null)
+            ].filter(Boolean));
 
-            const existingDepTime = parse(existingFlight.departure_time, 'HH:mm', watchedDate).getTime();
-            const existingArrTime = parse(existingFlight.arrival_time, 'HH:mm', watchedDate).getTime();
-            
-            const isOverlap = formDepTime < existingArrTime && formArrTime > existingDepTime;
-            
-            if (isOverlap) {
-                 const existingPurposeName = getPurposeName(existingFlight.flight_purpose_id) || '';
-                 if (isInstructionMode && existingPurposeName.includes('Instrucción')) {
-                     const samePilots = (
-                         (existingFlight.pilot_id === form.getValues('pilot_id') && existingFlight.instructor_id === form.getValues('instructor_id')) ||
-                         (existingFlight.pilot_id === form.getValues('instructor_id') && existingFlight.instructor_id === form.getValues('pilot_id'))
-                     );
-                     if (samePilots) {
-                         continue;
-                     }
-                 }
-                
-                const conflictingPilotName = getPilotName(existingFlight.pilot_id);
-                setConflictWarning(`Conflicto: Aeronave en uso por ${conflictingPilotName} entre las ${existingFlight.departure_time.substring(0, 5)} y ${existingFlight.arrival_time.substring(0, 5)}.`);
-                return;
+            const pilotIntersection = [...formPilots].filter(p => existingPilots.has(p as string));
+
+            if (pilotIntersection.length > 0) {
+                 const pilotName = getPilotName(pilotIntersection[0]);
+                 setConflictWarning(`Conflicto: ${pilotName} ya está en otro vuelo en este horario.`);
+                 return;
             }
         }
     };
     checkConflict();
-  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getPurposeName, form, isInstructionMode]);
+  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getAircraftName, watchedPilotId, watchedInstructorId, isInstructionMode, getPurposeName]);
 
 
   const enginePilotCategoryIds = useMemo(() => {
@@ -498,7 +495,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const sortedStudents = useMemo(() => {
     if (pilotsLoading || !pilots.length) return [];
     return sortedPilotsForEngineFlights;
-  }, [pilotsLoading, pilots, sortedPilotsForEngineFlights]);
+  }, [pilotsLoading, sortedPilotsForEngineFlights]);
 
 
   const instructorAvionCategoryId = useMemo(() => {
@@ -579,7 +576,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
              const { auth_user_id, ...updatePayload } = baseSubmissionData;
              result = await updateCompletedEngineFlight(flightIdToLoad!, { ...updatePayload, auth_user_id: user.id });
         } else if (isInstructionMode) {
-            const purposeName = getPurposeName(formData.flight_purpose_id);
             const purposesForEngine = purposes.filter(p => p.applies_to.includes('engine'));
             const impartidaPurposeId = purposesForEngine.find(p => p.name.includes('Impartida'))?.id;
             const recibidaPurposeId = purposesForEngine.find(p => p.name.includes('Recibida'))?.id;
@@ -600,11 +596,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             
             const instructorRecord = {
                 ...baseSubmissionData,
-                pilot_id: formData.pilot_id,
+                pilot_id: formData.pilot_id, // Student is still pilot_id
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: impartidaPurposeId,
-                auth_user_id: user.id,
-                oil_added_liters: null,
+                auth_user_id: user.id, // Logged in user is author of both records
+                oil_added_liters: null, // Only log consumables once
                 fuel_added_liters: null,
             };
             
