@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCw, Trash2, Edit, CalendarIcon, Check, ChevronsUpDown, Download } from 'lucide-react';
-import { format, parseISO, startOfMonth } from 'date-fns';
+import { format, parseISO, subYears } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { usePilotsStore, useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,7 +37,7 @@ export function GliderFlightListClient() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const [startDate, setStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [startDate, setStartDate] = useState<Date | undefined>(subYears(new Date(), 1));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedPilotId, setSelectedPilotId] = useState<string>('all');
   const [currentUserPilotId, setCurrentUserPilotId] = useState<string | null>(null);

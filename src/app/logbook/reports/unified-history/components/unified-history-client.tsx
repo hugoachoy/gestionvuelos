@@ -22,7 +22,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { CalendarIcon, FileText, Loader2, Check, ChevronsUpDown, Download } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subYears } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,7 @@ export function UnifiedHistoryClient() {
   const { fetchCompletedEngineFlightsForRange, loading: engineLoading } = useCompletedEngineFlightsStore();
   const { fetchCompletedGliderFlightsForRange, loading: gliderLoading } = useCompletedGliderFlightsStore();
 
-  const [startDate, setStartDate] = useState<Date | undefined>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [startDate, setStartDate] = useState<Date | undefined>(subYears(new Date(), 1));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedPilotId, setSelectedPilotId] = useState<string>('all');
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
