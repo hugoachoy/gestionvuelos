@@ -415,9 +415,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const sortedInstructorsForDropdown = useMemo(() => {
       if (!instructorPlaneadorCategoryId) return [];
       return pilots
-        .filter(pilot => pilot.category_ids.includes(instructorPlaneadorCategoryId))
+        .filter(pilot => 
+            pilot.category_ids.includes(instructorPlaneadorCategoryId) &&
+            pilot.id !== watchedPicPilotId
+        )
         .sort((a,b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, instructorPlaneadorCategoryId]);
+  }, [pilots, instructorPlaneadorCategoryId, watchedPicPilotId]);
 
   const towPilotCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
@@ -431,9 +434,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const sortedTowPilots = useMemo(() => {
     if (!towPilotCategoryId) return [];
     return pilots
-      .filter(pilot => pilot.category_ids.includes(towPilotCategoryId))
+      .filter(pilot => 
+          pilot.category_ids.includes(towPilotCategoryId) &&
+          pilot.id !== watchedPicPilotId &&
+          pilot.id !== watchedInstructorId
+      )
       .sort((a,b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  }, [pilots, towPilotCategoryId]);
+  }, [pilots, towPilotCategoryId, watchedPicPilotId, watchedInstructorId]);
 
 
   const filteredGliders = useMemo(() => {
@@ -454,6 +461,19 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     const isTowPilotExpired = towPilotMedicalWarning?.toUpperCase().includes("VENCIDO");
     return !!(isPicExpired || isInstructorExpired || isTowPilotExpired);
   }, [medicalWarning, instructorMedicalWarning, towPilotMedicalWarning]);
+
+  useEffect(() => {
+    if (watchedInstructorId && watchedInstructorId === watchedPicPilotId) {
+      form.setValue('instructor_id', null);
+    }
+  }, [watchedPicPilotId, watchedInstructorId, form]);
+
+  useEffect(() => {
+    if (watchedTowPilotId && (watchedTowPilotId === watchedPicPilotId || watchedTowPilotId === watchedInstructorId)) {
+        form.setValue('tow_pilot_id', '');
+    }
+  }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, form]);
+
 
   const onSubmit = async (formData: GliderFlightFormData) => {
     setIsSubmittingForm(true);
