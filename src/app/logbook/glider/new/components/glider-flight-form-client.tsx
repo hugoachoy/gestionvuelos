@@ -392,63 +392,59 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
     useEffect(() => {
-        const checkConflict = () => {
-            setConflictWarning(null);
-            if (!watchedDate || !/^\d{2}:\d{2}$/.test(watchedDepartureTime) || !/^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
+        setConflictWarning(null);
+        if (!watchedDate || !/^\d{2}:\d{2}$/.test(watchedDepartureTime) || !/^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
+            return;
+        }
+
+        const newDepartureTime = parse(watchedDepartureTime, 'HH:mm', watchedDate);
+        const newArrivalTime = parse(watchedArrivalTime, 'HH:mm', watchedDate);
+
+        if (!isValid(newDepartureTime) || !isValid(newArrivalTime) || isBefore(newArrivalTime, newDepartureTime)) return;
+        
+        // --- Glider Conflict Check ---
+        if (watchedGliderAircraftId) {
+            const conflictingGliderFlight = completedGliderFlights.find(flight => {
+                if (isEditMode && flight.id === flightIdToLoad) return false;
+                if (flight.date !== format(watchedDate, 'yyyy-MM-dd') || !flight.glider_aircraft_id) return false;
+
+                const existingDeparture = parse(flight.departure_time, 'HH:mm', parseISO(flight.date));
+                const existingArrival = parse(flight.arrival_time, 'HH:mm', parseISO(flight.date));
+                if (!isValid(existingDeparture) || !isValid(existingArrival)) return false;
+
+                const overlap = Math.max(newDepartureTime.getTime(), existingDeparture.getTime()) < Math.min(newArrivalTime.getTime(), existingArrival.getTime());
+                return flight.glider_aircraft_id === watchedGliderAircraftId && overlap;
+            });
+
+            if (conflictingGliderFlight) {
+                setConflictWarning(`Conflicto de Horario: El planeador ${getAircraftName(watchedGliderAircraftId)} ya tiene un vuelo registrado de ${conflictingGliderFlight.departure_time} a ${conflictingGliderFlight.arrival_time}.`);
                 return;
             }
+        }
 
-            const allFlights: CompletedFlight[] = [...completedEngineFlights, ...completedGliderFlights];
-            const currentPilots = [watchedPicPilotId, watchedInstructorId, watchedTowPilotId].filter(id => !!id);
-            if (currentPilots.length === 0) return;
+        // --- Tow Plane Conflict Check ---
+        if (watchedTowAircraftId) {
+            const allTowPlaneFlights = [...completedGliderFlights.filter(f => f.tow_aircraft_id === watchedTowAircraftId), ...completedEngineFlights.filter(f => f.engine_aircraft_id === watchedTowAircraftId)];
 
-            const departureDateTime = parse(watchedDepartureTime, 'HH:mm', watchedDate);
-            const arrivalDateTime = parse(watchedArrivalTime, 'HH:mm', watchedDate);
+            const conflictingTowPlaneFlight = allTowPlaneFlights.find(flight => {
+                if (isEditMode && flight.logbook_type === 'glider' && flight.id === flightIdToLoad) return false;
+                if (flight.date !== format(watchedDate, 'yyyy-MM-dd')) return false;
 
-            if (!isValid(departureDateTime) || !isValid(arrivalDateTime) || isBefore(arrivalDateTime, departureDateTime)) return;
+                const existingDeparture = parse(flight.departure_time, 'HH:mm', parseISO(flight.date));
+                const existingArrival = parse(flight.arrival_time, 'HH:mm', parseISO(flight.date));
+                if (!isValid(existingDeparture) || !isValid(existingArrival)) return false;
 
-            for (const existingFlight of allFlights) {
-                if (isEditMode && existingFlight.id === flightIdToLoad) continue;
-
-                const existingDepartureTime = parse(existingFlight.departure_time, 'HH:mm', parseISO(existingFlight.date));
-                const existingArrivalTime = parse(existingFlight.arrival_time, 'HH:mm', parseISO(existingFlight.date));
-
-                if (!isValid(existingDepartureTime) || !isValid(existingArrivalTime)) continue;
-
-                // Check for time overlap
-                const overlap = Math.max(departureDateTime.getTime(), existingDepartureTime.getTime()) < Math.min(arrivalDateTime.getTime(), existingArrivalTime.getTime());
-
-                if (overlap) {
-                    const existingFlightPilots: (string | undefined | null)[] = [];
-                    if (existingFlight.logbook_type === 'glider') {
-                        existingFlightPilots.push(existingFlight.pilot_id, existingFlight.instructor_id, existingFlight.tow_pilot_id);
-                    } else {
-                        existingFlightPilots.push(existingFlight.pilot_id, existingFlight.instructor_id);
-                    }
-
-                    const conflictingPilotId = currentPilots.find(p => existingFlightPilots.includes(p));
-
-                    if (conflictingPilotId) {
-                         const conflictingPilotName = getPilotName(conflictingPilotId);
-                         let roleInConflict = '';
-                          if (existingFlight.logbook_type === 'glider') {
-                              if (conflictingPilotId === existingFlight.pilot_id) roleInConflict = 'Piloto de Planeador';
-                              if (conflictingPilotId === existingFlight.instructor_id) roleInConflict = 'Instructor de Planeador';
-                              if (conflictingPilotId === existingFlight.tow_pilot_id) roleInConflict = 'Piloto Remolcador';
-                          } else {
-                              if (conflictingPilotId === existingFlight.pilot_id) roleInConflict = 'Piloto de Motor';
-                              if (conflictingPilotId === existingFlight.instructor_id) roleInConflict = 'Instructor de Motor';
-                          }
-
-                        setConflictWarning(`Conflicto de Horario: ${conflictingPilotName} ya está registrado como ${roleInConflict} en otro vuelo en este horario.`);
-                        return; // Found a conflict, no need to check further
-                    }
-                }
+                const overlap = Math.max(newDepartureTime.getTime(), existingDeparture.getTime()) < Math.min(newArrivalTime.getTime(), existingArrival.getTime());
+                return overlap;
+            });
+            
+            if (conflictingTowPlaneFlight) {
+                setConflictWarning(`Conflicto de Horario: El remolcador ${getAircraftName(watchedTowAircraftId)} ya tiene un vuelo registrado de ${conflictingTowPlaneFlight.departure_time} a ${conflictingTowPlaneFlight.arrival_time}.`);
+                return;
             }
-        };
+        }
 
-        checkConflict();
-    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPicPilotId, watchedInstructorId, watchedTowPilotId, completedGliderFlights, completedEngineFlights, isEditMode, flightIdToLoad, getPilotName]);
+    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, watchedTowAircraftId, completedGliderFlights, completedEngineFlights, isEditMode, flightIdToLoad, getAircraftName]);
 
   const gliderPilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
