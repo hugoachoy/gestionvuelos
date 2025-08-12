@@ -350,56 +350,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }, [pilots]);
 
   useEffect(() => {
-    const checkConflict = async () => {
-        setConflictWarning(null);
-
-        const formValues = form.getValues();
-        const { date, departure_time, arrival_time, pilot_id, instructor_id, tow_pilot_id, glider_aircraft_id, tow_aircraft_id } = formValues;
-        
-        if (!date || !/^\d{2}:\d{2}$/.test(departure_time) || !/^\d{2}:\d{2}$/.test(arrival_time) || !pilot_id || !tow_pilot_id || !glider_aircraft_id || !tow_aircraft_id) {
-            return;
-        }
-
-        const depTimeCleaned = departure_time.substring(0,5);
-        const arrTimeCleaned = arrival_time.substring(0,5);
-        if (parse(arrTimeCleaned, 'HH:mm', new Date()) <= parse(depTimeCleaned, 'HH:mm', new Date())) {
-            return;
-        }
-
-        const args = {
-            p_flight_date: format(date, 'yyyy-MM-dd'),
-            p_start_time: depTimeCleaned,
-            p_end_time: arrTimeCleaned,
-            p_pilot_ids: [pilot_id, instructor_id, tow_pilot_id].filter((id): id is string => !!id),
-            p_aircraft_ids: [glider_aircraft_id, tow_aircraft_id],
-            p_flight_id_to_exclude: isEditMode ? flightIdToLoad : null,
-        };
-
-        try {
-            const { data, error } = await supabase.rpc('are_resources_available_for_flight', args);
-            if (error) {
-                console.error("Error calling RPC function:", error);
-                setConflictWarning("Error al verificar conflictos. Intente de nuevo.");
-                return;
-            }
-
-            if (data && data.length > 0) {
-                const conflictMessages = data.map((conflict: any) => `Conflicto: ${conflict.resource_name} ya está en uso en este horario.`).join(' ');
-                setConflictWarning(conflictMessages);
-            } else {
-                setConflictWarning(null);
-            }
-        } catch (rpcError) {
-            console.error("RPC call failed:", rpcError);
-            setConflictWarning("Fallo en la comunicación con el servidor para verificar conflictos.");
-        }
-    };
-    
-    checkConflict();
-  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedGliderAircraftId, watchedTowAircraftId, isEditMode, flightIdToLoad, form]);
-
-
-  useEffect(() => {
     setMedicalWarning(checkPilotMedical(watchedPicPilotId, watchedDate, 'Piloto'));
     setInstructorMedicalWarning(checkPilotMedical(watchedInstructorId, watchedDate, 'Instructor'));
     setTowPilotMedicalWarning(checkPilotMedical(watchedTowPilotId, watchedDate, 'Piloto Remolcador'));

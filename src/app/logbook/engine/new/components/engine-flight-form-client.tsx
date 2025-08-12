@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -408,56 +407,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, checkPilotMedical]);
 
-  useEffect(() => {
-    const checkConflict = async () => {
-        setConflictWarning(null);
-
-        const formValues = form.getValues();
-        const { date, departure_time, arrival_time, pilot_id, instructor_id, engine_aircraft_id } = formValues;
-
-        if (!date || !/^\d{2}:\d{2}$/.test(departure_time) || !/^\d{2}:\d{2}$/.test(arrival_time) || !engine_aircraft_id || !pilot_id) {
-            return;
-        }
-
-        const depTimeCleaned = departure_time.substring(0,5);
-        const arrTimeCleaned = arrival_time.substring(0,5);
-        if (parse(arrTimeCleaned, 'HH:mm', new Date()) <= parse(depTimeCleaned, 'HH:mm', new Date())) {
-            return;
-        }
-
-        const args = {
-            p_flight_date: format(date, 'yyyy-MM-dd'),
-            p_start_time: depTimeCleaned,
-            p_end_time: arrTimeCleaned,
-            p_pilot_ids: [pilot_id, instructor_id].filter((id): id is string => !!id),
-            p_aircraft_ids: [engine_aircraft_id],
-            p_flight_id_to_exclude: isEditMode ? flightIdToLoad : null,
-        };
-
-        try {
-            const { data, error } = await supabase.rpc('are_resources_available_for_flight', args);
-            if (error) {
-                console.error("Error calling RPC function:", error);
-                setConflictWarning("Error al verificar conflictos. Intente de nuevo.");
-                return;
-            }
-
-            if (data && data.length > 0) {
-                const conflictMessages = data.map((conflict: any) => `Conflicto: ${conflict.resource_name} ya está en uso en este horario.`).join(' ');
-                setConflictWarning(conflictMessages);
-            } else {
-                setConflictWarning(null);
-            }
-        } catch (rpcError) {
-            console.error("RPC call failed:", rpcError);
-            setConflictWarning("Fallo en la comunicación con el servidor para verificar conflictos.");
-        }
-    };
-    
-    checkConflict();
-  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPilotId, watchedInstructorId, watchedEngineAircraftId, isEditMode, flightIdToLoad, form]);
-
-
   const enginePilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
     return categories
@@ -579,11 +528,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             
             const instructorRecord = {
                 ...baseSubmissionData,
-                pilot_id: formData.pilot_id, // Student is still pilot_id
+                pilot_id: formData.pilot_id, 
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: impartidaPurposeId,
-                auth_user_id: user.id, // Logged in user is author of both records
-                oil_added_liters: null, // Only log consumables once
+                auth_user_id: user.id,
+                oil_added_liters: null, 
                 fuel_added_liters: null,
             };
             
