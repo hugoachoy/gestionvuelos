@@ -219,7 +219,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
                         </Button>
                     </FormControl></PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsMedicalCalendarOpen(false); }} initialFocus locale={es} />
+                      <Calendar mode="single" selected={field.value} onSelect={(date) => { if(date) field.onChange(date); setIsMedicalCalendarOpen(false); }} initialFocus locale={es} />
                     </PopoverContent>
                   </Popover><FormMessage />
                 </FormItem>
@@ -253,7 +253,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
                         </Button>
                     </FormControl></PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsBirthDateCalendarOpen(false); }} captionLayout="dropdown-buttons" fromYear={1940} toYear={new Date().getFullYear()} initialFocus locale={es} />
+                      <Calendar mode="single" selected={field.value} onSelect={(date) => { if(date) field.onChange(date); setIsBirthDateCalendarOpen(false); }} captionLayout="dropdown-buttons" fromYear={1940} toYear={new Date().getFullYear()} initialFocus locale={es} />
                     </PopoverContent>
                   </Popover><FormMessage />
                 </FormItem>

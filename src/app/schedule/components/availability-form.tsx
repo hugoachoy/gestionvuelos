@@ -857,7 +857,7 @@ export function AvailabilityForm({
                 </Alert>
             )}
              {bookingConflictWarning && bookingConflictWarning.show && (
-              <Alert variant="destructive" className="mt-2">
+              <Alert variant={'destructive'} className="mt-2">
                 <PlaneIconLucide className="h-4 w-4" />
                 <AlertTitle>Conflicto de Reserva</AlertTitle>
                 <AlertDescription>{bookingConflictWarning.message}</AlertDescription>

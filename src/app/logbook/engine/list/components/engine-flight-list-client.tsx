@@ -401,8 +401,8 @@ export function EngineFlightListClient() {
                       <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
                       <TableCell>{isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-')}</TableCell>
                       <TableCell>{purposeName}</TableCell>
-                      <TableCell>{flight.departure_time}</TableCell>
-                      <TableCell>{flight.arrival_time}</TableCell>
+                      <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
+                      <TableCell>{flight.arrival_time.substring(0, 5)}</TableCell>
                       <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                       <TableCell>
                         {purposeName !== 'Remolque planeador' && typeof flight.billable_minutes === 'number'

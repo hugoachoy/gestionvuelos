@@ -69,7 +69,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate } = useCompletedGliderFlightsStore();
+  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate, completedGliderFlights } = useCompletedGliderFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -86,6 +86,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
   const [gliderWarning, setGliderWarning] = useState<string | null>(null);
   const [towPlaneWarning, setTowPlaneWarning] = useState<string | null>(null);
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
   
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
   const [flightFetchError, setFlightFetchError] = useState<string | null>(null);
