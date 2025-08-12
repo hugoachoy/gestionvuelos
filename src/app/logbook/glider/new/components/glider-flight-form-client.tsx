@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -69,7 +70,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate } = useCompletedGliderFlightsStore();
+  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate, completedGliderFlights, fetchCompletedGliderFlights } = useCompletedGliderFlightsStore();
+  const { completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -158,13 +160,15 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     fetchAircraft();
     fetchPilotCategories();
     fetchFlightPurposes();
+    fetchCompletedGliderFlights();
+    fetchCompletedEngineFlights();
     if (scheduleEntryIdParam && !isEditMode) {
       const dateParam = searchParams.get('date');
       if (dateParam) {
         fetchScheduleEntries(dateParam);
       }
     }
-  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchFlightPurposes, scheduleEntryIdParam, fetchScheduleEntries, isEditMode]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchFlightPurposes, scheduleEntryIdParam, fetchScheduleEntries, isEditMode, fetchCompletedGliderFlights, fetchCompletedEngineFlights]);
 
 
   useEffect(() => {
@@ -387,6 +391,47 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
+    useEffect(() => {
+    const checkConflict = () => {
+        setConflictWarning(null);
+        if (!watchedDate || !watchedDepartureTime || !watchedArrivalTime) return;
+
+        const allFlights: CompletedFlight[] = [...completedEngineFlights, ...completedGliderFlights];
+        const allPilotIdsInForm = [watchedPicPilotId, watchedInstructorId, watchedTowPilotId].filter(Boolean);
+        if (allPilotIdsInForm.length === 0) return;
+
+        const departureDateTime = parse(watchedDepartureTime, 'HH:mm', watchedDate);
+        const arrivalDateTime = parse(watchedArrivalTime, 'HH:mm', watchedDate);
+
+        if (!isValid(departureDateTime) || !isValid(arrivalDateTime) || isBefore(arrivalDateTime, departureDateTime)) return;
+
+        for (const flight of allFlights) {
+            if (isEditMode && flight.id === flightIdToLoad) continue;
+
+            const flightDeparture = parse(flight.departure_time, 'HH:mm', parseISO(flight.date));
+            const flightArrival = parse(flight.arrival_time, 'HH:mm', parseISO(flight.date));
+            if (!isValid(flightDeparture) || !isValid(flightArrival)) continue;
+
+            // Check for time overlap
+            const overlap = Math.max(departureDateTime.getTime(), flightDeparture.getTime()) < Math.min(arrivalDateTime.getTime(), flightArrival.getTime());
+
+            if (overlap) {
+                const pilotsInExistingFlight = [flight.pilot_id, flight.instructor_id];
+                if ('tow_pilot_id' in flight && flight.tow_pilot_id) {
+                    pilotsInExistingFlight.push(flight.tow_pilot_id);
+                }
+
+                const conflictingPilotId = allPilotIdsInForm.find(id => pilotsInExistingFlight.includes(id));
+                if (conflictingPilotId) {
+                    setConflictWarning(`Conflicto: ${getPilotName(conflictingPilotId)} ya está en otro vuelo en este horario.`);
+                    return;
+                }
+            }
+        }
+    };
+    checkConflict();
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPicPilotId, watchedInstructorId, watchedTowPilotId, completedGliderFlights, completedEngineFlights, isEditMode, flightIdToLoad, getPilotName]);
+
   const gliderPilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
     return categories
@@ -461,19 +506,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     const isTowPilotExpired = towPilotMedicalWarning?.toUpperCase().includes("VENCIDO");
     return !!(isPicExpired || isInstructorExpired || isTowPilotExpired);
   }, [medicalWarning, instructorMedicalWarning, towPilotMedicalWarning]);
-
-  useEffect(() => {
-    if (watchedInstructorId && watchedInstructorId === watchedPicPilotId) {
-      form.setValue('instructor_id', null);
-    }
-  }, [watchedPicPilotId, watchedInstructorId, form]);
-
-  useEffect(() => {
-    if (watchedTowPilotId && (watchedTowPilotId === watchedPicPilotId || watchedTowPilotId === watchedInstructorId)) {
-        form.setValue('tow_pilot_id', '');
-    }
-  }, [watchedPicPilotId, watchedInstructorId, watchedTowPilotId, form]);
-
 
   const onSubmit = async (formData: GliderFlightFormData) => {
     setIsSubmittingForm(true);
