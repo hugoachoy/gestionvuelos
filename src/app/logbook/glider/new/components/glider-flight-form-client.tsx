@@ -74,6 +74,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  
+  const [allGliderFlights, setAllGliderFlights] = useState<CompletedGliderFlight[]>([]);
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
   const [picPilotSearchTerm, setPicPilotSearchTerm] = useState('');
   const [picPilotPopoverOpen, setPicPilotPopoverOpen] = useState(false);
@@ -114,15 +117,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const currentFlightPurposeId = form.watch('flight_purpose_id');
   const selectedPurpose = useMemo(() => purposes.find(p => p.id === currentFlightPurposeId), [purposes, currentFlightPurposeId]);
   
-  const instructorPlaneadorCategoryId = useMemo(() => {
-    if (categoriesLoading) return undefined;
-    const category = categories.find(cat => {
-      const normalized = normalizeCategoryName(cat.name);
-      return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalized.includes(kw));
-    });
-    return category?.id;
-  }, [categories, categoriesLoading]);
-
   const scheduleEntryIdParam = searchParams.get('schedule_id');
   
   const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
@@ -157,13 +151,25 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     fetchAircraft();
     fetchPilotCategories();
     fetchFlightPurposes();
+
+    // Fetch all glider flights once for client-side validation
+    supabase.from('completed_glider_flights').select('*')
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching all glider flights for validation:", error);
+          toast({ title: "Error de validación", description: "No se pudieron cargar los vuelos existentes para la validación.", variant: "destructive" });
+        } else {
+          setAllGliderFlights(data || []);
+        }
+      });
+      
     if (scheduleEntryIdParam && !isEditMode) {
       const dateParam = searchParams.get('date');
       if (dateParam) {
         fetchScheduleEntries(dateParam);
       }
     }
-  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchFlightPurposes, scheduleEntryIdParam, fetchScheduleEntries, isEditMode]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchFlightPurposes, scheduleEntryIdParam, fetchScheduleEntries, isEditMode, toast]);
 
 
   useEffect(() => {
@@ -386,6 +392,55 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
+  // Client-side conflict validation
+  useEffect(() => {
+    const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
+    
+    if (!date || !departure_time || !arrival_time || !glider_aircraft_id || allGliderFlights.length === 0) {
+      setConflictWarning(null);
+      return;
+    }
+
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const newStartTime = parse(`${dateStr}T${departure_time}`);
+    const newEndTime = parse(`${dateStr}T${arrival_time}`);
+    
+    if (!isValid(newStartTime) || !isValid(newEndTime) || newEndTime <= newStartTime) {
+      setConflictWarning(null);
+      return;
+    }
+
+    const conflictingFlight = allGliderFlights.find(flight => {
+        if (flight.glider_aircraft_id !== glider_aircraft_id) return false;
+        if (flight.date !== dateStr) return false;
+        if (isEditMode && flight.id === flightIdToLoad) return false;
+
+        const existingStartTime = parse(`${flight.date}T${flight.departure_time}`);
+        const existingEndTime = parse(`${flight.date}T${flight.arrival_time}`);
+
+        if (!isValid(existingStartTime) || !isValid(existingEndTime)) return false;
+
+        // Check for overlap: (StartA < EndB) and (EndA > StartB)
+        return newStartTime < existingEndTime && newEndTime > existingStartTime;
+    });
+
+    if (conflictingFlight) {
+        setConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+    } else {
+        setConflictWarning(null);
+    }
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, allGliderFlights, form, isEditMode, flightIdToLoad]);
+
+
+  const instructorPlaneadorCategoryId = useMemo(() => {
+    if (categoriesLoading) return undefined;
+    const category = categories.find(cat => {
+      const normalized = normalizeCategoryName(cat.name);
+      return INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalized.includes(kw));
+    });
+    return category?.id;
+  }, [categories, categoriesLoading]);
+  
   const gliderPilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
     return categories
@@ -470,10 +525,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         setIsSubmittingForm(false);
         return;
     }
-    if (gliderWarning || towPlaneWarning) {
+    if (gliderWarning || towPlaneWarning || conflictWarning) {
         let errorMessages: string[] = [];
         if (gliderWarning) errorMessages.push(gliderWarning);
         if (towPlaneWarning) errorMessages.push(towPlaneWarning);
+        if (conflictWarning) errorMessages.push(conflictWarning);
         toast({
             title: "Error de Validación",
             description: `No se puede registrar el vuelo. Problemas: ${errorMessages.join(' ')}`,
@@ -487,32 +543,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     try {
         const depTimeCleaned = formData.departure_time.substring(0,5);
         const arrTimeCleaned = formData.arrival_time.substring(0,5);
-
-        // --- Server-side Conflict Check ---
-        const { data: conflict, error: conflictError } = await supabase.rpc('check_glider_conflict', {
-            p_date: format(formData.date, 'yyyy-MM-dd'),
-            p_glider_id: formData.glider_aircraft_id,
-            p_start_time: depTimeCleaned,
-            p_end_time: arrTimeCleaned,
-            p_exclude_flight_id: isEditMode ? flightIdToLoad : null
-        });
-
-        if (conflictError) {
-            throw new Error(`Error en la validación de conflicto: ${conflictError.message}`);
-        }
-
-        if (conflict) {
-            toast({
-                title: "Conflicto de Horario Detectado",
-                description: "El planeador seleccionado ya tiene un vuelo registrado que se superpone con este horario. Por favor, ajuste las horas o la fecha.",
-                variant: "destructive",
-                duration: 7000,
-            });
-            setIsSubmittingForm(false);
-            return;
-        }
-
-
+        
         const departureDateTime = parse(depTimeCleaned, 'HH:mm', formData.date);
         const arrivalDateTime = parse(arrTimeCleaned, 'HH:mm', formData.date);
         const durationMinutes = differenceInMinutes(arrivalDateTime, departureDateTime);
@@ -578,6 +609,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         if (result) {
             toast({ title: `Vuelo en Planeador ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
             router.push('/logbook/glider/list');
+        } else {
+            toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: `No se pudo guardar el vuelo.`, variant: 'destructive' });
         }
     } catch (error: any) {
         console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
@@ -588,7 +621,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || purposesLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
-  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning;
+  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning || !!conflictWarning;
 
   if (authLoading && !user) { 
     return (
@@ -684,6 +717,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
+            {conflictWarning && (
+                <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Conflicto de Horario</AlertTitle>
+                    <AlertDescription>{conflictWarning}</AlertDescription>
+                </Alert>
+            )}
             <FormField
               control={form.control}
               name="date"
@@ -1110,4 +1150,3 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
-
