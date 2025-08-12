@@ -429,7 +429,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
             p_flight_date: format(date, 'yyyy-MM-dd'),
             p_start_time: depTimeCleaned,
             p_end_time: arrTimeCleaned,
-            p_pilot_ids: [pilot_id, instructor_id].filter(Boolean) as string[],
+            p_pilot_ids: [pilot_id, instructor_id].filter((id): id is string => !!id),
             p_aircraft_ids: [engine_aircraft_id],
             p_flight_id_to_exclude: isEditMode ? flightIdToLoad : null,
         };

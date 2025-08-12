@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -50,16 +49,6 @@ const createGliderFlightSchema = () => z.object({
   arrival_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora de llegada inválido (HH:MM)."),
   notes: z.string().optional().nullable(),
   schedule_entry_id: z.string().optional().nullable(),
-}).refine(data => {
-  if (data.departure_time && data.arrival_time) {
-    const [depH, depM] = data.departure_time.split(':').map(Number);
-    const [arrH, arrM] = data.arrival_time.split(':').map(Number);
-    return (arrH * 60 + arrM) > (depH * 60 + depM);
-  }
-  return true;
-}, {
-  message: "La hora de llegada debe ser posterior a la hora de salida.",
-  path: ["arrival_time"],
 });
 
 type GliderFlightFormData = z.infer<ReturnType<typeof createGliderFlightSchema>>;
@@ -338,6 +327,28 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedDepartureTime, watchedArrivalTime, watchedDate, form]);
 
+    const checkPilotMedical = useCallback((pilotId: string | null | undefined, date: Date | undefined, pilotRole: string): string | null => {
+      if (!pilotId || !date || !pilots.length) {
+        return null;
+      }
+      const pilot = pilots.find(p => p.id === pilotId);
+      if (!pilot?.medical_expiry) {
+        return null;
+      }
+      const medicalExpiryDate = parseISO(pilot.medical_expiry);
+      const flightDate = startOfDay(date);
+      if (isValid(medicalExpiryDate)) {
+        if (isBefore(medicalExpiryDate, flightDate)) {
+          return `¡Psicofísico de ${pilotRole} VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
+        }
+        const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
+        if (daysDiff <= 30) {
+          return `Psicofísico de ${pilotRole} vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (${daysDiff} días).`;
+        }
+      }
+      return null;
+    }, [pilots]);
+
   useEffect(() => {
     const checkConflict = async () => {
         setConflictWarning(null);
@@ -359,7 +370,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             p_flight_date: format(date, 'yyyy-MM-dd'),
             p_start_time: depTimeCleaned,
             p_end_time: arrTimeCleaned,
-            p_pilot_ids: [pilot_id, instructor_id, tow_pilot_id].filter(Boolean) as string[],
+            p_pilot_ids: [pilot_id, instructor_id, tow_pilot_id].filter((id): id is string => !!id),
             p_aircraft_ids: [glider_aircraft_id, tow_aircraft_id],
             p_flight_id_to_exclude: isEditMode ? flightIdToLoad : null,
         };
@@ -387,28 +398,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     checkConflict();
   }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPicPilotId, watchedInstructorId, watchedTowPilotId, watchedGliderAircraftId, watchedTowAircraftId, isEditMode, flightIdToLoad, form]);
 
-
-  const checkPilotMedical = useCallback((pilotId: string | null | undefined, date: Date | undefined, pilotRole: string): string | null => {
-      if (!pilotId || !date || !pilots.length) {
-        return null;
-      }
-      const pilot = pilots.find(p => p.id === pilotId);
-      if (!pilot?.medical_expiry) {
-        return null;
-      }
-      const medicalExpiryDate = parseISO(pilot.medical_expiry);
-      const flightDate = startOfDay(date);
-      if (isValid(medicalExpiryDate)) {
-        if (isBefore(medicalExpiryDate, flightDate)) {
-          return `¡Psicofísico de ${pilotRole} VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
-        }
-        const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
-        if (daysDiff <= 30) {
-          return `Psicofísico de ${pilotRole} vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (${daysDiff} días).`;
-        }
-      }
-      return null;
-    }, [pilots]);
 
   useEffect(() => {
     setMedicalWarning(checkPilotMedical(watchedPicPilotId, watchedDate, 'Piloto'));
