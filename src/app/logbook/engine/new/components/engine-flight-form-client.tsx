@@ -411,71 +411,51 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   useEffect(() => {
     const checkConflict = async () => {
         setConflictWarning(null);
-        if (!watchedDate || !watchedEngineAircraftId || !/^\d{2}:\d{2}$/.test(watchedDepartureTime) || !/^\d{2}:\d{2}$/.test(watchedArrivalTime)) {
+
+        const formValues = form.getValues();
+        const { date, departure_time, arrival_time, pilot_id, instructor_id, engine_aircraft_id } = formValues;
+
+        if (!date || !/^\d{2}:\d{2}$/.test(departure_time) || !/^\d{2}:\d{2}$/.test(arrival_time) || !engine_aircraft_id || !pilot_id) {
             return;
         }
 
-        const dateStr = format(watchedDate, 'yyyy-MM-dd');
-        const formDepTime = parse(watchedDepartureTime, 'HH:mm', watchedDate).getTime();
-        const formArrTime = parse(watchedArrivalTime, 'HH:mm', watchedDate).getTime();
-        if (formArrTime <= formDepTime) return;
-
-        const formPilots = new Set([watchedPilotId, watchedInstructorId].filter(Boolean));
-        
-        // Fetch all potentially conflicting flights for the day
-        const { data: engineFlights, error: engineError } = await supabase.from('completed_engine_flights').select('*').eq('date', dateStr);
-        const { data: gliderFlights, error: gliderError } = await supabase.from('completed_glider_flights').select('*').eq('date', dateStr);
-
-        if (engineError || gliderError) {
-            console.error("Error fetching flights for conflict check:", engineError || gliderError);
+        const depTimeCleaned = departure_time.substring(0,5);
+        const arrTimeCleaned = arrival_time.substring(0,5);
+        if (parse(arrTimeCleaned, 'HH:mm', new Date()) <= parse(depTimeCleaned, 'HH:mm', new Date())) {
             return;
         }
 
-        const allExistingFlights: (CompletedEngineFlight | CompletedGliderFlight)[] = [...(engineFlights || []), ...(gliderFlights || [])];
+        const args = {
+            p_flight_date: format(date, 'yyyy-MM-dd'),
+            p_start_time: depTimeCleaned,
+            p_end_time: arrTimeCleaned,
+            p_pilot_ids: [pilot_id, instructor_id].filter(Boolean) as string[],
+            p_aircraft_ids: [engine_aircraft_id],
+            p_flight_id_to_exclude: isEditMode ? flightIdToLoad : null,
+        };
 
-        for (const existing of allExistingFlights) {
-            if (isEditMode && existing.id === flightIdToLoad && existing.logbook_type === 'engine') continue;
-            if (!existing.departure_time || !existing.arrival_time) continue;
-
-            const existingDepTime = parse(existing.departure_time, 'HH:mm', watchedDate).getTime();
-            const existingArrTime = parse(existing.arrival_time, 'HH:mm', watchedDate).getTime();
-
-            const isOverlap = formDepTime < existingArrTime && formArrTime > existingDepTime;
-            if (!isOverlap) continue;
-
-            // Check Aircraft Conflict
-            let existingAircraftId: string | null = null;
-            if(existing.logbook_type === 'engine') existingAircraftId = existing.engine_aircraft_id;
-            if(existing.logbook_type === 'glider') existingAircraftId = existing.tow_aircraft_id;
-
-            if (watchedEngineAircraftId === existingAircraftId) {
-                // If it's the same flight being edited, but split into two records for instruction, ignore it
-                const purposeName = getPurposeName(existing.flight_purpose_id) || '';
-                if(isEditMode && isInstructionMode && purposeName.includes('Instrucción')) {
-                   continue;
-                }
-                 setConflictWarning(`Conflicto: La aeronave ${getAircraftName(watchedEngineAircraftId)} ya está en uso.`);
-                 return;
+        try {
+            const { data, error } = await supabase.rpc('are_resources_available_for_flight', args);
+            if (error) {
+                console.error("Error calling RPC function:", error);
+                setConflictWarning("Error al verificar conflictos. Intente de nuevo.");
+                return;
             }
 
-            // Check Pilot Conflicts
-            const existingPilots = new Set([
-                existing.pilot_id, 
-                existing.instructor_id, 
-                (existing.logbook_type === 'glider' ? (existing as CompletedGliderFlight).tow_pilot_id : null)
-            ].filter(Boolean));
-
-            const pilotIntersection = [...formPilots].filter(p => existingPilots.has(p as string));
-
-            if (pilotIntersection.length > 0) {
-                 const pilotName = getPilotName(pilotIntersection[0]);
-                 setConflictWarning(`Conflicto: ${pilotName} ya está en otro vuelo en este horario.`);
-                 return;
+            if (data && data.length > 0) {
+                const conflictMessages = data.map((conflict: any) => `Conflicto: ${conflict.resource_name} ya está en uso en este horario.`).join(' ');
+                setConflictWarning(conflictMessages);
+            } else {
+                setConflictWarning(null);
             }
+        } catch (rpcError) {
+            console.error("RPC call failed:", rpcError);
+            setConflictWarning("Fallo en la comunicación con el servidor para verificar conflictos.");
         }
     };
+    
     checkConflict();
-  }, [watchedDate, watchedEngineAircraftId, watchedDepartureTime, watchedArrivalTime, isEditMode, flightIdToLoad, getPilotName, getAircraftName, watchedPilotId, watchedInstructorId, isInstructionMode, getPurposeName]);
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPilotId, watchedInstructorId, watchedEngineAircraftId, isEditMode, flightIdToLoad, form]);
 
 
   const enginePilotCategoryIds = useMemo(() => {
