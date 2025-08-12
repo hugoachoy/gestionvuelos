@@ -391,22 +391,17 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
-    const checkAircraftConflict = useCallback(() => {
+   useEffect(() => {
         setConflictWarning(null);
-        
-        const {
-            date: formDate,
-            departure_time: formDepartureTime,
-            arrival_time: formArrivalTime,
-            glider_aircraft_id: formGliderId,
-        } = form.getValues();
 
-        if (!formDate || !formDepartureTime || !formArrivalTime || !formGliderId || !completedGliderFlights.length) {
+        const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
+
+        if (!date || !departure_time || !arrival_time || !glider_aircraft_id || !/^\d{2}:\d{2}/.test(departure_time) || !/^\d{2}:\d{2}/.test(arrival_time)) {
             return;
         }
 
-        const newDepartureDateTime = parse(formDepartureTime, 'HH:mm', formDate);
-        const newArrivalDateTime = parse(formArrivalTime, 'HH:mm', formDate);
+        const newDepartureDateTime = parse(departure_time, 'HH:mm', date);
+        const newArrivalDateTime = parse(arrival_time, 'HH:mm', date);
 
         if (!isValid(newDepartureDateTime) || !isValid(newArrivalDateTime) || isBefore(newArrivalDateTime, newDepartureDateTime)) {
             return;
@@ -414,8 +409,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         
         const conflictingGliderFlight = completedGliderFlights.find(flight => {
             if (isEditMode && flight.id === flightIdToLoad) return false;
-            if (flight.glider_aircraft_id !== formGliderId) return false;
-            if (flight.date !== format(formDate, 'yyyy-MM-dd')) return false;
+            if (flight.glider_aircraft_id !== glider_aircraft_id) return false;
+            if (flight.date !== format(date, 'yyyy-MM-dd')) return false;
 
             const existingDeparture = parse(flight.departure_time, 'HH:mm', parseISO(flight.date));
             const existingArrival = parse(flight.arrival_time, 'HH:mm', parseISO(flight.date));
@@ -426,13 +421,12 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         });
 
         if (conflictingGliderFlight) {
-            setConflictWarning(`Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.`);
+            setConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+        } else {
+            setConflictWarning(null);
         }
-    }, [form, completedGliderFlights, isEditMode, flightIdToLoad]);
 
-    useEffect(() => {
-        checkAircraftConflict();
-    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, checkAircraftConflict]);
+    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, completedGliderFlights, isEditMode, flightIdToLoad, form]);
 
 
   const gliderPilotCategoryIds = useMemo(() => {
@@ -1141,3 +1135,5 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
+    
