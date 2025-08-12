@@ -554,8 +554,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         
         let result;
         if (isEditMode && flightIdToLoad) {
-            const { created_at, logbook_type, auth_user_id, ...restOfInitialData } = baseSubmissionData as any;
-            result = await updateCompletedGliderFlight(flightIdToLoad, { ...restOfInitialData, auth_user_id: user.id });
+            const updatePayload = {
+                ...baseSubmissionData,
+                auth_user_id: initialFlightData?.auth_user_id || user.id, // Keep original author
+            };
+            result = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
         } else if (isInstructionMode) {
              const purposesForGlider = purposes.filter(p => p.applies_to.includes('glider'));
              const impartidaPurposeId = purposesForGlider.find(p => p.name.includes('Impartida'))?.id;

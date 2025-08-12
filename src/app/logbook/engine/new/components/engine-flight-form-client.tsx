@@ -553,8 +553,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
         let result;
         if (isEditMode) {
-             const { auth_user_id, ...updatePayload } = baseSubmissionData;
-             result = await updateCompletedEngineFlight(flightIdToLoad!, { ...updatePayload, auth_user_id: user.id });
+             const updatePayload = {
+                ...baseSubmissionData,
+                auth_user_id: initialFlightData?.auth_user_id || user.id, // Keep original author
+            };
+             result = await updateCompletedEngineFlight(flightIdToLoad!, updatePayload);
         } else if (isInstructionMode) {
             const purposesForEngine = purposes.filter(p => p.applies_to.includes('engine'));
             const impartidaPurposeId = purposesForEngine.find(p => p.name.includes('Impartida'))?.id;
