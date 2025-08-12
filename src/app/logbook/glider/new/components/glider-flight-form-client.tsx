@@ -69,8 +69,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate, completedGliderFlights, fetchCompletedGliderFlights } = useCompletedGliderFlightsStore();
-  const { completedEngineFlights, fetchCompletedEngineFlights } = useCompletedEngineFlightsStore();
+  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate } = useCompletedGliderFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -87,9 +86,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
   const [gliderWarning, setGliderWarning] = useState<string | null>(null);
   const [towPlaneWarning, setTowPlaneWarning] = useState<string | null>(null);
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
-
-
+  
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
   const [flightFetchError, setFlightFetchError] = useState<string | null>(null);
   const [initialFlightData, setInitialFlightData] = useState<CompletedGliderFlight | null>(null);
@@ -159,15 +156,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     fetchAircraft();
     fetchPilotCategories();
     fetchFlightPurposes();
-    fetchCompletedGliderFlights();
-    fetchCompletedEngineFlights();
     if (scheduleEntryIdParam && !isEditMode) {
       const dateParam = searchParams.get('date');
       if (dateParam) {
         fetchScheduleEntries(dateParam);
       }
     }
-  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchFlightPurposes, scheduleEntryIdParam, fetchScheduleEntries, isEditMode, fetchCompletedGliderFlights, fetchCompletedEngineFlights]);
+  }, [fetchPilots, fetchAircraft, fetchPilotCategories, fetchFlightPurposes, scheduleEntryIdParam, fetchScheduleEntries, isEditMode]);
 
 
   useEffect(() => {
@@ -390,47 +385,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
-    const checkConflict = useCallback(() => {
-        const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
-        setConflictWarning(null);
-
-        if (!date || !departure_time || !arrival_time || !glider_aircraft_id || !/^\d{2}:\d{2}/.test(departure_time) || !/^\d{2}:\d{2}/.test(arrival_time)) {
-            return;
-        }
-
-        const newDepartureDateTime = parse(departure_time, 'HH:mm', date);
-        const newArrivalDateTime = parse(arrival_time, 'HH:mm', date);
-
-        if (!isValid(newDepartureDateTime) || !isValid(newArrivalDateTime) || isBefore(newArrivalDateTime, newDepartureDateTime)) {
-            return;
-        }
-
-        const conflictingGliderFlight = completedGliderFlights.find(flight => {
-            if (isEditMode && flight.id === flightIdToLoad) return false;
-            if (flight.glider_aircraft_id !== glider_aircraft_id) return false;
-            if (flight.date !== format(date, 'yyyy-MM-dd')) return false;
-
-            const existingDeparture = parse(flight.departure_time, 'HH:mm', parseISO(flight.date));
-            const existingArrival = parse(flight.arrival_time, 'HH:mm', parseISO(flight.date));
-
-            if (!isValid(existingDeparture) || !isValid(existingArrival)) return false;
-            
-            return newDepartureDateTime < existingArrival && newArrivalDateTime > existingDeparture;
-        });
-
-        if (conflictingGliderFlight) {
-            setConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
-        } else {
-            setConflictWarning(null);
-        }
-
-    }, [form, completedGliderFlights, isEditMode, flightIdToLoad]);
-    
-    useEffect(() => {
-        checkConflict();
-    }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, checkConflict]);
-
-
   const gliderPilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
     return categories
@@ -514,11 +468,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         setIsSubmittingForm(false);
         return;
     }
-    if (gliderWarning || towPlaneWarning || conflictWarning) {
+    if (gliderWarning || towPlaneWarning) {
         let errorMessages: string[] = [];
         if (gliderWarning) errorMessages.push(gliderWarning);
         if (towPlaneWarning) errorMessages.push(towPlaneWarning);
-        if (conflictWarning) errorMessages.push(conflictWarning);
         toast({
             title: "Error de Validación",
             description: `No se puede registrar el vuelo. Problemas: ${errorMessages.join(' ')}`,
@@ -608,7 +561,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || purposesLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
-  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning || !!conflictWarning;
+  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning;
 
   if (authLoading && !user) { 
     return (
@@ -704,13 +657,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            {conflictWarning && (
-                <Alert variant="destructive" className="mt-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Conflicto de Horario</AlertTitle>
-                    <AlertDescription>{conflictWarning}</AlertDescription>
-                </Alert>
-            )}
             <FormField
               control={form.control}
               name="date"
