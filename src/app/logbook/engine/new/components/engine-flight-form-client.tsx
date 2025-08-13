@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -92,7 +93,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [calculatedDuration, setCalculatedDuration] = useState<string | null>(null);
   const [aircraftWarning, setAircraftWarning] = useState<string | null>(null);
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [aircraftConflictWarning, setAircraftConflictWarning] = useState<string | null>(null);
+  const [pilotConflictWarning, setPilotConflictWarning] = useState<string | null>(null);
   
   const [isFetchingFlightDetails, setIsFetchingFlightDetails] = useState(false);
   const [flightFetchError, setFlightFetchError] = useState<string | null>(null);
@@ -407,6 +409,69 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
   }, [watchedPilotId, watchedInstructorId, watchedDate, pilots, categories, checkPilotMedical]);
 
+  useEffect(() => {
+    const checkConflicts = async () => {
+        const { date, departure_time, arrival_time, engine_aircraft_id, pilot_id, instructor_id } = form.getValues();
+        const validTimes = date && departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time) && arrival_time > departure_time;
+        
+        // Reset warnings at the beginning
+        setAircraftConflictWarning(null);
+        setPilotConflictWarning(null);
+
+        if (!validTimes) return;
+
+        // Aircraft Conflict Check
+        if (engine_aircraft_id) {
+            const { data: hasAircraftConflict, error: aircraftError } = await supabase.rpc('check_engine_conflict', {
+                p_date: format(date, 'yyyy-MM-dd'),
+                p_start_time: departure_time,
+                p_end_time: arrival_time,
+                p_engine_id: engine_aircraft_id,
+                p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
+            });
+
+            if (aircraftError) {
+                console.error("Error en validación de conflicto de aeronave:", aircraftError);
+                setAircraftConflictWarning("No se pudo validar el horario de la aeronave.");
+            } else if (hasAircraftConflict) {
+                setAircraftConflictWarning("Conflicto de Horario: Esta aeronave ya tiene un vuelo registrado en este rango horario.");
+            }
+        }
+
+        // Pilot Conflict Check
+        const pilotIdsToCheck = [pilot_id, instructor_id].filter(Boolean) as string[];
+        const uniquePilotIds = [...new Set(pilotIdsToCheck)];
+        
+        let pilotConflictFound = false;
+        for (const pId of uniquePilotIds) {
+            const { data: hasPilotConflict, error: pilotError } = await supabase.rpc('check_pilot_conflict', {
+                p_date: format(date, 'yyyy-MM-dd'),
+                p_start_time: departure_time,
+                p_end_time: arrival_time,
+                p_pilot_id: pId,
+                p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
+                p_exclude_logbook_type: isEditMode ? 'engine' : null,
+            });
+
+            if (pilotError) {
+                console.error(`Error en validación de conflicto para piloto ${pId}:`, pilotError);
+                setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
+                pilotConflictFound = true;
+                break;
+            }
+            if (hasPilotConflict) {
+                setPilotConflictWarning(`Conflicto de Horario: ${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
+                pilotConflictFound = true;
+                break;
+            }
+        }
+        if (!pilotConflictFound) {
+            setPilotConflictWarning(null);
+        }
+    };
+    checkConflicts();
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedEngineAircraftId, watchedPilotId, watchedInstructorId, form, isEditMode, flightIdToLoad, getPilotName]);
+
   const enginePilotCategoryIds = useMemo(() => {
     if (categoriesLoading || !categories.length) return [];
     return categories
@@ -466,8 +531,8 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         setIsSubmittingForm(false);
         return;
     }
-    if (aircraftWarning || conflictWarning) {
-        toast({ title: "Error de Validación", description: aircraftWarning || conflictWarning || "Corrija los errores antes de guardar.", variant: "destructive" });
+    if (aircraftWarning || aircraftConflictWarning || pilotConflictWarning) {
+        toast({ title: "Error de Validación", description: aircraftWarning || aircraftConflictWarning || pilotConflictWarning || "Corrija los errores antes de guardar.", variant: "destructive" });
         setIsSubmittingForm(false);
         return;
     }
@@ -562,7 +627,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     isLoading ||
     isAnyPilotInvalidForFlight ||
     (categoryWarning != null && !user?.is_admin) ||
-    !!aircraftWarning || !!conflictWarning;
+    !!aircraftWarning || !!pilotConflictWarning || !!aircraftConflictWarning;
 
 
   if (authLoading) {
@@ -677,11 +742,11 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            {conflictWarning && (
+            {(aircraftConflictWarning || pilotConflictWarning) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Conflicto de Horario</AlertTitle>
-                    <AlertDescription>{conflictWarning}</AlertDescription>
+                    <AlertDescription>{aircraftConflictWarning || pilotConflictWarning}</AlertDescription>
                 </Alert>
             )}
             {medicalWarning && (
@@ -1085,3 +1150,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+
+    
