@@ -329,7 +329,7 @@ export function GliderFlightListClient() {
                                   Todos los Pilotos
                               </CommandItem>
                               {pilots.map(pilot => (
-                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={()={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
+                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
                                       <Check className={cn("mr-2 h-4 w-4", selectedPilotId === pilot.id ? "opacity-100" : "opacity-0")} />
                                       {pilot.last_name}, {pilot.first_name}
                                   </CommandItem>
