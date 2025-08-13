@@ -447,5 +447,3 @@ export function GliderFlightListClient() {
     </div>
   );
 }
-
-    
