@@ -193,9 +193,9 @@ export function GliderFlightListClient() {
         
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-            isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id),
+            getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-'),
+            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
             purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
@@ -447,3 +447,4 @@ export function GliderFlightListClient() {
     </div>
   );
 }
+
