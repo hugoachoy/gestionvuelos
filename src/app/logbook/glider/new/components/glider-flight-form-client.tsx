@@ -75,7 +75,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [aircraftConflictWarning, setAircraftConflictWarning] = useState<string | null>(null);
+  const [pilotConflictWarning, setPilotConflictWarning] = useState<string | null>(null);
 
   const [picPilotSearchTerm, setPicPilotSearchTerm] = useState('');
   const [picPilotPopoverOpen, setPicPilotPopoverOpen] = useState(false);
@@ -381,38 +382,77 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
 
-  // REACTIVE CONFLICT CHECK
+  // REACTIVE CONFLICT CHECK - Aircraft
   useEffect(() => {
-    const checkConflict = async () => {
-      const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
-      const validTimes = /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time);
+    const checkAircraftConflict = async () => {
+        const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
+        const validTimes = departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time);
+        
+        if (!date || !glider_aircraft_id || !validTimes || arrival_time <= departure_time) {
+            setAircraftConflictWarning(null);
+            return;
+        }
 
-      if (!date || !glider_aircraft_id || !validTimes || arrival_time <= departure_time) {
-        setConflictWarning(null); // Clear warning if data is incomplete/invalid
+        const { data: hasConflict, error } = await supabase.rpc('check_glider_conflict', {
+            p_date: format(date, 'yyyy-MM-dd'),
+            p_start_time: departure_time,
+            p_end_time: arrival_time,
+            p_glider_id: glider_aircraft_id,
+            p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
+        });
+
+        if (error) {
+            console.error("Error en la validación de conflicto de aeronave:", error);
+            setAircraftConflictWarning("No se pudo validar el horario de la aeronave.");
+        } else if (hasConflict) {
+            setAircraftConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+        } else {
+            setAircraftConflictWarning(null);
+        }
+    };
+    checkAircraftConflict();
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, form, isEditMode, flightIdToLoad]);
+
+  // REACTIVE CONFLICT CHECK - Pilots
+  useEffect(() => {
+    const checkAllPilotConflicts = async () => {
+      const { date, departure_time, arrival_time, pilot_id, instructor_id, tow_pilot_id } = form.getValues();
+      const validTimes = departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time);
+      
+      if (!date || !validTimes || arrival_time <= departure_time) {
+        setPilotConflictWarning(null);
         return;
       }
-      
-      const { data: hasConflict, error } = await supabase.rpc('check_glider_conflict', {
-        p_date: format(date, 'yyyy-MM-dd'),
-        p_start_time: departure_time,
-        p_end_time: arrival_time,
-        p_glider_id: glider_aircraft_id,
-        p_exclude_flight_id: isEditMode ? flightIdToLoad : null
-      });
-
-      if (error) {
-        console.error("Error checking conflict:", error);
-        setConflictWarning("No se pudo verificar el conflicto de horario.");
-      } else if (hasConflict) {
-        setConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
-      } else {
-        setConflictWarning(null); // No conflict, clear warning
+  
+      const pilotIdsToCheck = [pilot_id, instructor_id, tow_pilot_id].filter(Boolean) as string[];
+      const uniquePilotIds = [...new Set(pilotIdsToCheck)];
+  
+      for (const pId of uniquePilotIds) {
+        const { data: hasConflict, error } = await supabase.rpc('check_pilot_conflict', {
+          p_date: format(date, 'yyyy-MM-dd'),
+          p_start_time: departure_time,
+          p_end_time: arrival_time,
+          p_pilot_id: pId,
+          p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
+          p_exclude_logbook_type: isEditMode ? 'glider' : null
+        });
+  
+        if (error) {
+          console.error(`Error en la validación de conflicto para el piloto ${pId}:`, error);
+          setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
+          return; // Stop on first error
+        }
+        if (hasConflict) {
+          setPilotConflictWarning(`Conflicto de Horario: ${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
+          return; // Stop on first conflict
+        }
       }
+      
+      setPilotConflictWarning(null); // Clear warning if no conflicts found
     };
-    
-    checkConflict();
-
-  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, form, isEditMode, flightIdToLoad]);
+  
+    checkAllPilotConflicts();
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPicPilotId, watchedInstructorId, watchedTowPilotId, form, isEditMode, flightIdToLoad, getPilotName]);
 
 
 
@@ -504,17 +544,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const onSubmit = async (formData: GliderFlightFormData) => {
     setIsSubmittingForm(true);
 
-    // Re-check conflict one last time before submitting
-    const { data: hasConflict, error: rpcError } = await supabase.rpc('check_glider_conflict', {
-      p_date: format(formData.date, 'yyyy-MM-dd'),
-      p_start_time: formData.departure_time,
-      p_end_time: formData.arrival_time,
-      p_glider_id: formData.glider_aircraft_id,
-      p_exclude_flight_id: isEditMode ? flightIdToLoad : null
-    });
-
-    if (rpcError || hasConflict) {
-        setConflictWarning(rpcError ? "Error al verificar conflicto." : "Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+    if (aircraftConflictWarning || pilotConflictWarning) {
+        toast({ title: "Conflicto Detectado", description: aircraftConflictWarning || pilotConflictWarning || "Corrija los conflictos antes de guardar.", variant: "destructive" });
         setIsSubmittingForm(false);
         return;
     }
@@ -612,7 +643,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   };
 
   const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || purposesLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
-  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning || !!conflictWarning;
+  const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning || !!aircraftConflictWarning || !!pilotConflictWarning;
 
   if (authLoading && !user) { 
     return (
@@ -708,11 +739,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            {conflictWarning && (
+            {(aircraftConflictWarning || pilotConflictWarning) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Conflicto de Horario</AlertTitle>
-                    <AlertDescription>{conflictWarning}</AlertDescription>
+                    <AlertDescription>{aircraftConflictWarning || pilotConflictWarning}</AlertDescription>
                 </Alert>
             )}
             <FormField
@@ -1141,3 +1172,4 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
