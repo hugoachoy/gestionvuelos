@@ -389,13 +389,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const { date, departure_time, arrival_time, glider_aircraft_id, pilot_id, instructor_id, tow_pilot_id } = form.getValues();
         const validTimes = date && departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time) && arrival_time > departure_time;
         
-        // Reset warnings at the beginning
         setAircraftConflictWarning(null);
         setPilotConflictWarning(null);
         
         if (!validTimes) return;
 
-        // Aircraft Conflict Check
         if (glider_aircraft_id) {
             const { data: hasAircraftConflict, error: aircraftError } = await supabase.rpc('check_glider_conflict', {
                 p_date: format(date, 'yyyy-MM-dd'),
@@ -407,18 +405,25 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
             if (aircraftError) {
                 console.error("Error en validación de conflicto de aeronave:", aircraftError);
-                setAircraftConflictWarning("No se pudo validar el horario de la aeronave.");
             } else if (hasAircraftConflict) {
                 setAircraftConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
             }
         }
-
-        // Pilot Conflict Check
+        
         const pilotIdsToCheck = [pilot_id, instructor_id, tow_pilot_id].filter(Boolean) as string[];
         const uniquePilotIds = [...new Set(pilotIdsToCheck)];
         
         let pilotConflictFound = false;
         for (const pId of uniquePilotIds) {
+            if (pilotConflictFound) continue;
+
+            // Don't check conflict between student and instructor in the same flight
+            if ((pId === pilot_id && instructor_id === uniquePilotIds.find(id => id !== pId)) || 
+                (pId === instructor_id && pilot_id === uniquePilotIds.find(id => id !== pId))) {
+                  const isSamePerson = pilot_id === instructor_id;
+                  if(!isSamePerson) continue;
+            }
+
             const { data: hasPilotConflict, error: pilotError } = await supabase.rpc('check_pilot_conflict', {
                 p_date: format(date, 'yyyy-MM-dd'),
                 p_start_time: departure_time,
@@ -432,16 +437,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 console.error(`Error en validación de conflicto para piloto ${pId}:`, pilotError);
                 setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
                 pilotConflictFound = true;
-                break;
-            }
-            if (hasPilotConflict) {
+            } else if (hasPilotConflict) {
                 setPilotConflictWarning(`Conflicto de Horario: ${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
                 pilotConflictFound = true;
-                break;
             }
-        }
-        if (!pilotConflictFound) {
-            setPilotConflictWarning(null);
         }
     };
     checkConflicts();
@@ -608,8 +607,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
              const instructorRecord = {
                 ...baseSubmissionData,
                 pilot_id: formData.instructor_id!, 
-                instructor_id: formData.pilot_id, // El alumno figura como instructor en el registro del instructor
+                instructor_id: null,
                 flight_purpose_id: impartidaPurposeId,
+                notes: `Instrucción a ${getPilotName(formData.pilot_id)}.`,
                 auth_user_id: user.id,
              };
              
@@ -627,7 +627,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             throw new Error(`No se pudo ${isEditMode ? 'actualizar' : 'guardar'} el vuelo de planeador.`);
         }
 
-        // Si es un vuelo NUEVO y tiene datos de remolque, registrar el vuelo de motor
         if (!isEditMode && formData.tow_pilot_id && formData.tow_aircraft_id) {
             const towPurpose = purposes.find(p => p.name === 'Remolque planeador');
             if (!towPurpose) {
@@ -1198,8 +1197,3 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
-
-
-
-
-
