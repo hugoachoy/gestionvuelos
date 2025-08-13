@@ -189,12 +189,13 @@ export function GliderFlightListClient() {
 
     flightsForPdf.forEach(flight => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
+        const isInstructionGiven = purposeName.includes('Impartida');
         
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-            getPilotName(flight.pilot_id),
+            isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
+            flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-',
             purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
@@ -208,11 +209,14 @@ export function GliderFlightListClient() {
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
-      foot: [[
+      foot: [
+        [{ content: 'En el caso de los vuelos de instrucción, solo se computa uno de los vuelos para el total de horas.', colSpan: 11, styles: { halign: 'left', fontStyle: 'italic', fontSize: 7, textColor: [100, 100, 100] } }],
+        [
           { content: 'TOTAL', colSpan: 9, styles: { halign: 'right', fontStyle: 'bold' } },
           { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
           { content: '', colSpan: 1 },
-      ]],
+        ]
+      ],
       startY: 28,
       theme: 'grid',
       headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
@@ -386,13 +390,14 @@ export function GliderFlightListClient() {
                   const canEdit = currentUser?.is_admin || (flight.auth_user_id && flight.auth_user_id === currentUser?.id);
                   const canDelete = currentUser?.is_admin;
                   const purposeName = getPurposeName(flight.flight_purpose_id);
+                  const isInstructionGiven = purposeName.includes('Impartida');
 
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                      <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
+                      <TableCell>{flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-'}</TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
