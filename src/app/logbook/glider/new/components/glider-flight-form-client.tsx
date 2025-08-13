@@ -595,6 +595,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                  throw new Error("No se encontraron los propósitos de vuelo de instrucción 'Impartida' o 'Recibida'.");
              }
              
+             // Registro para el Alumno
              const studentRecord = {
                 ...baseSubmissionData,
                 pilot_id: formData.pilot_id,
@@ -603,10 +604,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 auth_user_id: user.id,
              };
 
+             // Registro para el Instructor
              const instructorRecord = {
                 ...baseSubmissionData,
-                pilot_id: formData.instructor_id!, // Instructor is the PIC on their record
-                instructor_id: null, // No instructor for the instructor's record
+                pilot_id: formData.instructor_id!, 
+                instructor_id: formData.pilot_id, // El alumno figura como instructor en el registro del instructor
                 flight_purpose_id: impartidaPurposeId,
                 auth_user_id: user.id,
              };
@@ -1196,6 +1198,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
 
 
 
