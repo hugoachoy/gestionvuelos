@@ -417,13 +417,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         for (const pId of uniquePilotIds) {
             if (pilotConflictFound) continue;
 
-            // Don't check conflict between student and instructor in the same flight
-            if ((pId === pilot_id && instructor_id === uniquePilotIds.find(id => id !== pId)) || 
-                (pId === instructor_id && pilot_id === uniquePilotIds.find(id => id !== pId))) {
-                  const isSamePerson = pilot_id === instructor_id;
-                  if(!isSamePerson) continue;
-            }
-
             const { data: hasPilotConflict, error: pilotError } = await supabase.rpc('check_pilot_conflict', {
                 p_date: format(date, 'yyyy-MM-dd'),
                 p_start_time: departure_time,
@@ -606,8 +599,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
              // Registro para el Instructor
              const instructorRecord = {
                 ...baseSubmissionData,
-                pilot_id: formData.instructor_id!, 
-                instructor_id: null,
+                pilot_id: formData.instructor_id!,
+                instructor_id: null, // Correctly set to null for instructor's record
                 flight_purpose_id: impartidaPurposeId,
                 notes: `Instrucción a ${getPilotName(formData.pilot_id)}.`,
                 auth_user_id: user.id,
