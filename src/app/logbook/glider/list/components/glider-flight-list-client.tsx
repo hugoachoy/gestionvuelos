@@ -147,7 +147,7 @@ export function GliderFlightListClient() {
 
     for (const flight of sortedFlights) {
         // A unique key for a flight event, ignoring who logged it
-        const flightEventKey = `${flight.date}-${flight.departure_time}-${flight.arrival_time}-${flight.glider_aircraft_id}`;
+        const flightEventKey = `${flight.date}-${flight.departure_time}-${flight.glider_aircraft_id}`;
         
         if (!processedFlightKeys.has(flightEventKey)) {
             totalDuration += flight.flight_duration_decimal;
@@ -189,13 +189,12 @@ export function GliderFlightListClient() {
 
     flightsForPdf.forEach(flight => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
-        const isInstructionGiven = purposeName.includes('Impartida');
-
+        
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-            isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id),
+            getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-'),
+            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
             purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
@@ -387,7 +386,6 @@ export function GliderFlightListClient() {
                   const canEdit = currentUser?.is_admin || (flight.auth_user_id && flight.auth_user_id === currentUser?.id);
                   const canDelete = currentUser?.is_admin;
                   const purposeName = getPurposeName(flight.flight_purpose_id);
-                  const isInstructionGiven = purposeName.includes('Impartida');
 
                   return (
                     <TableRow key={flight.id}>
