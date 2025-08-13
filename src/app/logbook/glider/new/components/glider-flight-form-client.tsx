@@ -599,8 +599,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
              // Registro para el Instructor
              const instructorRecord = {
                 ...baseSubmissionData,
-                pilot_id: formData.instructor_id!,
-                instructor_id: formData.pilot_id, 
+                pilot_id: formData.instructor_id!, // Instructor is the pilot on their record
+                instructor_id: formData.pilot_id, // Student is the "instructor" field for context
                 flight_purpose_id: impartidaPurposeId,
                 notes: `Instrucción a ${getPilotName(formData.pilot_id)}.`,
                 auth_user_id: user.id,
