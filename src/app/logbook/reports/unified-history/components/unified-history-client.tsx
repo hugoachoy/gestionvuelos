@@ -175,19 +175,14 @@ export function UnifiedHistoryClient() {
 
       reportData.forEach(flight => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
-        const isInstruction = purposeName.includes('Instrucción');
-        let pilotText = getPilotName(flight.pilot_id);
-                 
-        if (isInstruction && flight.instructor_id === selectedPilotId && selectedPilotId !== 'all') {
-           pilotText = `${getPilotName(flight.instructor_id)} (Instr. de ${getPilotName(flight.pilot_id)})`;
-        }
+        const isInstructionGiven = purposeName.includes('Impartida');
 
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
             flight.logbook_type === 'engine' ? 'Motor' : 'Planeador',
             getAircraftName(flight.logbook_type === 'engine' ? (flight as CompletedEngineFlight).engine_aircraft_id : (flight as CompletedGliderFlight).glider_aircraft_id),
-            pilotText,
-            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
+            isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id),
+            flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-',
             purposeName,
             `${flight.flight_duration_decimal.toFixed(1)} hs`,
             flight.notes || '-',
@@ -324,12 +319,7 @@ export function UnifiedHistoryClient() {
             <TableBody>
               {reportData.map((flight) => {
                  const purposeName = getPurposeName(flight.flight_purpose_id);
-                 const isInstruction = purposeName.includes('Instrucción');
-                 let pilotText = getPilotName(flight.pilot_id);
-                 
-                 if (isInstruction && flight.instructor_id === selectedPilotId && selectedPilotId !== 'all') {
-                    pilotText = `${getPilotName(flight.instructor_id)} (Instr. de ${getPilotName(flight.pilot_id)})`;
-                 }
+                 const isInstructionGiven = purposeName.includes('Impartida');
 
                 return (
                 <TableRow key={flight.id}>
@@ -340,8 +330,8 @@ export function UnifiedHistoryClient() {
                     </Badge>
                   </TableCell>
                   <TableCell>{getAircraftName(flight.logbook_type === 'engine' ? (flight as CompletedEngineFlight).engine_aircraft_id : (flight as CompletedGliderFlight).glider_aircraft_id)}</TableCell>
-                  <TableCell>{pilotText}</TableCell>
-                  <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
+                  <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
+                  <TableCell>{flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-'}</TableCell>
                   <TableCell>{purposeName}</TableCell>
                   <TableCell>{flight.flight_duration_decimal.toFixed(1)} hs</TableCell>
                   <TableCell className="max-w-xs truncate">{flight.notes || '-'}</TableCell>
