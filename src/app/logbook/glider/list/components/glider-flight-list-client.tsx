@@ -210,7 +210,7 @@ export function GliderFlightListClient() {
       head: [tableColumn],
       body: tableRows,
       foot: [
-        [{ content: 'En el caso de los vuelos de instrucción, solo se computa uno de los vuelos para el total de horas.', colSpan: 11, styles: { halign: 'left', fontStyle: 'italic', fontSize: 7, textColor: [100, 100, 100] } }],
+        [{ content: 'En el caso de los vuelos de instrucción, solo se computa uno de los vuelos para el total de horas.', colSpan: 11, styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [255, 255, 255], fillColor: [100, 100, 100] } }],
         [
           { content: 'TOTAL', colSpan: 9, styles: { halign: 'right', fontStyle: 'bold' } },
           { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
@@ -329,7 +329,7 @@ export function GliderFlightListClient() {
                                   Todos los Pilotos
                               </CommandItem>
                               {pilots.map(pilot => (
-                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
+                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={()={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
                                       <Check className={cn("mr-2 h-4 w-4", selectedPilotId === pilot.id ? "opacity-100" : "opacity-0")} />
                                       {pilot.last_name}, {pilot.first_name}
                                   </CommandItem>
@@ -447,3 +447,5 @@ export function GliderFlightListClient() {
     </div>
   );
 }
+
+    
