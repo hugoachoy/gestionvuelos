@@ -195,7 +195,7 @@ export function GliderFlightListClient() {
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
             isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-',
+            isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-'),
             purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
@@ -395,9 +395,9 @@ export function GliderFlightListClient() {
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                      <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-'}</TableCell>
+                      <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
