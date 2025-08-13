@@ -389,13 +389,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const { date, departure_time, arrival_time, glider_aircraft_id, pilot_id, instructor_id, tow_pilot_id } = form.getValues();
         const validTimes = date && departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time) && arrival_time > departure_time;
         
-        if (!validTimes) {
-            setAircraftConflictWarning(null);
-            setPilotConflictWarning(null);
-            return;
-        }
+        // Reset warnings at the beginning
+        setAircraftConflictWarning(null);
+        setPilotConflictWarning(null);
+        
+        if (!validTimes) return;
 
-        // --- Aircraft Conflict Check ---
+        // Aircraft Conflict Check
         if (glider_aircraft_id) {
             const { data: hasAircraftConflict, error: aircraftError } = await supabase.rpc('check_glider_conflict', {
                 p_date: format(date, 'yyyy-MM-dd'),
@@ -410,14 +410,10 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 setAircraftConflictWarning("No se pudo validar el horario de la aeronave.");
             } else if (hasAircraftConflict) {
                 setAircraftConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
-            } else {
-                setAircraftConflictWarning(null);
             }
-        } else {
-             setAircraftConflictWarning(null);
         }
 
-        // --- Pilot Conflict Check ---
+        // Pilot Conflict Check
         const pilotIdsToCheck = [pilot_id, instructor_id, tow_pilot_id].filter(Boolean) as string[];
         const uniquePilotIds = [...new Set(pilotIdsToCheck)];
         
@@ -609,8 +605,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
              const instructorRecord = {
                 ...baseSubmissionData,
-                pilot_id: formData.pilot_id,
-                instructor_id: formData.instructor_id,
+                pilot_id: formData.instructor_id!, // Instructor is the PIC on their record
+                instructor_id: null, // No instructor for the instructor's record
                 flight_purpose_id: impartidaPurposeId,
                 auth_user_id: user.id,
              };
@@ -1200,6 +1196,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
 
 
 
