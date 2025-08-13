@@ -381,6 +381,41 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
 
+  // REACTIVE CONFLICT CHECK
+  useEffect(() => {
+    const checkConflict = async () => {
+      const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
+      const validTimes = /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time);
+
+      if (!date || !glider_aircraft_id || !validTimes || arrival_time <= departure_time) {
+        setConflictWarning(null); // Clear warning if data is incomplete/invalid
+        return;
+      }
+      
+      const { data: hasConflict, error } = await supabase.rpc('check_glider_conflict', {
+        p_date: format(date, 'yyyy-MM-dd'),
+        p_start_time: departure_time,
+        p_end_time: arrival_time,
+        p_glider_id: glider_aircraft_id,
+        p_exclude_flight_id: isEditMode ? flightIdToLoad : null
+      });
+
+      if (error) {
+        console.error("Error checking conflict:", error);
+        setConflictWarning("No se pudo verificar el conflicto de horario.");
+      } else if (hasConflict) {
+        setConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+      } else {
+        setConflictWarning(null); // No conflict, clear warning
+      }
+    };
+    
+    checkConflict();
+
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, form, isEditMode, flightIdToLoad]);
+
+
+
   const instructorPlaneadorCategoryId = useMemo(() => {
     if (categoriesLoading) return undefined;
     const category = categories.find(cat => {
@@ -468,7 +503,22 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
 
   const onSubmit = async (formData: GliderFlightFormData) => {
     setIsSubmittingForm(true);
-    setConflictWarning(null);
+
+    // Re-check conflict one last time before submitting
+    const { data: hasConflict, error: rpcError } = await supabase.rpc('check_glider_conflict', {
+      p_date: format(formData.date, 'yyyy-MM-dd'),
+      p_start_time: formData.departure_time,
+      p_end_time: formData.arrival_time,
+      p_glider_id: formData.glider_aircraft_id,
+      p_exclude_flight_id: isEditMode ? flightIdToLoad : null
+    });
+
+    if (rpcError || hasConflict) {
+        setConflictWarning(rpcError ? "Error al verificar conflicto." : "Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+        setIsSubmittingForm(false);
+        return;
+    }
+
 
     if (!user) {
         toast({ title: "Error", description: "Debes estar autenticado para registrar un vuelo.", variant: "destructive" });
@@ -477,31 +527,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
     if (gliderWarning || towPlaneWarning) {
         toast({ title: "Error de Validación", description: gliderWarning || towPlaneWarning || "Corrija los errores antes de guardar.", variant: "destructive" });
-        setIsSubmittingForm(false);
-        return;
-    }
-
-    // --- Server-side Conflict Validation via RPC ---
-    try {
-      const { data: conflict, error: rpcError } = await supabase.rpc('check_glider_conflict', {
-        p_date: format(formData.date, 'yyyy-MM-dd'),
-        p_start_time: formData.departure_time,
-        p_end_time: formData.arrival_time,
-        p_glider_id: formData.glider_aircraft_id,
-        p_exclude_flight_id: isEditMode ? flightIdToLoad : null
-      });
-
-      if (rpcError) {
-        throw rpcError;
-      }
-      if (conflict) {
-        setConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
-        setIsSubmittingForm(false);
-        return;
-      }
-    } catch(err: any) {
-        console.error("Error en la validación de conflicto:", err);
-        toast({ title: "Error de Validación", description: `No se pudo verificar el conflicto: ${err.message}`, variant: "destructive" });
         setIsSubmittingForm(false);
         return;
     }
