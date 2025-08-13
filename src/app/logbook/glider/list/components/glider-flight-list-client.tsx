@@ -29,7 +29,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 export function GliderFlightListClient() {
-  const { fetchCompletedGliderFlightsForRange, loading: flightsLoading, error: flightsError, deleteCompletedGliderFlight } = useCompletedGliderFlightsStore();
+  const { fetchCompletedGliderFlightsForRange, loading: flightsLoading, error: flightsError, deleteCompletedGliderFlightWithRelatives } = useCompletedGliderFlightsStore();
   const { getPilotName, pilots, loading: pilotsLoading, fetchPilots } = usePilotsStore();
   const { getAircraftName, aircraft, loading: aircraftLoading, fetchAircraft } = useAircraftStore();
   const { getPurposeName, purposes, loading: purposesLoading, fetchFlightPurposes } = useFlightPurposesStore();
@@ -114,12 +114,12 @@ export function GliderFlightListClient() {
 
   const confirmDelete = async () => {
     if (flightToDelete) {
-      const success = await deleteCompletedGliderFlight(flightToDelete.id);
+      const success = await deleteCompletedGliderFlightWithRelatives(flightToDelete.id);
       if (success) {
-        toast({ title: "Vuelo Eliminado", description: "El registro del vuelo ha sido eliminado." });
+        toast({ title: "Vuelo Eliminado", description: "El vuelo y sus registros asociados han sido eliminados." });
         handleFetchAndFilter(); // Refetch data for the current range
       } else {
-        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el vuelo.", variant: "destructive" });
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el vuelo y sus asociados.", variant: "destructive" });
       }
     }
     setIsDeleteDialogOpen(false);
@@ -247,6 +247,25 @@ export function GliderFlightListClient() {
       </div>
     );
   }
+
+  const deleteWarningMessage = useMemo(() => {
+    if (!flightToDelete) return "este vuelo";
+    
+    const baseMessage = `el vuelo de ${getPilotName(flightToDelete.pilot_id)} del ${format(parseISO(flightToDelete.date), "dd/MM/yyyy")}`;
+    const warnings = [];
+
+    if (flightToDelete.instructor_id) {
+        warnings.push("el registro de instrucción de contrapartida");
+    }
+    if (flightToDelete.tow_pilot_id) {
+        warnings.push("el vuelo de remolque asociado");
+    }
+    
+    if (warnings.length > 0) {
+        return `${baseMessage} y también ${warnings.join(' y ')}.`;
+    }
+    return baseMessage;
+  }, [flightToDelete, getPilotName]);
 
   return (
     <div>
@@ -420,7 +439,7 @@ export function GliderFlightListClient() {
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         onConfirm={confirmDelete}
-        itemName={flightToDelete ? `el vuelo de ${getPilotName(flightToDelete.pilot_id)} del ${format(parseISO(flightToDelete.date), "dd/MM/yyyy")}` : 'este vuelo'}
+        itemName={deleteWarningMessage}
       />
     </div>
   );

@@ -1085,19 +1085,22 @@ export function useCompletedGliderFlightsStore() {
     return result;
   }, []);
 
-  const deleteCompletedGliderFlight = useCallback(async (flightId: string) => {
+  const deleteCompletedGliderFlightWithRelatives = useCallback(async (flightId: string) => {
     setError(null);
     setLoading(true);
     try {
-      const { error: deleteError } = await supabase.from('completed_glider_flights').delete().eq('id', flightId);
-      if (deleteError) {
-        logSupabaseError('Error deleting completed glider flight', deleteError);
-        setError(deleteError);
+      const { error: rpcError } = await supabase.rpc('delete_glider_flight_and_relatives', {
+        p_flight_id: flightId,
+      });
+
+      if (rpcError) {
+        logSupabaseError('Error calling RPC to delete glider flight and relatives', rpcError);
+        setError(rpcError);
         return false;
       }
       return true;
     } catch (e) {
-      logSupabaseError('Unexpected error deleting completed glider flight', e);
+      logSupabaseError('Unexpected error in deleteCompletedGliderFlightWithRelatives', e);
       setError(e);
       return false;
     } finally {
@@ -1106,7 +1109,7 @@ export function useCompletedGliderFlightsStore() {
   }, []);
 
 
-  return { completedGliderFlights, loading, error, addCompletedGliderFlight, updateCompletedGliderFlight, fetchCompletedGliderFlightsForRange, deleteCompletedGliderFlight, fetchCompletedGliderFlights, fetchCompletedGliderFlightsByAircraftForRange };
+  return { completedGliderFlights, loading, error, addCompletedGliderFlight, updateCompletedGliderFlight, fetchCompletedGliderFlightsForRange, deleteCompletedGliderFlightWithRelatives, fetchCompletedGliderFlights, fetchCompletedGliderFlightsByAircraftForRange };
 }
 
 // --- Completed Engine Flights Store ---
