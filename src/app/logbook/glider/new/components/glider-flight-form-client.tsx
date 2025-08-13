@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes } from 'date-fns';
+import { format, parseISO, isValid, differenceInMinutes, startOfDay, parse, isBefore, differenceInDays, setHours, setMinutes, addMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import type { CompletedGliderFlight, Pilot, Aircraft, ScheduleEntry, PilotCategory, CompletedEngineFlight } from '@/types';
@@ -70,7 +70,8 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   const { categories, loading: categoriesLoading, fetchCategories: fetchPilotCategories } = usePilotCategoriesStore();
   const { purposes, loading: purposesLoading, getPurposeName, fetchFlightPurposes } = useFlightPurposesStore();
   const { scheduleEntries, loading: scheduleLoading , fetchScheduleEntries } = useScheduleStore();
-  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingAddUpdate } = useCompletedGliderFlightsStore();
+  const { addCompletedGliderFlight, updateCompletedGliderFlight, loading: submittingGliderFlight } = useCompletedGliderFlightsStore();
+  const { addCompletedEngineFlight, loading: submittingEngineFlight } = useCompletedEngineFlightsStore();
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -582,13 +583,13 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             notes: formData.notes || null,
         };
         
-        let result;
+        let gliderResult;
         if (isEditMode && flightIdToLoad) {
             const updatePayload = {
                 ...baseSubmissionData,
                 auth_user_id: initialFlightData?.auth_user_id || user.id, // Keep original author
             };
-            result = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
+            gliderResult = await updateCompletedGliderFlight(flightIdToLoad, updatePayload);
         } else if (isInstructionMode) {
              const purposesForGlider = purposes.filter(p => p.applies_to.includes('glider'));
              const impartidaPurposeId = purposesForGlider.find(p => p.name.includes('Impartida'))?.id;
@@ -614,22 +615,53 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 auth_user_id: user.id,
              };
              
-             result = await addCompletedGliderFlight([studentRecord, instructorRecord]);
+             gliderResult = await addCompletedGliderFlight([studentRecord, instructorRecord]);
 
         } else {
-            result = await addCompletedGliderFlight([{
+            gliderResult = await addCompletedGliderFlight([{
                 ...baseSubmissionData,
                 logbook_type: 'glider',
                 auth_user_id: user.id,
             }]);
         }
 
-        if (result) {
-            toast({ title: `Vuelo en Planeador ${isEditMode ? 'Actualizado' : 'Registrado'}`, description: `El vuelo ha sido ${isEditMode ? 'actualizado' : 'guardado'} exitosamente.` });
-            router.push('/logbook/glider/list');
-        } else {
-            toast({ title: `Error al ${isEditMode ? 'Actualizar' : 'Registrar'}`, description: `No se pudo guardar el vuelo.`, variant: 'destructive' });
+        if (!gliderResult) {
+            throw new Error(`No se pudo ${isEditMode ? 'actualizar' : 'guardar'} el vuelo de planeador.`);
         }
+
+        // Si es un vuelo NUEVO y tiene datos de remolque, registrar el vuelo de motor
+        if (!isEditMode && formData.tow_pilot_id && formData.tow_aircraft_id) {
+            const towPurpose = purposes.find(p => p.name === 'Remolque planeador');
+            if (!towPurpose) {
+                console.error("Propósito de vuelo 'Remolque planeador' no encontrado. No se puede registrar el vuelo de motor.");
+                toast({ title: "Advertencia", description: "Vuelo de planeador guardado, pero no se encontró el propósito 'Remolque planeador' para registrar el vuelo de motor.", variant: "destructive" });
+            } else {
+                const towArrivalTime = addMinutes(departureDateTime, 5);
+                const towFlightData: Omit<CompletedEngineFlight, 'id' | 'created_at'> = {
+                    logbook_type: 'engine',
+                    auth_user_id: user.id,
+                    date: format(formData.date, 'yyyy-MM-dd'),
+                    pilot_id: formData.tow_pilot_id,
+                    engine_aircraft_id: formData.tow_aircraft_id,
+                    departure_time: depTimeCleaned,
+                    arrival_time: format(towArrivalTime, 'HH:mm'),
+                    flight_duration_decimal: 0.1,
+                    flight_purpose_id: towPurpose.id,
+                    billable_minutes: 0,
+                    landings_count: 1,
+                    tows_count: 1,
+                    notes: `Remolque para planeador ${getAircraftName(formData.glider_aircraft_id)} (Piloto: ${getPilotName(formData.pilot_id)})`
+                };
+                const engineResult = await addCompletedEngineFlight(towFlightData);
+                if (!engineResult) {
+                    throw new Error("Vuelo de planeador guardado, pero falló el registro automático del vuelo de remolque.");
+                }
+            }
+        }
+
+        toast({ title: `Operación Exitosa`, description: `Vuelo en Planeador ${isEditMode ? 'actualizado' : 'registrado'} correctamente. ${!isEditMode && formData.tow_pilot_id ? 'El vuelo de remolque también fue registrado.' : ''}` });
+        router.push('/logbook/glider/list');
+        
     } catch (error: any) {
         console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
         toast({ title: "Error Inesperado", description: error.message || "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
@@ -638,7 +670,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     }
   };
 
-  const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || purposesLoading || submittingAddUpdate || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
+  const isLoading = authLoading || pilotsLoading || aircraftLoading || categoriesLoading || scheduleLoading || purposesLoading || submittingGliderFlight || submittingEngineFlight || isSubmittingForm || (isEditMode && isFetchingFlightDetails);
   const isSubmitDisabled = isLoading || isAnyPilotInvalidForFlight || !!gliderWarning || !!towPlaneWarning || !!aircraftConflictWarning || !!pilotConflictWarning;
 
   if (authLoading && !user) { 
@@ -1168,5 +1200,6 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
 
 
