@@ -382,77 +382,73 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
   }, [watchedTowAircraftId, aircraftWithCalculatedData, watchedDate]);
 
 
-  // REACTIVE CONFLICT CHECK - Aircraft
+  // REACTIVE CONFLICT CHECK
   useEffect(() => {
-    const checkAircraftConflict = async () => {
-        const { date, departure_time, arrival_time, glider_aircraft_id } = form.getValues();
-        const validTimes = departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time);
+    const checkConflicts = async () => {
+        const { date, departure_time, arrival_time, glider_aircraft_id, pilot_id, instructor_id, tow_pilot_id } = form.getValues();
+        const validTimes = date && departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time) && arrival_time > departure_time;
         
-        if (!date || !glider_aircraft_id || !validTimes || arrival_time <= departure_time) {
+        if (!validTimes) {
             setAircraftConflictWarning(null);
+            setPilotConflictWarning(null);
             return;
         }
 
-        const { data: hasConflict, error } = await supabase.rpc('check_glider_conflict', {
-            p_date: format(date, 'yyyy-MM-dd'),
-            p_start_time: departure_time,
-            p_end_time: arrival_time,
-            p_glider_id: glider_aircraft_id,
-            p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
-        });
+        // --- Aircraft Conflict Check ---
+        if (glider_aircraft_id) {
+            const { data: hasAircraftConflict, error: aircraftError } = await supabase.rpc('check_glider_conflict', {
+                p_date: format(date, 'yyyy-MM-dd'),
+                p_start_time: departure_time,
+                p_end_time: arrival_time,
+                p_glider_id: glider_aircraft_id,
+                p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
+            });
 
-        if (error) {
-            console.error("Error en la validación de conflicto de aeronave:", error);
-            setAircraftConflictWarning("No se pudo validar el horario de la aeronave.");
-        } else if (hasConflict) {
-            setAircraftConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+            if (aircraftError) {
+                console.error("Error en validación de conflicto de aeronave:", aircraftError);
+                setAircraftConflictWarning("No se pudo validar el horario de la aeronave.");
+            } else if (hasAircraftConflict) {
+                setAircraftConflictWarning("Conflicto de Horario: Este planeador ya tiene un vuelo registrado en este rango horario.");
+            } else {
+                setAircraftConflictWarning(null);
+            }
         } else {
-            setAircraftConflictWarning(null);
+             setAircraftConflictWarning(null);
         }
-    };
-    checkAircraftConflict();
-  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, form, isEditMode, flightIdToLoad]);
 
-  // REACTIVE CONFLICT CHECK - Pilots
-  useEffect(() => {
-    const checkAllPilotConflicts = async () => {
-      const { date, departure_time, arrival_time, pilot_id, instructor_id, tow_pilot_id } = form.getValues();
-      const validTimes = departure_time && arrival_time && /^\d{2}:\d{2}$/.test(departure_time) && /^\d{2}:\d{2}$/.test(arrival_time);
-      
-      if (!date || !validTimes || arrival_time <= departure_time) {
-        setPilotConflictWarning(null);
-        return;
-      }
-  
-      const pilotIdsToCheck = [pilot_id, instructor_id, tow_pilot_id].filter(Boolean) as string[];
-      const uniquePilotIds = [...new Set(pilotIdsToCheck)];
-  
-      for (const pId of uniquePilotIds) {
-        const { data: hasConflict, error } = await supabase.rpc('check_pilot_conflict', {
-          p_date: format(date, 'yyyy-MM-dd'),
-          p_start_time: departure_time,
-          p_end_time: arrival_time,
-          p_pilot_id: pId,
-          p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
-          p_exclude_logbook_type: isEditMode ? 'glider' : null
-        });
-  
-        if (error) {
-          console.error(`Error en la validación de conflicto para el piloto ${pId}:`, error);
-          setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
-          return; // Stop on first error
+        // --- Pilot Conflict Check ---
+        const pilotIdsToCheck = [pilot_id, instructor_id, tow_pilot_id].filter(Boolean) as string[];
+        const uniquePilotIds = [...new Set(pilotIdsToCheck)];
+        
+        let pilotConflictFound = false;
+        for (const pId of uniquePilotIds) {
+            const { data: hasPilotConflict, error: pilotError } = await supabase.rpc('check_pilot_conflict', {
+                p_date: format(date, 'yyyy-MM-dd'),
+                p_start_time: departure_time,
+                p_end_time: arrival_time,
+                p_pilot_id: pId,
+                p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
+                p_exclude_logbook_type: isEditMode ? 'glider' : null
+            });
+
+            if (pilotError) {
+                console.error(`Error en validación de conflicto para piloto ${pId}:`, pilotError);
+                setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
+                pilotConflictFound = true;
+                break;
+            }
+            if (hasPilotConflict) {
+                setPilotConflictWarning(`Conflicto de Horario: ${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
+                pilotConflictFound = true;
+                break;
+            }
         }
-        if (hasConflict) {
-          setPilotConflictWarning(`Conflicto de Horario: ${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
-          return; // Stop on first conflict
+        if (!pilotConflictFound) {
+            setPilotConflictWarning(null);
         }
-      }
-      
-      setPilotConflictWarning(null); // Clear warning if no conflicts found
     };
-  
-    checkAllPilotConflicts();
-  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedPicPilotId, watchedInstructorId, watchedTowPilotId, form, isEditMode, flightIdToLoad, getPilotName]);
+    checkConflicts();
+  }, [watchedDate, watchedDepartureTime, watchedArrivalTime, watchedGliderAircraftId, watchedPicPilotId, watchedInstructorId, watchedTowPilotId, form, isEditMode, flightIdToLoad, getPilotName]);
 
 
 
@@ -1172,4 +1168,5 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
     </Card>
   );
 }
+
 
