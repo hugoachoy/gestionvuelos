@@ -178,7 +178,7 @@ export function GliderFlightListClient() {
     doc.setFontSize(10);
     doc.text(pageSubtitle, 14, 22);
 
-    const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Propósito", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Notas"];
+    const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor/Alumno", "Propósito", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Notas"];
     const tableRows: (string | null)[][] = [];
     
     const flightsForPdf = [...sortedFlights].sort((a, b) => {
@@ -394,7 +394,12 @@ export function GliderFlightListClient() {
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                       <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-')}</TableCell>
+                      <TableCell>
+                        {isInstructionGiven 
+                          ? (flight.pilot_id ? getPilotName(flight.pilot_id) : '-') // En impartida, el alumno es el pilot_id
+                          : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-') // En recibida, es el instructor_id
+                        }
+                      </TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
