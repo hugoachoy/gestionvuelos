@@ -600,7 +600,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
              const instructorRecord = {
                 ...baseSubmissionData,
                 pilot_id: formData.instructor_id!,
-                instructor_id: null, // Correctly set to null for instructor's record
+                instructor_id: formData.pilot_id, 
                 flight_purpose_id: impartidaPurposeId,
                 notes: `Instrucción a ${getPilotName(formData.pilot_id)}.`,
                 auth_user_id: user.id,
