@@ -61,7 +61,10 @@ export function GliderFlightListClient() {
       const foundPilot = pilots.find(p => p.auth_user_id === currentUser.id);
       if (foundPilot) {
         setCurrentUserPilotId(foundPilot.id);
+        setSelectedPilotId(foundPilot.id);
       }
+    } else if (currentUser?.is_admin) {
+        setSelectedPilotId('all');
     }
   }, [currentUser, pilots]);
 
@@ -75,17 +78,18 @@ export function GliderFlightListClient() {
         return;
     }
     
-    const pilotIdToFetch = currentUser?.is_admin ? (selectedPilotId === 'all' ? undefined : selectedPilotId) : currentUserPilotId;
+    const pilotIdToQuery = currentUser?.is_admin ? (selectedPilotId === 'all' ? undefined : selectedPilotId) : currentUserPilotId;
 
-    if (!currentUser?.is_admin && !pilotIdToFetch) {
+    if (!currentUser?.is_admin && !pilotIdToQuery) {
         toast({ title: "Perfil no encontrado", description: "No se encontró un perfil de piloto asociado a tu usuario. No se pueden cargar vuelos.", variant: "destructive" });
         setFilteredFlights([]);
         return;
     }
 
-    const data = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
+    const data = await fetchCompletedGliderFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToQuery);
     if (data) {
-      const flightsToSet = data;
+      // If a specific pilot is selected (not 'all'), filter to show only flights where they are the main pilot.
+      const flightsToSet = pilotIdToQuery ? data.filter(flight => flight.pilot_id === pilotIdToQuery) : data;
       setFilteredFlights(flightsToSet);
 
       if (flightsToSet.length === 0) {
@@ -102,7 +106,7 @@ export function GliderFlightListClient() {
         handleFetchAndFilter();
       }
     }
-  }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, handleFetchAndFilter]);
+  }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, selectedPilotId, handleFetchAndFilter]);
 
 
   const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading || purposesLoading;
@@ -193,9 +197,9 @@ export function GliderFlightListClient() {
         
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-            getPilotName(flight.pilot_id),
+            isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
+            flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.instructor_id)) : '-',
             purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
@@ -395,9 +399,9 @@ export function GliderFlightListClient() {
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                      <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
+                      <TableCell>{flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-'}</TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
@@ -447,4 +451,5 @@ export function GliderFlightListClient() {
     </div>
   );
 }
+
 

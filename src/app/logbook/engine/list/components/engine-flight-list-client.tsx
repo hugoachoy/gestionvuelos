@@ -62,7 +62,10 @@ export function EngineFlightListClient() {
       const foundPilot = pilots.find(p => p.auth_user_id === currentUser.id);
       if (foundPilot) {
         setCurrentUserPilotId(foundPilot.id);
+        setSelectedPilotId(foundPilot.id);
       }
+    } else if (currentUser?.is_admin) {
+        setSelectedPilotId('all');
     }
   }, [currentUser, pilots]);
 
@@ -76,19 +79,19 @@ export function EngineFlightListClient() {
         return;
     }
     
-    const pilotIdToFetch = currentUser?.is_admin ? (selectedPilotId === 'all' ? undefined : selectedPilotId) : currentUserPilotId;
+    const pilotIdToQuery = currentUser?.is_admin ? (selectedPilotId === 'all' ? undefined : selectedPilotId) : currentUserPilotId;
 
-    if (!currentUser?.is_admin && !pilotIdToFetch) {
+    if (!currentUser?.is_admin && !pilotIdToQuery) {
         toast({ title: "Perfil no encontrado", description: "No se encontró un perfil de piloto asociado a tu usuario. No se pueden cargar vuelos.", variant: "destructive" });
         setFilteredFlights([]);
         return;
     }
 
-    const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToFetch);
+    const data = await fetchCompletedEngineFlightsForRange(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), pilotIdToQuery);
+    
     if (data) {
-      const flightsForPIC = data.filter(flight => flight.pilot_id === pilotIdToFetch);
-      
-      const flightsToSet = pilotIdToFetch ? flightsForPIC : data;
+      // If a specific pilot is selected (not 'all'), filter to show only flights where they are the main pilot.
+      const flightsToSet = pilotIdToQuery ? data.filter(flight => flight.pilot_id === pilotIdToQuery) : data;
       setFilteredFlights(flightsToSet);
 
       if (flightsToSet.length === 0) {
@@ -106,7 +109,7 @@ export function EngineFlightListClient() {
         handleFetchAndFilter();
       }
     }
-  }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, handleFetchAndFilter]);
+  }, [startDate, endDate, currentUserPilotId, currentUser?.is_admin, selectedPilotId, handleFetchAndFilter]);
 
 
   const isLoadingUI = flightsLoading || pilotsLoading || aircraftLoading || authLoading || purposesLoading;
@@ -397,9 +400,9 @@ export function EngineFlightListClient() {
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                      <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
-                      <TableCell>{isInstructionGiven ? getPilotName(flight.pilot_id) : (flight.instructor_id ? getPilotName(flight.instructor_id) : '-')}</TableCell>
+                      <TableCell>{flight.instructor_id ? getPilotName(flight.instructor_id) : '-'}</TableCell>
                       <TableCell>{purposeName}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
                       <TableCell>{flight.arrival_time.substring(0, 5)}</TableCell>
@@ -446,3 +449,4 @@ export function EngineFlightListClient() {
     </div>
   );
 }
+
