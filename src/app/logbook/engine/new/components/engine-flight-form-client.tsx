@@ -428,9 +428,9 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
             });
 
-            if (aircraftError && aircraftError.message) {
+            if (aircraftError && Object.keys(aircraftError).length > 0) {
                 console.error("Error en validación de conflicto de aeronave:", aircraftError);
-                setAircraftConflictWarning("No se pudo validar el horario de la aeronave.");
+                setAircraftConflictWarning("No se pudo validar el horario de la aeronave debido a un error inesperado.");
             } else if (hasAircraftConflict) {
                 setAircraftConflictWarning("Conflicto de Horario: Esta aeronave ya tiene un vuelo registrado en este rango horario.");
             }
@@ -450,7 +450,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 p_exclude_logbook_type: isEditMode ? 'engine' : null,
             });
 
-            if (pilotError && pilotError.message) {
+            if (pilotError && Object.keys(pilotError).length > 0) {
                 console.error(`Error en validación de conflicto para piloto ${pId}:`, pilotError);
                 setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
                 pilotConflictFound = true;
@@ -731,7 +731,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 <Info className="h-4 w-4 text-blue-600" />
                 <AlertTitle className="text-blue-700">Modo Administrador</AlertTitle>
                 <AlertDescription className="text-blue-700/90">
-                    Estás editando el vuelo de {getPilotName(initialFlightData?.pilot_id)}.
+                    Estás editando el vuelo de ${getPilotName(initialFlightData?.pilot_id)}.
                 </AlertDescription>
             </Alert>
         )}
