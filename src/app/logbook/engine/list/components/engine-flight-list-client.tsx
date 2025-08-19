@@ -191,6 +191,8 @@ export function EngineFlightListClient() {
 
     flightsForPdf.forEach(flight => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
+        const isInstructionGiven = purposeName.includes('Impartida');
+
         if (!processedFlightIds.has(flight.id)) {
             // Check for instruction counterpart to avoid double counting totals
             const isInstruction = purposeName.includes('Instrucción');
@@ -218,7 +220,7 @@ export function EngineFlightListClient() {
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
             getPilotName(flight.pilot_id),
             getAircraftName(flight.engine_aircraft_id),
-            flight.instructor_id ? getPilotName(flight.instructor_id) : '-',
+            isInstructionGiven ? '-' : getPilotName(flight.instructor_id),
             purposeName,
             flight.departure_time.substring(0, 5),
             flight.arrival_time.substring(0, 5),
@@ -395,13 +397,14 @@ export function EngineFlightListClient() {
                   const canEdit = currentUser?.is_admin || (flight.auth_user_id && flight.auth_user_id === currentUser?.id);
                   const canDelete = currentUser?.is_admin;
                   const purposeName = getPurposeName(flight.flight_purpose_id);
+                  const isInstructionGiven = purposeName.includes('Impartida');
 
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                       <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.engine_aircraft_id)}</TableCell>
-                      <TableCell>{getPilotName(flight.instructor_id)}</TableCell>
+                      <TableCell>{isInstructionGiven ? '-' : getPilotName(flight.instructor_id)}</TableCell>
                       <TableCell>{purposeName}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
                       <TableCell>{flight.arrival_time.substring(0, 5)}</TableCell>

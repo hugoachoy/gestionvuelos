@@ -197,9 +197,9 @@ export function GliderFlightListClient() {
         
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-            isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.pilot_id),
+            getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.instructor_id),
+            isInstructionGiven ? '-' : getPilotName(flight.instructor_id),
             purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
@@ -214,7 +214,7 @@ export function GliderFlightListClient() {
       head: [tableColumn],
       body: tableRows,
       foot: [
-        [{ content: 'En el caso de los vuelos de instrucción, solo se computa uno de los vuelos para el total de horas.', colSpan: 11, styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [255, 255, 255], fillColor: [100, 100, 100] } }],
+        { content: 'En el caso de los vuelos de instrucción, solo se computa uno de los vuelos para el total de horas.', colSpan: 11, styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [255, 255, 255], fillColor: [100, 100, 100] } },
         [
           { content: 'TOTAL', colSpan: 9, styles: { halign: 'right', fontStyle: 'bold' } },
           { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
@@ -401,7 +401,7 @@ export function GliderFlightListClient() {
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                       <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{getPilotName(flight.instructor_id)}</TableCell>
+                      <TableCell>{isInstructionGiven ? '-' : getPilotName(flight.instructor_id)}</TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
