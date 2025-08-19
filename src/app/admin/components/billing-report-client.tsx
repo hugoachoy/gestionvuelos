@@ -109,21 +109,6 @@ export function BillingReportClient() {
       
       engineFlights.forEach((flight) => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
-        
-        // If the selected pilot was the instructor for this flight
-        if (flight.instructor_id === selectedPilotId) {
-          billableItems.push({
-            id: `eng-inst-${flight.id}`,
-            date: flight.date,
-            type: 'Instrucción Impartida',
-            aircraft: getAircraftName(flight.engine_aircraft_id),
-            duration_hs: flight.flight_duration_decimal,
-            billable_minutes: null,
-            notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
-            is_non_billable_for_pilot: true
-          });
-          return;
-        }
 
         // Process if the selected pilot is the PIC/Student for the flight
         if (flight.pilot_id === selectedPilotId) {
@@ -145,21 +130,6 @@ export function BillingReportClient() {
       });
       
       gliderFlights.forEach((flight) => {
-          // If the selected pilot was the instructor for this flight
-          if (flight.instructor_id === selectedPilotId) {
-            billableItems.push({
-              id: `gli-inst-${flight.id}`,
-              date: flight.date,
-              type: 'Instrucción Impartida',
-              aircraft: getAircraftName(flight.glider_aircraft_id),
-              duration_hs: flight.flight_duration_decimal,
-              billable_minutes: null, // Instructors are not billed for instruction
-              notes: `(Abona alumno/a ${getPilotName(flight.pilot_id)}) - No facturable para ud.`,
-              is_non_billable_for_pilot: true
-            });
-            return; 
-          } 
-          
           // Process if the selected pilot is the PIC/Student
           if (flight.pilot_id === selectedPilotId) {
             billableItems.push({
