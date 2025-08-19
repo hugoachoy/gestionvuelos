@@ -131,7 +131,7 @@ export function GliderFlightListClient() {
   };
 
   const handleEditRequest = (flight: CompletedGliderFlight) => {
-    router.push(`/logbook/glider/edit/${flight.id}`);
+    router.push(`/logbook/glider/edit/\${flight.id}`);
   };
 
   const sortedFlights = useMemo(() => {
@@ -151,7 +151,7 @@ export function GliderFlightListClient() {
 
     for (const flight of sortedFlights) {
         // A unique key for a flight event, ignoring who logged it
-        const flightEventKey = `${flight.date}-${flight.departure_time}-${flight.glider_aircraft_id}`;
+        const flightEventKey = `\${flight.date}-\${flight.departure_time}-\${flight.glider_aircraft_id}`;
         
         if (!processedFlightKeys.has(flightEventKey)) {
             totalDuration += flight.flight_duration_decimal;
@@ -174,8 +174,8 @@ export function GliderFlightListClient() {
     
     const pilotIdForTitle = currentUser?.is_admin ? selectedPilotId : currentUserPilotId;
     const pilotNameForTitle = pilotIdForTitle === 'all' ? 'Todos los Pilotos' : getPilotName(pilotIdForTitle);
-    const pageTitle = `Historial de Vuelos en Planeador: ${pilotNameForTitle}`;
-    const pageSubtitle = `Período: ${startDate ? format(startDate, "dd/MM/yy") : ''} - ${endDate ? format(endDate, "dd/MM/yy") : ''}`;
+    const pageTitle = `Historial de Vuelos en Planeador: \${pilotNameForTitle}`;
+    const pageSubtitle = `Período: \${startDate ? format(startDate, "dd/MM/yy") : ''} - \${endDate ? format(endDate, "dd/MM/yy") : ''}`;
 
     doc.setFontSize(16);
     doc.text(pageTitle, 14, 15);
@@ -205,7 +205,7 @@ export function GliderFlightListClient() {
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
             flight.departure_time.substring(0, 5),
             flight.arrival_time.substring(0, 5),
-            `${flight.flight_duration_decimal.toFixed(1)} hs`,
+            `\${flight.flight_duration_decimal.toFixed(1)} hs`,
             flight.notes || '-',
         ]);
     });
@@ -217,7 +217,7 @@ export function GliderFlightListClient() {
         [{ content: 'En el caso de los vuelos de instrucción, solo se computa uno de los vuelos para el total de horas.', colSpan: 11, styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [255, 255, 255], fillColor: [100, 100, 100] } }],
         [
           { content: 'TOTAL', colSpan: 9, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: `${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
+          { content: `\${totalHours.toFixed(1)} hs`, styles: { fontStyle: 'bold' } },
           { content: '', colSpan: 1 },
         ]
       ],
@@ -240,16 +240,16 @@ export function GliderFlightListClient() {
       },
     });
 
-    const fileName = `historial_planeador_${pilotIdForTitle === 'all' ? 'todos' : getPilotName(pilotIdForTitle).replace(/\s/g, '_')}_${format(new Date(), "yyyyMMdd")}.pdf`;
+    const fileName = `historial_planeador_\${pilotIdForTitle === 'all' ? 'todos' : getPilotName(pilotIdForTitle).replace(/\s/g, '_')}_\${format(new Date(), "yyyyMMdd")}.pdf`;
     doc.save(fileName);
-    toast({ title: "PDF Exportado", description: `El historial se ha guardado como ${fileName}.` });
+    toast({ title: "PDF Exportado", description: `El historial se ha guardado como \${fileName}.` });
   };
 
 
   if (flightsError) {
     return (
       <div className="text-destructive">
-        Error al cargar vuelos en planeador: {flightsError.message}
+        Error al cargar vuelos en planeador: \${flightsError.message}
         <Button onClick={handleFetchAndFilter} className="ml-2">Reintentar</Button>
       </div>
     );
@@ -258,7 +258,7 @@ export function GliderFlightListClient() {
   const deleteWarningMessage = useMemo(() => {
     if (!flightToDelete) return "este vuelo";
     
-    const baseMessage = `el vuelo de ${getPilotName(flightToDelete.pilot_id)} del ${format(parseISO(flightToDelete.date), "dd/MM/yyyy")}`;
+    const baseMessage = `el vuelo de \${getPilotName(flightToDelete.pilot_id)} del \${format(parseISO(flightToDelete.date), "dd/MM/yyyy")}`;
     const warnings = [];
 
     if (flightToDelete.instructor_id) {
@@ -269,7 +269,7 @@ export function GliderFlightListClient() {
     }
     
     if (warnings.length > 0) {
-        return `${baseMessage} y también ${warnings.join(' y ')}.`;
+        return `\${baseMessage} y también \${warnings.join(' y ')}.`;
     }
     return baseMessage;
   }, [flightToDelete, getPilotName]);
@@ -333,9 +333,9 @@ export function GliderFlightListClient() {
                                   Todos los Pilotos
                               </CommandItem>
                               {pilots.map(pilot => (
-                                  <CommandItem key={pilot.id} value={`${pilot.last_name}, ${pilot.first_name}`} onSelect={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
+                                  <CommandItem key={pilot.id} value={`\${pilot.last_name}, \${pilot.first_name}`} onSelect={() => { setSelectedPilotId(pilot.id); setIsPilotPickerOpen(false); }}>
                                       <Check className={cn("mr-2 h-4 w-4", selectedPilotId === pilot.id ? "opacity-100" : "opacity-0")} />
-                                      {pilot.last_name}, {pilot.first_name}
+                                      \${pilot.last_name}, \${pilot.first_name}
                                   </CommandItem>
                               ))}
                           </CommandGroup>
@@ -399,9 +399,9 @@ export function GliderFlightListClient() {
                   return (
                     <TableRow key={flight.id}>
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
-                      <TableCell>{isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.pilot_id)}</TableCell>
+                      <TableCell>{isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.instructor_id)) : '-'}</TableCell>
+                      <TableCell>{flight.instructor_id ? (isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.instructor_id)) : '-'}</TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
@@ -451,5 +451,6 @@ export function GliderFlightListClient() {
     </div>
   );
 }
+
 
 
