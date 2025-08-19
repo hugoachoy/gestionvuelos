@@ -182,7 +182,7 @@ export function GliderFlightListClient() {
     doc.setFontSize(10);
     doc.text(pageSubtitle, 14, 22);
 
-    const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor/Alumno", "Propósito", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Notas"];
+    const tableColumn = ["Fecha", "Piloto", "Planeador", "Instructor", "Propósito", "Piloto Rem.", "Avión Rem.", "Salida", "Llegada", "Duración", "Notas"];
     const tableRows: (string | null)[][] = [];
     
     const flightsForPdf = [...sortedFlights].sort((a, b) => {
@@ -197,9 +197,9 @@ export function GliderFlightListClient() {
         
         tableRows.push([
             format(parseISO(flight.date), "dd/MM/yyyy", { locale: es }),
-            getPilotName(flight.pilot_id),
+            isInstructionGiven ? getPilotName(flight.pilot_id) : getPilotName(flight.pilot_id),
             getAircraftName(flight.glider_aircraft_id),
-            isInstructionGiven ? '-' : getPilotName(flight.instructor_id),
+            isInstructionGiven ? getPilotName(flight.instructor_id) : getPilotName(flight.instructor_id),
             purposeName,
             flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-',
             flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-',
@@ -371,7 +371,7 @@ export function GliderFlightListClient() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Piloto</TableHead>
                 <TableHead>Planeador</TableHead>
-                <TableHead>Instructor/Alumno</TableHead>
+                <TableHead>Instructor</TableHead>
                 <TableHead>Piloto Rem.</TableHead>
                 <TableHead>Avión Rem.</TableHead>
                 <TableHead>Salida</TableHead>
@@ -401,7 +401,7 @@ export function GliderFlightListClient() {
                       <TableCell>{format(parseISO(flight.date), "dd/MM/yyyy", { locale: es })}</TableCell>
                       <TableCell>{getPilotName(flight.pilot_id)}</TableCell>
                       <TableCell>{getAircraftName(flight.glider_aircraft_id)}</TableCell>
-                      <TableCell>{isInstructionGiven ? '-' : getPilotName(flight.instructor_id)}</TableCell>
+                      <TableCell>{getPilotName(flight.instructor_id)}</TableCell>
                       <TableCell>{flight.tow_pilot_id ? getPilotName(flight.tow_pilot_id) : '-'}</TableCell>
                       <TableCell>{flight.tow_aircraft_id ? getAircraftName(flight.tow_aircraft_id) : '-'}</TableCell>
                       <TableCell>{flight.departure_time.substring(0, 5)}</TableCell>
@@ -451,7 +451,3 @@ export function GliderFlightListClient() {
     </div>
   );
 }
-
-
-
-
