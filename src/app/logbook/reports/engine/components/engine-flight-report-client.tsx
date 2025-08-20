@@ -19,7 +19,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { CalendarIcon, Download, FileText, Loader2, Check, ChevronsUpDown, FileSpreadsheet } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { format, parseISO, subYears } from 'date-fns';
+import { format, parseISO, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
@@ -33,7 +33,7 @@ export function EngineFlightReportClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
-  const [startDate, setStartDate] = useState<Date | undefined>(subYears(new Date(), 1));
+  const [startDate, setStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedPilotId, setSelectedPilotId] = useState<string>('all');
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
