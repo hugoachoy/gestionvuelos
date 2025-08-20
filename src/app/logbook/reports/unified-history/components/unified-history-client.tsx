@@ -132,10 +132,10 @@ export function UnifiedHistoryClient() {
 
     reportData.forEach(flight => {
         const key = `${flight.date}-${flight.departure_time}-${(flight as CompletedEngineFlight).engine_aircraft_id || (flight as CompletedGliderFlight).glider_aircraft_id}`;
-        if (processedFlightKeys.has(key)) return;
-
+        
         const isInstruction = getPurposeName(flight.flight_purpose_id).includes('Instrucción');
         if (isInstruction) {
+            if (processedFlightKeys.has(key)) return; // Si ya se procesó la contrapartida, no sumar de nuevo
             processedFlightKeys.add(key);
         }
 
@@ -192,10 +192,15 @@ export function UnifiedHistoryClient() {
       autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
-        foot: [[
-            { content: 'TOTAL HORAS', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
-            { content: `Motor: ${totalEngineHours} hs, Planeador: ${totalGliderHours} hs`, colSpan: 2, styles: { fontStyle: 'bold' } },
-        ]],
+        foot: [
+            [
+              { content: 'Nota: En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.', colSpan: 8, styles: { halign: 'left', fontStyle: 'italic', fontSize: 7, textColor: [100, 100, 100] } },
+            ],
+            [
+                { content: 'TOTAL HORAS', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
+                { content: `Motor: ${totalEngineHours} hs, Planeador: ${totalGliderHours} hs`, colSpan: 2, styles: { fontStyle: 'bold' } },
+            ]
+        ],
         startY: 28,
         theme: 'grid',
         headStyles: { fillColor: [30, 100, 160], textColor: 255, fontStyle: 'bold' },
@@ -339,6 +344,11 @@ export function UnifiedHistoryClient() {
               )})}
             </TableBody>
             <TableFooter>
+                <TableRow>
+                    <TableCell colSpan={8} className="text-xs text-muted-foreground italic">
+                        Nota: En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.
+                    </TableCell>
+                </TableRow>
                 <TableRow className="bg-muted/50 font-bold">
                     <TableCell colSpan={6} className="text-right">TOTAL HORAS</TableCell>
                     <TableCell>
