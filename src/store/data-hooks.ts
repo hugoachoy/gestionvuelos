@@ -1117,7 +1117,6 @@ export function useCompletedEngineFlightsStore() {
   const [completedEngineFlights, setCompletedEngineFlights] = useState<CompletedEngineFlight[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
-  const { pilots } = usePilotsStore(); // Depend on pilots store to resolve auth_user_id
 
   const fetchCompletedEngineFlights = useCallback(async () => {
     setLoading(true);
@@ -1203,33 +1202,7 @@ export function useCompletedEngineFlightsStore() {
     setLoading(true);
 
     try {
-        let recordsToInsert;
-        
-        if (Array.isArray(flightData)) {
-            // This is an instruction flight with two records.
-            // Find the student's auth_user_id (if they have one)
-            // Find the instructor's auth_user_id
-            const studentRecord = flightData.find(f => f.instructor_id); // The one with an instructor is the student's
-            const instructorRecord = flightData.find(f => !f.instructor_id || f.pilot_id !== studentRecord?.pilot_id); // The other one
-
-            if (studentRecord && instructorRecord) {
-                const studentProfile = pilots.find(p => p.id === studentRecord.pilot_id);
-                const instructorProfile = pilots.find(p => p.id === instructorRecord.pilot_id);
-                
-                // Student's record is created by the instructor, so it uses instructor's auth_user_id
-                studentRecord.auth_user_id = instructorProfile?.auth_user_id || studentRecord.auth_user_id; 
-                // Instructor's record uses their own auth_user_id
-                instructorRecord.auth_user_id = instructorProfile?.auth_user_id;
-
-                recordsToInsert = [studentRecord, instructorRecord];
-            } else {
-                recordsToInsert = flightData; // Fallback if logic fails
-            }
-        } else {
-            // Single flight record
-            recordsToInsert = [flightData];
-        }
-
+        const recordsToInsert = Array.isArray(flightData) ? flightData : [flightData];
         const finalRecords = recordsToInsert.map(fd => ({ ...fd, logbook_type: 'engine' as const }));
 
         const { data: newFlight, error: insertError } = await supabase
@@ -1250,7 +1223,7 @@ export function useCompletedEngineFlightsStore() {
         setLoading(false);
     }
     return result;
-}, [pilots]);
+  }, []);
 
 
   const updateCompletedEngineFlight = useCallback(async (flightId: string, flightData: Partial<Omit<CompletedEngineFlight, 'id' | 'created_at' | 'logbook_type' | 'auth_user_id'>>) => {
@@ -1302,5 +1275,3 @@ export function useCompletedEngineFlightsStore() {
 
   return { completedEngineFlights, loading, error, addCompletedEngineFlight, updateCompletedEngineFlight, deleteCompletedEngineFlight, fetchCompletedEngineFlightsForRange, fetchCompletedEngineFlights, fetchCompletedEngineFlightsByAircraftForRange };
 }
-
-    

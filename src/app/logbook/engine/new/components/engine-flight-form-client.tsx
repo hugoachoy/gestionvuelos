@@ -577,16 +577,17 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: recibidaPurposeId,
-                auth_user_id: user.id,
+                auth_user_id: user.id, // The logged-in user creates the record
                 oil_added_liters: baseSubmissionData.oil_added_liters,
                 fuel_added_liters: baseSubmissionData.fuel_added_liters,
             };
             
             const instructorRecord = {
                 ...baseSubmissionData,
-                pilot_id: formData.instructor_id!, // Instructor is PIC on their record
-                instructor_id: formData.pilot_id, // Student is the "instructor" for context
+                pilot_id: formData.instructor_id!, 
+                instructor_id: formData.pilot_id, 
                 flight_purpose_id: impartidaPurposeId,
+                auth_user_id: user.id, // The logged-in user creates the record
                 oil_added_liters: null, 
                 fuel_added_liters: null,
             };
@@ -1140,5 +1141,3 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
-
-    
