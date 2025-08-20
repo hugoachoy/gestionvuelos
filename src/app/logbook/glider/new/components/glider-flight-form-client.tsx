@@ -134,7 +134,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       const hours = value.substring(0, 2);
       const minutes = value.substring(2, 4);
       if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
-        const formattedTime = `\${hours}:\${minutes}`;
+        const formattedTime = `${hours}:${minutes}`;
         form.setValue(fieldName, formattedTime, { shouldValidate: true });
       }
     }
@@ -307,7 +307,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         if (durationMinutes > 0) {
           const decimalHours = durationMinutes / 60;
           const roundedDecimalHours = Math.ceil(decimalHours * 10) / 10;
-          setCalculatedDuration(`\${roundedDecimalHours.toFixed(1)} hs`);
+          setCalculatedDuration(`${roundedDecimalHours.toFixed(1)} hs`);
         } else {
           setCalculatedDuration(null);
         }
@@ -334,11 +334,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
       const flightDate = startOfDay(date);
       if (isValid(medicalExpiryDate)) {
         if (isBefore(medicalExpiryDate, flightDate)) {
-          return `¡Psicofísico de \${pilotRole} VENCIDO el \${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
+          return `¡Psicofísico de ${pilotRole} VENCIDO el ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })}!`;
         }
         const daysDiff = differenceInDays(medicalExpiryDate, flightDate);
         if (daysDiff <= 30) {
-          return `Psicofísico de \${pilotRole} vence pronto: \${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (\${daysDiff} días).`;
+          return `Psicofísico de ${pilotRole} vence pronto: ${format(medicalExpiryDate, "dd/MM/yyyy", { locale: es })} (${daysDiff} días).`;
         }
       }
       return null;
@@ -358,9 +358,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const flightDateStart = startOfDay(watchedDate);
         const isInsuranceExpiredOnFlightDate = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), flightDateStart);
         if (selectedAC.is_out_of_service) {
-          setGliderWarning(`El planeador "\${selectedAC.name}" está fuera de servicio.`);
+          setGliderWarning(`El planeador "${selectedAC.name}" está fuera de servicio.`);
         } else if (isInsuranceExpiredOnFlightDate) {
-          setGliderWarning(`El seguro del planeador "\${selectedAC.name}" estaba vencido en la fecha del vuelo.`);
+          setGliderWarning(`El seguro del planeador "${selectedAC.name}" estaba vencido en la fecha del vuelo.`);
         }
       }
     }
@@ -374,9 +374,9 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         const flightDateStart = startOfDay(watchedDate);
         const isInsuranceExpiredOnFlightDate = selectedAC.insurance_expiry_date && isValid(parseISO(selectedAC.insurance_expiry_date)) && isBefore(parseISO(selectedAC.insurance_expiry_date), flightDateStart);
         if (selectedAC.is_out_of_service) {
-          setTowPlaneWarning(`El avión remolcador "\${selectedAC.name}" está fuera de servicio.`);
+          setTowPlaneWarning(`El avión remolcador "${selectedAC.name}" está fuera de servicio.`);
         } else if (isInsuranceExpiredOnFlightDate) {
-          setTowPlaneWarning(`El seguro del avión remolcador "\${selectedAC.name}" estaba vencido en la fecha del vuelo.`);
+          setTowPlaneWarning(`El seguro del avión remolcador "${selectedAC.name}" estaba vencido en la fecha del vuelo.`);
         }
       }
     }
@@ -427,11 +427,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             });
 
             if (pilotError) {
-                console.error(`Error en validación de conflicto para piloto \${pId}:`, pilotError);
-                setPilotConflictWarning(`No se pudo validar el horario para \${getPilotName(pId)}.`);
+                console.error(`Error en validación de conflicto para piloto ${pId}:`, pilotError);
+                setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
                 pilotConflictFound = true;
             } else if (hasPilotConflict) {
-                setPilotConflictWarning(`Conflicto de Horario: \${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
+                setPilotConflictWarning(`Conflicto de Horario: ${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
                 pilotConflictFound = true;
             }
         }
@@ -602,7 +602,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 pilot_id: formData.instructor_id!, // Instructor is the pilot on their record
                 instructor_id: formData.pilot_id, // Student is the "instructor" field for context
                 flight_purpose_id: impartidaPurposeId,
-                notes: `Instrucción a \${getPilotName(formData.pilot_id)}.`,
+                notes: `Instrucción a ${getPilotName(formData.pilot_id)}.`,
                 auth_user_id: user.id,
              };
              
@@ -617,7 +617,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
         }
 
         if (!gliderResult) {
-            throw new Error(`No se pudo \${isEditMode ? 'actualizar' : 'guardar'} el vuelo de planeador.`);
+            throw new Error(`No se pudo ${isEditMode ? 'actualizar' : 'guardar'} el vuelo de planeador.`);
         }
 
         if (!isEditMode && formData.tow_pilot_id && formData.tow_aircraft_id) {
@@ -640,7 +640,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                     billable_minutes: 0,
                     landings_count: 1,
                     tows_count: 1,
-                    notes: `Remolque para planeador \${getAircraftName(formData.glider_aircraft_id)} (Piloto: \${getPilotName(formData.pilot_id)})`
+                    notes: `Remolque para planeador ${getAircraftName(formData.glider_aircraft_id)} (Piloto: ${getPilotName(formData.pilot_id)})`
                 };
                 const engineResult = await addCompletedEngineFlight(towFlightData);
                 if (!engineResult) {
@@ -649,11 +649,11 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
             }
         }
 
-        toast({ title: `Operación Exitosa`, description: `Vuelo en Planeador \${isEditMode ? 'actualizado' : 'registrado'} correctamente. \${!isEditMode && formData.tow_pilot_id ? 'El vuelo de remolque también fue registrado.' : ''}` });
+        toast({ title: `Operación Exitosa`, description: `Vuelo en Planeador ${isEditMode ? 'actualizado' : 'registrado'} correctamente. ${!isEditMode && formData.tow_pilot_id ? 'El vuelo de remolque también fue registrado.' : ''}` });
         router.push('/logbook/glider/list');
         
     } catch (error: any) {
-        console.error(`Error during form submission (\${isEditMode ? 'edit' : 'add'}):`, error);
+        console.error(`Error during form submission (${isEditMode ? 'edit' : 'add'}):`, error);
         toast({ title: "Error Inesperado", description: error.message || "Ocurrió un error inesperado al procesar el formulario.", variant: "destructive" });
     } finally {
         setIsSubmittingForm(false);
@@ -749,7 +749,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                 <Info className="h-4 w-4 text-blue-600" />
                 <AlertTitle className="text-blue-700">Modo Administrador</AlertTitle>
                 <AlertDescription className="text-blue-700/90">
-                    Estás editando el vuelo de \${getPilotName(initialFlightData?.pilot_id)}.
+                    Estás editando el vuelo de ${getPilotName(initialFlightData?.pilot_id)}.
                 </AlertDescription>
             </Alert>
         )}
@@ -831,7 +831,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           <CommandGroup>
                              {sortedPilotsForGlider.map((pilot) => (
                               <CommandItem
-                                value={`\${pilot.last_name}, \${pilot.first_name}`}
+                                value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
                                 onSelect={() => {
                                   form.setValue("pilot_id", pilot.id, { shouldValidate: true });
@@ -839,7 +839,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                 }}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
-                                \${pilot.last_name}, \${pilot.first_name}
+                                ${pilot.last_name}, ${pilot.first_name}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -934,7 +934,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                             <CommandGroup>
                               {sortedInstructorsForDropdown.map((pilot) => (
                                 <CommandItem
-                                  value={`\${pilot.last_name}, \${pilot.first_name}`}
+                                  value={`${pilot.last_name}, ${pilot.first_name}`}
                                   key={pilot.id}
                                   onSelect={() => {
                                     form.setValue("instructor_id", pilot.id, { shouldValidate: true });
@@ -942,7 +942,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                   }}
                                 >
                                   <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
-                                  \${pilot.last_name}, \${pilot.first_name}
+                                  ${pilot.last_name}, ${pilot.first_name}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -992,7 +992,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                           <CommandGroup>
                             {sortedTowPilots.map((pilot) => (
                               <CommandItem
-                                value={`\${pilot.last_name}, \${pilot.first_name}`}
+                                value={`${pilot.last_name}, ${pilot.first_name}`}
                                 key={pilot.id}
                                 onSelect={() => {
                                   form.setValue("tow_pilot_id", pilot.id, { shouldValidate: true });
@@ -1000,7 +1000,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                 }}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
-                                \${pilot.last_name}, \${pilot.first_name}
+                                ${pilot.last_name}, ${pilot.first_name}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -1045,7 +1045,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                         }
                         return (
                           <SelectItem key={ac.id} value={ac.id} disabled={isEffectivelyOutOfService}>
-                            {ac.name} {isEffectivelyOutOfService && ` \${outOfServiceReason}`}
+                            {ac.name} {isEffectivelyOutOfService && ` ${outOfServiceReason}`}
                           </SelectItem>
                         );
                       })}
@@ -1088,7 +1088,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                         }
                         return (
                           <SelectItem key={ac.id} value={ac.id} disabled={isEffectivelyOutOfService}>
-                            {ac.name} {isEffectivelyOutOfService && ` \${outOfServiceReason}`}
+                            {ac.name} {isEffectivelyOutOfService && ` ${outOfServiceReason}`}
                           </SelectItem>
                         );
                       })}
