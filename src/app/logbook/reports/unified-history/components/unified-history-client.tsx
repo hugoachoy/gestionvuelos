@@ -194,7 +194,7 @@ export function UnifiedHistoryClient() {
         body: tableRows,
         foot: [
             [
-              { content: 'Nota: En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.', colSpan: 8, styles: { halign: 'left', fontStyle: 'italic', fontSize: 7, textColor: [100, 100, 100] } },
+              { content: 'Nota: En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.', colSpan: 8, styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [255, 255, 255], fillColor: [100, 100, 100] } },
             ],
             [
                 { content: 'TOTAL HORAS', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
@@ -345,7 +345,7 @@ export function UnifiedHistoryClient() {
             </TableBody>
             <TableFooter>
                 <TableRow>
-                    <TableCell colSpan={8} className="text-xs text-muted-foreground italic">
+                    <TableCell colSpan={8} className="text-sm text-foreground/80 italic">
                         Nota: En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.
                     </TableCell>
                 </TableRow>
