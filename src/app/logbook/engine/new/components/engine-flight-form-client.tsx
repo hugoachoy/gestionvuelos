@@ -447,7 +447,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 p_end_time: arrival_time,
                 p_pilot_id: pId,
                 p_exclude_flight_id: isEditMode ? flightIdToLoad : null,
-                p_exclude_logbook_type: isEditMode ? flightIdToLoad : null,
+                p_exclude_logbook_type: isEditMode ? 'engine' : null,
             });
 
             if (pilotError && Object.keys(pilotError).length > 0) {
