@@ -439,7 +439,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
         const pilotIdsToCheck = [pilot_id, instructor_id].filter(Boolean) as string[];
         const uniquePilotIds = [...new Set(pilotIdsToCheck)];
         
-        let pilotConflictFound = false;
         for (const pId of uniquePilotIds) {
             const { data: hasPilotConflict, error: pilotError } = await supabase.rpc('check_pilot_conflict', {
                 p_date: format(date, 'yyyy-MM-dd'),
@@ -452,18 +451,13 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
 
             if (pilotError && Object.keys(pilotError).length > 0) {
                 console.error(`Error en validación de conflicto para piloto ${pId}:`, pilotError);
-                setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)}.`);
-                pilotConflictFound = true;
-                break;
+                setPilotConflictWarning(`No se pudo validar el horario para ${getPilotName(pId)} debido a un error inesperado.`);
+                break; 
             }
             if (hasPilotConflict) {
                 setPilotConflictWarning(`Conflicto de Horario: ${getPilotName(pId)} ya tiene otro vuelo en este rango horario.`);
-                pilotConflictFound = true;
                 break;
             }
-        }
-        if (!pilotConflictFound) {
-            setPilotConflictWarning(null);
         }
     };
     checkConflicts();
@@ -593,7 +587,6 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.instructor_id!, // Instructor is PIC on their record
                 instructor_id: formData.pilot_id, // Student is the "instructor" for context
                 flight_purpose_id: impartidaPurposeId,
-                auth_user_id: user.id,
                 oil_added_liters: null, 
                 fuel_added_liters: null,
             };
@@ -1147,3 +1140,5 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
     </Card>
   );
 }
+
+    
