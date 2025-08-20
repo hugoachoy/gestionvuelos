@@ -839,7 +839,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                 }}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
-                                ${pilot.last_name}, ${pilot.first_name}
+                                {pilot.last_name}, {pilot.first_name}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -942,7 +942,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                   }}
                                 >
                                   <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
-                                  ${pilot.last_name}, ${pilot.first_name}
+                                  {pilot.last_name}, {pilot.first_name}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -1000,7 +1000,7 @@ export function GliderFlightFormClient({ flightIdToLoad }: GliderFlightFormClien
                                 }}
                               >
                                 <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>
-                                ${pilot.last_name}, ${pilot.first_name}
+                                {pilot.last_name}, {pilot.first_name}
                               </CommandItem>
                             ))}
                           </CommandGroup>

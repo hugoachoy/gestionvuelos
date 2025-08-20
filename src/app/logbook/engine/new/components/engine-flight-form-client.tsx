@@ -731,7 +731,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 <Info className="h-4 w-4 text-blue-600" />
                 <AlertTitle className="text-blue-700">Modo Administrador</AlertTitle>
                 <AlertDescription className="text-blue-700/90">
-                    Estás editando el vuelo de ${getPilotName(initialFlightData?.pilot_id)}.
+                    Estás editando el vuelo de {getPilotName(initialFlightData?.pilot_id)}.
                 </AlertDescription>
             </Alert>
         )}
