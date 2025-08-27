@@ -89,16 +89,21 @@ export function UnifiedHistoryClient() {
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
 
-    const [engineFlights, gliderFlights] = await Promise.all([
+    const [engineFlightsResult, gliderFlightsResult] = await Promise.all([
         fetchCompletedEngineFlightsForRange(startDateStr, endDateStr, pilotIdToFetch),
         fetchCompletedGliderFlightsForRange(startDateStr, endDateStr, pilotIdToFetch)
     ]);
 
-    if (engineFlights === null || gliderFlights === null) {
+    if (engineFlightsResult === null || gliderFlightsResult === null) {
         toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
         setIsGenerating(false);
         return;
     }
+
+    // If a specific pilot is selected, filter to show only flights where they are the main pilot.
+    const engineFlights = pilotIdToFetch ? engineFlightsResult.filter(flight => flight.pilot_id === pilotIdToFetch) : engineFlightsResult;
+    const gliderFlights = pilotIdToFetch ? gliderFlightsResult.filter(flight => flight.pilot_id === pilotIdToFetch) : gliderFlightsResult;
+
 
     const combinedFlights: CompletedFlight[] = [...engineFlights, ...gliderFlights];
     const sortedFlights = combinedFlights.sort((a, b) => {
@@ -195,12 +200,12 @@ export function UnifiedHistoryClient() {
         foot: [
             [
               { 
-                content: 'Nota: En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.', 
+                content: 'En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.', 
                 colSpan: 8, 
                 styles: { 
                   halign: 'left', 
                   fontStyle: 'bold', 
-                  fontSize: 8,
+                  fontSize: 9,
                   textColor: [255, 255, 255],
                   fillColor: [100, 100, 100]
                 } 
@@ -356,7 +361,9 @@ export function UnifiedHistoryClient() {
             <TableFooter>
                 <TableRow>
                     <TableCell colSpan={8} className="text-sm text-foreground/80 italic">
-                        En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.
+                        <p className="font-semibold text-base text-foreground">
+                            En el caso de los vuelos de instrucción, solo se computa uno de los registros para los totales.
+                        </p>
                     </TableCell>
                 </TableRow>
                 <TableRow className="bg-muted/50 font-bold">
