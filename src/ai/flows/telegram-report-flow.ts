@@ -108,7 +108,11 @@ async function sendToTelegram(message: string) {
 
     const result = await response.json();
     if (!result.ok) {
-        throw new Error(`Telegram API error: ${result.description}`);
+        let errorMessage = `Error de la API de Telegram: ${result.description}`;
+        if (result.description?.includes('chat not found')) {
+            errorMessage += "\n\nSugerencia: Revisa que el TELEGRAM_CHAT_ID sea correcto y que el bot haya sido añadido al chat/canal.";
+        }
+        throw new Error(errorMessage);
     }
 }
 
