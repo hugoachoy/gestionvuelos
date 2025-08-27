@@ -44,7 +44,7 @@ export function TelegramReportClient() {
             await sendWeeklyActivityReport(chatId);
             toast({
                 title: "Informe de prueba enviado",
-                description: "Se ha enviado el informe de actividad de la semana pasada al canal de Telegram configurado.",
+                description: "Se ha enviado el informe de actividad de los últimos 7 días al canal de Telegram configurado.",
             });
         } catch (error: any) {
             console.error("Error sending test report:", error);
@@ -63,7 +63,7 @@ export function TelegramReportClient() {
             <CardHeader>
                 <CardTitle>Informe Automático</CardTitle>
                 <CardDescription>
-                    Habilita esta opción para enviar un resumen de la actividad de la semana pasada al canal de Telegram todos los domingos.
+                    Habilita esta opción para enviar un resumen de la actividad de los últimos 7 días al canal de Telegram todos los lunes.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -86,7 +86,7 @@ export function TelegramReportClient() {
                 <div className="space-y-2">
                     <h3 className="text-base font-medium">Prueba de Envío</h3>
                      <p className="text-sm text-muted-foreground">
-                        Usa este botón para enviar el informe de actividad de la semana pasada ahora mismo.
+                        Usa este botón para enviar el informe de actividad de los últimos 7 días ahora mismo.
                     </p>
                     <Button onClick={handleSendTest} disabled={isSending}>
                         {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}

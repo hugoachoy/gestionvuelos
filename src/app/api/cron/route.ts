@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   
   // NOTE: A more robust implementation would fetch this flag from a database
   // For now, we assume if the cron is called, it's meant to be enabled.
+  // This logic should match the useLocalStorageState default in TelegramReportClient
   const isReportEnabled = true; 
 
   if (isReportEnabled) {

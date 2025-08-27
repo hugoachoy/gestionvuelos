@@ -7,7 +7,7 @@
  */
 import 'dotenv/config'; // Ensure environment variables are loaded
 import { supabase } from '@/lib/supabaseClient';
-import { format, subWeeks, startOfWeek, endOfWeek, eachDayOfInterval, parseISO, addDays, nextMonday } from 'date-fns';
+import { format, subDays, subWeeks, startOfWeek, endOfWeek, eachDayOfInterval, parseISO, addDays, nextMonday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose, ScheduleEntry, PilotCategory, Aircraft } from '@/types';
 import TelegramBot from 'node-telegram-bot-api';
@@ -50,9 +50,9 @@ async function fetchPilotCategories(): Promise<PilotCategory[]> {
 
 async function fetchFlightsFromLastWeek(): Promise<(CompletedGliderFlight | CompletedEngineFlight)[]> {
     const today = new Date();
-    const lastWeek = subWeeks(today, 1);
-    const startDate = format(startOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd'); // Monday
-    const endDate = format(endOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');   // Sunday
+    // Calculate the last 7 days for a more useful report during testing and early week.
+    const endDate = format(today, 'yyyy-MM-dd');
+    const startDate = format(subDays(today, 7), 'yyyy-MM-dd');
 
     const [gliderFlights, engineFlights] = await Promise.all([
         supabase
@@ -106,7 +106,7 @@ async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
 
 function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[]): string {
     if (flights.length === 0) {
-        return "✈️ *Resumen de Actividad de la Semana Pasada*\n\nNo se registraron vuelos la semana anterior.";
+        return "✈️ *Resumen de Actividad de los Últimos 7 Días*\n\nNo se registraron vuelos en este período.";
     }
 
     const getPilotName = (id: string | null | undefined) => {
@@ -122,10 +122,10 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
         return acc;
     }, {} as Record<string, (CompletedGliderFlight | CompletedEngineFlight)[]>);
     
-    const startOfLastWeek = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
-    const endOfLastWeek = endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
+    const today = new Date();
+    const sevenDaysAgo = subDays(today, 7);
     
-    let reportText = `✈️ *Resumen de Actividad de la Semana Pasada*\n_(${format(startOfLastWeek, "dd/MM")} al ${format(endOfLastWeek, "dd/MM")})_\n`;
+    let reportText = `✈️ *Resumen de Actividad de los Últimos 7 Días*\n_(${format(sevenDaysAgo, "dd/MM")} al ${format(today, "dd/MM")})_\n`;
     let totalGliderHours = 0;
     let totalEngineHours = 0;
     const processedFlightKeys = new Set<string>();
