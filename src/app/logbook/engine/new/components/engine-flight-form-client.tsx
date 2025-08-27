@@ -577,9 +577,7 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.pilot_id,
                 instructor_id: formData.instructor_id,
                 flight_purpose_id: recibidaPurposeId,
-                auth_user_id: user.id, // The logged-in user creates the record
-                oil_added_liters: baseSubmissionData.oil_added_liters,
-                fuel_added_liters: baseSubmissionData.fuel_added_liters,
+                auth_user_id: user.id,
             };
             
             const instructorRecord = {
@@ -587,9 +585,10 @@ export function EngineFlightFormClient({ flightIdToLoad }: EngineFlightFormClien
                 pilot_id: formData.instructor_id!, 
                 instructor_id: formData.pilot_id, 
                 flight_purpose_id: impartidaPurposeId,
-                auth_user_id: user.id, // The logged-in user creates the record
+                auth_user_id: user.id, 
                 oil_added_liters: null, 
-                fuel_added_liters: null,
+                fuel_added_liters: null, 
+                notes: `Instrucción a ${getPilotName(formData.pilot_id)}.`,
             };
             
             result = await addCompletedEngineFlight([studentRecord, instructorRecord]);
