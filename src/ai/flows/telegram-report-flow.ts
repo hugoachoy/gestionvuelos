@@ -111,7 +111,8 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
 
     const getPilotName = (id: string | null | undefined) => {
         if (!id) return 'N/A';
-        return pilots.find(p => p.id === id)?.last_name || 'Desconocido';
+        const pilot = pilots.find(p => p.id === id);
+        return pilot ? `${pilot.first_name.charAt(0)}. ${pilot.last_name}` : 'Desconocido';
     };
     const getPurposeName = (id: string) => purposes.find(p => p.id === id)?.name || 'N/A';
 
@@ -132,31 +133,49 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
 
     Object.keys(groupedByDate).sort().forEach(dateStr => {
         const flightsForDay = groupedByDate[dateStr];
-        const formattedDate = format(parseISO(dateStr), 'EEEE dd/MM', { locale: es });
-        reportText += `\n\n*${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}*`;
+        let dayHasContent = false;
+        let dayReportText = `\n\n*${format(parseISO(dateStr), 'EEEE dd/MM', { locale: es }).replace(/^\w/, (c) => c.toUpperCase())}*`;
 
         flightsForDay.forEach(flight => {
              const purposeName = getPurposeName(flight.flight_purpose_id);
              const isInstruction = purposeName.includes('Instrucción');
              
+             // A unique key for a flight event, ignoring who logged it
              const flightEventKey = `${flight.date}-${flight.departure_time}-${(flight as CompletedEngineFlight).engine_aircraft_id || (flight as CompletedGliderFlight).glider_aircraft_id}`;
-             if (isInstruction && processedFlightKeys.has(flightEventKey)) return;
-             if (isInstruction) processedFlightKeys.add(flightEventKey);
+             if (processedFlightKeys.has(flightEventKey)) return;
 
-            if (flight.logbook_type === 'glider') {
+             dayHasContent = true;
+
+            if (isInstruction) {
+                // Find the counterpart flight to consolidate info
+                const counterpart = flightsForDay.find(f => 
+                    f.id !== flight.id && 
+                    f.departure_time === flight.departure_time && 
+                    ((f as CompletedEngineFlight).engine_aircraft_id || (f as CompletedGliderFlight).glider_aircraft_id) === ((flight as CompletedEngineFlight).engine_aircraft_id || (flight as CompletedGliderFlight).glider_aircraft_id)
+                );
+                
+                const studentFlight = flight.instructor_id ? flight : counterpart;
+                const instructor = getPilotName(studentFlight?.instructor_id);
+                const student = getPilotName(studentFlight?.pilot_id);
+
+                dayReportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${student}, Instructor: ${instructor}`;
+                processedFlightKeys.add(flightEventKey);
+
+            } else {
+                dayReportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
+                processedFlightKeys.add(flightEventKey);
+            }
+             
+             if (flight.logbook_type === 'glider') {
                 totalGliderHours += flight.flight_duration_decimal;
             } else {
                 totalEngineHours += flight.flight_duration_decimal;
             }
-            
-            if (isInstruction) {
-                const student = getPilotName(flight.pilot_id);
-                const instructor = getPilotName(flight.instructor_id);
-                reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${student}, Instructor: ${instructor}`;
-            } else {
-                reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
-            }
         });
+
+        if(dayHasContent) {
+            reportText += dayReportText;
+        }
     });
 
     reportText += `\n\n\n*Totales de la Semana:*`;
@@ -172,7 +191,8 @@ function formatScheduleReport(schedule: ScheduleEntry[], allPilots: Pilot[], all
 
     const getPilotName = (id: string | null | undefined) => {
         if (!id) return 'N/A';
-        return allPilots.find(p => p.id === id)?.last_name || 'Desconocido';
+        const pilot = allPilots.find(p => p.id === id);
+        return pilot ? `${pilot.first_name.charAt(0)}. ${pilot.last_name}` : 'Desconocido';
     };
     const getAircraftName = (id: string | null | undefined) => {
         if (!id) return 'N/A';
