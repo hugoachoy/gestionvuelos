@@ -127,63 +127,33 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
     
     let reportText = `✈️ *Resumen de Actividad de los Últimos 7 Días*\n_(${format(sevenDaysAgo, "dd/MM")} al ${format(today, "dd/MM")})_\n`;
     
-    let totalGliderHoursRaw = 0;
-    let totalEngineHoursRaw = 0;
+    let totalGliderHours = 0;
+    let totalEngineHours = 0;
     
     Object.keys(groupedByDate).sort().forEach(dateStr => {
-        let dayReportText = `\n\n*${format(parseISO(dateStr), 'EEEE dd/MM', { locale: es }).replace(/^\w/, (c) => c.toUpperCase())}*`;
+        reportText += `\n\n*${format(parseISO(dateStr), 'EEEE dd/MM', { locale: es }).replace(/^\w/, (c) => c.toUpperCase())}*`;
         const flightsForDay = groupedByDate[dateStr];
-        const processedFlightIds = new Set<string>();
 
         flightsForDay.forEach(flight => {
-            if (processedFlightIds.has(flight.id)) return;
-
             const purposeName = getPurposeName(flight.flight_purpose_id);
-            const isInstruction = purposeName.includes('Instrucción');
+            let pilotText = `Piloto: ${getPilotName(flight.pilot_id)}`;
+            if (purposeName.includes('Instrucción')) {
+                pilotText = `Alumno: ${getPilotName(flight.pilot_id)}, Instructor: ${getPilotName(flight.instructor_id)}`;
+            }
+             
+            reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - ${pilotText}`;
 
-            if (isInstruction) {
-                const counterpart = flightsForDay.find(f =>
-                    f.id !== flight.id &&
-                    f.departure_time === flight.departure_time &&
-                    ((f as CompletedEngineFlight).engine_aircraft_id || (f as CompletedGliderFlight).glider_aircraft_id) === ((flight as CompletedEngineFlight).engine_aircraft_id || (f as CompletedGliderFlight).glider_aircraft_id) &&
-                    !processedFlightIds.has(f.id)
-                );
-
-                if (counterpart) {
-                    const studentFlight = flight.instructor_id ? flight : counterpart;
-                    const student = getPilotName(studentFlight.pilot_id);
-                    const instructor = getPilotName(studentFlight.instructor_id);
-
-                    dayReportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${student}, Instructor: ${instructor}`;
-                    
-                    processedFlightIds.add(flight.id);
-                    processedFlightIds.add(counterpart.id);
-                }
+            if (flight.logbook_type === 'glider') {
+                totalGliderHours += flight.flight_duration_decimal;
             } else {
-                dayReportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
-                processedFlightIds.add(flight.id);
+                totalEngineHours += flight.flight_duration_decimal;
             }
         });
-        
-        reportText += dayReportText;
     });
-
-    // Calculate totals from the original, unfiltered flight list
-    flights.forEach(flight => {
-         if (flight.logbook_type === 'glider') {
-            totalGliderHoursRaw += flight.flight_duration_decimal;
-        } else {
-            totalEngineHoursRaw += flight.flight_duration_decimal;
-        }
-    });
-
-    // The raw total includes two entries for each instruction flight, so divide by 2
-    const totalGliderHours = totalGliderHoursRaw / 2;
-    const totalEngineHours = totalEngineHoursRaw / 2;
 
     reportText += `\n\n\n*Totales de la Semana:*`;
-    reportText += `\n- Horas de Vuelo en Planeador: *${totalGliderHours.toFixed(1)} hs*`;
-    reportText += `\n- Horas de Vuelo a Motor: *${totalEngineHours.toFixed(1)} hs*`;
+    reportText += `\n- Horas de Vuelo en Planeador: *${(totalGliderHours / 2).toFixed(1)} hs*`;
+    reportText += `\n- Horas de Vuelo a Motor: *${(totalEngineHours / 2).toFixed(1)} hs*`;
     return reportText;
 }
 
