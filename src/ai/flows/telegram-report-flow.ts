@@ -138,6 +138,7 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
             const purposeName = getPurposeName(flight.flight_purpose_id);
             let pilotText = `Piloto: ${getPilotName(flight.pilot_id)}`;
             if (purposeName.includes('Instrucción')) {
+                // For instruction flights, show both student and instructor.
                 pilotText = `Alumno: ${getPilotName(flight.pilot_id)}, Instructor: ${getPilotName(flight.instructor_id)}`;
             }
              
@@ -152,6 +153,7 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
     });
 
     reportText += `\n\n\n*Totales de la Semana:*`;
+    // For instruction flights, two records are created. We divide by 2 to get the actual flight hours.
     reportText += `\n- Horas de Vuelo en Planeador: *${(totalGliderHours / 2).toFixed(1)} hs*`;
     reportText += `\n- Horas de Vuelo a Motor: *${(totalEngineHours / 2).toFixed(1)} hs*`;
     return reportText;
