@@ -5,7 +5,7 @@
  * 
  * - sendTelegramReport - The main function to trigger the report generation and sending.
  */
-
+import 'dotenv/config'; // Asegura que las variables de entorno se carguen
 import { supabase } from '@/lib/supabaseClient';
 import { format, addDays, eachDayOfInterval, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -86,8 +86,8 @@ function formatReport(schedule: ScheduleEntry[], pilots: Pilot[], categories: Pi
 }
 
 async function sendToTelegram(message: string) {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
 
     if (!botToken || !chatId) {
         throw new Error("Telegram Bot Token or Chat ID are not configured in environment variables.");

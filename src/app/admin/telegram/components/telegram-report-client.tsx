@@ -26,6 +26,17 @@ export function TelegramReportClient() {
     };
     
     const handleSendTest = async () => {
+        // Client-side check
+        if (!process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || !process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID) {
+            toast({
+                title: "Configuración Incompleta",
+                description: "Por favor, configure el TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en su archivo .env y reinicie el servidor.",
+                variant: "destructive",
+                duration: 7000,
+            });
+            return;
+        }
+
         setIsSending(true);
         try {
             await sendTelegramReport();
