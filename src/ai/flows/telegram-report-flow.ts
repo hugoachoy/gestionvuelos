@@ -7,7 +7,7 @@
  */
 import 'dotenv/config'; // Ensure environment variables are loaded
 import { supabase } from '@/lib/supabaseClient';
-import { format, subDays, startOfWeek, endOfWeek, parseISO, addDays, nextMonday } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, parseISO, addDays, nextMonday, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose, ScheduleEntry, PilotCategory, Aircraft } from '@/types';
 import TelegramBot from 'node-telegram-bot-api';
@@ -103,7 +103,6 @@ async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
 
 
 // --- Report Formatting ---
-
 function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[]): string {
     if (flights.length === 0) {
         return "✈️ *Resumen de Actividad de los Últimos 7 Días*\n\nNo se registraron vuelos en este período.";
@@ -127,13 +126,13 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
     const sevenDaysAgo = subDays(today, 7);
     
     let reportText = `✈️ *Resumen de Actividad de los Últimos 7 Días*\n_(${format(sevenDaysAgo, "dd/MM")} al ${format(today, "dd/MM")})_\n`;
-    let totalGliderHours = 0;
-    let totalEngineHours = 0;
-
+    
+    let totalGliderHoursRaw = 0;
+    let totalEngineHoursRaw = 0;
+    
     Object.keys(groupedByDate).sort().forEach(dateStr => {
         let dayReportText = `\n\n*${format(parseISO(dateStr), 'EEEE dd/MM', { locale: es }).replace(/^\w/, (c) => c.toUpperCase())}*`;
         const flightsForDay = groupedByDate[dateStr];
-        let dayHasContent = false;
         const processedFlightIds = new Set<string>();
 
         flightsForDay.forEach(flight => {
@@ -146,12 +145,11 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
                 const counterpart = flightsForDay.find(f =>
                     f.id !== flight.id &&
                     f.departure_time === flight.departure_time &&
-                    ((f as CompletedEngineFlight).engine_aircraft_id || (f as CompletedGliderFlight).glider_aircraft_id) === ((flight as CompletedEngineFlight).engine_aircraft_id || (flight as CompletedGliderFlight).glider_aircraft_id) &&
+                    ((f as CompletedEngineFlight).engine_aircraft_id || (f as CompletedGliderFlight).glider_aircraft_id) === ((flight as CompletedEngineFlight).engine_aircraft_id || (f as CompletedGliderFlight).glider_aircraft_id) &&
                     !processedFlightIds.has(f.id)
                 );
 
                 if (counterpart) {
-                    dayHasContent = true;
                     const studentFlight = flight.instructor_id ? flight : counterpart;
                     const student = getPilotName(studentFlight.pilot_id);
                     const instructor = getPilotName(studentFlight.instructor_id);
@@ -162,36 +160,33 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
                     processedFlightIds.add(counterpart.id);
                 }
             } else {
-                dayHasContent = true;
                 dayReportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
                 processedFlightIds.add(flight.id);
             }
         });
         
-        // Sum totals based on all flights for the day, as filtering is only for display
-        flightsForDay.forEach(flight => {
-             if (flight.logbook_type === 'glider') {
-                totalGliderHours += flight.flight_duration_decimal;
-            } else {
-                totalEngineHours += flight.flight_duration_decimal;
-            }
-        });
+        reportText += dayReportText;
+    });
 
-        if (dayHasContent) {
-            reportText += dayReportText;
+    // Calculate totals from the original, unfiltered flight list
+    flights.forEach(flight => {
+         if (flight.logbook_type === 'glider') {
+            totalGliderHoursRaw += flight.flight_duration_decimal;
+        } else {
+            totalEngineHoursRaw += flight.flight_duration_decimal;
         }
     });
 
-    // Divide totals by 2 because instruction flights are logged twice
-    totalGliderHours /= 2;
-    totalEngineHours /= 2;
-
+    // The raw total includes two entries for each instruction flight, so divide by 2
+    const totalGliderHours = totalGliderHoursRaw / 2;
+    const totalEngineHours = totalEngineHoursRaw / 2;
 
     reportText += `\n\n\n*Totales de la Semana:*`;
     reportText += `\n- Horas de Vuelo en Planeador: *${totalGliderHours.toFixed(1)} hs*`;
     reportText += `\n- Horas de Vuelo a Motor: *${totalEngineHours.toFixed(1)} hs*`;
     return reportText;
 }
+
 
 function formatScheduleReport(schedule: ScheduleEntry[], allPilots: Pilot[], allCategories: PilotCategory[], allAircraft: Aircraft[]): string {
     if (schedule.length === 0) {
