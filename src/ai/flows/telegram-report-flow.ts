@@ -7,7 +7,7 @@
  */
 import 'dotenv/config'; // Ensure environment variables are loaded
 import { supabase } from '@/lib/supabaseClient';
-import { format, subDays, startOfWeek, endOfWeek, parseISO, addDays, nextMonday, subWeeks } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, parseISO, addDays, nextMonday, subWeeks, subYears } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose, ScheduleEntry, PilotCategory, Aircraft } from '@/types';
 import TelegramBot from 'node-telegram-bot-api';
@@ -50,9 +50,9 @@ async function fetchPilotCategories(): Promise<PilotCategory[]> {
 
 async function fetchFlightsFromLastWeek(): Promise<(CompletedGliderFlight | CompletedEngineFlight)[]> {
     const today = new Date();
-    // Calculate the last 7 days for a more useful report during testing and early week.
+    // Fetch flights from the last year to ensure test data is included.
+    const startDate = format(subYears(today, 1), 'yyyy-MM-dd');
     const endDate = format(today, 'yyyy-MM-dd');
-    const startDate = format(subDays(today, 7), 'yyyy-MM-dd');
 
     const [gliderFlights, engineFlights] = await Promise.all([
         supabase
@@ -103,7 +103,7 @@ async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
 
 
 // --- Report Formatting ---
-function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[]): string {
+function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[], aircraft: Aircraft[]): string {
     if (flights.length === 0) {
         return "✈️ *Resumen de Actividad de los Últimos 7 Días*\n\nNo se registraron vuelos en este período.";
     }
@@ -114,6 +114,11 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
         return pilot ? `${pilot.first_name.charAt(0)}. ${pilot.last_name}` : 'Desconocido';
     };
     const getPurposeName = (id: string) => purposes.find(p => p.id === id)?.name || 'N/A';
+    const getAircraftName = (id: string | null | undefined) => {
+        if (!id) return 'N/A';
+        return aircraft.find(a => a.id === id)?.name || 'N/A';
+    };
+
 
     const groupedByDate = flights.reduce((acc, flight) => {
         const date = flight.date;
@@ -125,24 +130,48 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
     const today = new Date();
     const sevenDaysAgo = subDays(today, 7);
     
-    let reportText = `✈️ *Resumen de Actividad de los Últimos 7 Días*\n_(${format(sevenDaysAgo, "dd/MM")} al ${format(today, "dd/MM")})_\n`;
+    let reportText = `✈️ *Resumen de Actividad de los Últimos 7 Días*\n_(${format(sevenDaysAgo, "dd/MM/yyyy")} al ${format(today, "dd/MM/yyyy")})_\n`;
     
     let totalGliderHours = 0;
     let totalEngineHours = 0;
     
+    const processedFlights = new Set<string>();
+
     Object.keys(groupedByDate).sort().forEach(dateStr => {
         reportText += `\n\n*${format(parseISO(dateStr), 'EEEE dd/MM', { locale: es }).replace(/^\w/, (c) => c.toUpperCase())}*`;
         const flightsForDay = groupedByDate[dateStr];
 
         flightsForDay.forEach(flight => {
+             const flightKey = `${flight.date}-${flight.departure_time}-${(flight as any).glider_aircraft_id || (flight as any).engine_aircraft_id}`;
+             if(processedFlights.has(flightKey)) return;
+
             const purposeName = getPurposeName(flight.flight_purpose_id);
-            let pilotText = `Piloto: ${getPilotName(flight.pilot_id)}`;
+            
             if (purposeName.includes('Instrucción')) {
-                // For instruction flights, show both student and instructor.
-                pilotText = `Alumno: ${getPilotName(flight.pilot_id)}, Instructor: ${getPilotName(flight.instructor_id)}`;
+                const counterpart = flightsForDay.find(f => 
+                    f.id !== flight.id &&
+                    f.date === flight.date &&
+                    f.departure_time === flight.departure_time &&
+                    f.arrival_time === flight.arrival_time &&
+                    ((f as any).glider_aircraft_id === (flight as any).glider_aircraft_id || (f as any).engine_aircraft_id === (flight as any).engine_aircraft_id)
+                );
+                
+                if (counterpart) {
+                    const studentFlight = flight.instructor_id ? flight : counterpart;
+                    const instructorRecord = flight.instructor_id ? counterpart : flight;
+                    const aircraftName = getAircraftName((studentFlight as CompletedGliderFlight).glider_aircraft_id || (studentFlight as CompletedEngineFlight).engine_aircraft_id);
+                    reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${getPilotName(studentFlight.pilot_id)}, Instructor: ${getPilotName(studentFlight.instructor_id)}`;
+                    processedFlights.add(flightKey);
+                } else {
+                    // Orphaned instruction flight, log as is
+                    const aircraftName = getAircraftName((flight as CompletedGliderFlight).glider_aircraft_id || (flight as CompletedEngineFlight).engine_aircraft_id);
+                    reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
+                }
+
+            } else {
+                 const aircraftName = getAircraftName((flight as CompletedGliderFlight).glider_aircraft_id || (flight as CompletedEngineFlight).engine_aircraft_id);
+                 reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
             }
-             
-            reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - ${pilotText}`;
 
             if (flight.logbook_type === 'glider') {
                 totalGliderHours += flight.flight_duration_decimal;
@@ -153,7 +182,6 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
     });
 
     reportText += `\n\n\n*Totales de la Semana:*`;
-    // For instruction flights, two records are created. We divide by 2 to get the actual flight hours.
     reportText += `\n- Horas de Vuelo en Planeador: *${(totalGliderHours / 2).toFixed(1)} hs*`;
     reportText += `\n- Horas de Vuelo a Motor: *${(totalEngineHours / 2).toFixed(1)} hs*`;
     return reportText;
@@ -241,12 +269,13 @@ export async function sendMainMenu(chatId: string | number) {
 
 export async function sendWeeklyActivityReport(chatId: string | number) {
     try {
-        const [flights, pilots, purposes] = await Promise.all([
+        const [flights, pilots, purposes, aircraft] = await Promise.all([
             fetchFlightsFromLastWeek(),
             fetchPilots(),
             fetchFlightPurposes(),
+            fetchAircraft(),
         ]);
-        const report = formatActivityReport(flights, pilots, purposes);
+        const report = formatActivityReport(flights, pilots, purposes, aircraft);
         await sendToTelegram(chatId, report);
     } catch (error: any) {
         console.error("Failed to send weekly activity report:", error);
