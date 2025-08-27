@@ -1,15 +1,17 @@
 
 'use server';
 /**
- * @fileOverview Flow to generate and send a weekly schedule report to Telegram.
+ * @fileOverview Flow to generate and send a weekly activity report to Telegram.
  * 
  * - sendTelegramReport - The main function to trigger the report generation and sending.
  */
-import 'dotenv/config'; // Asegura que las variables de entorno se carguen
+import 'dotenv/config'; // Ensure environment variables are loaded
 import { supabase } from '@/lib/supabaseClient';
-import { format, addDays, eachDayOfInterval, parseISO } from 'date-fns';
+import { format, subWeeks, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { ScheduleEntry, Pilot, PilotCategory } from '@/types';
+import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose } from '@/types';
+
+type CombinedFlight = (CompletedGliderFlight | CompletedEngineFlight) & { flight_type: 'Planeador' | 'Motor' };
 
 async function fetchPilots(): Promise<Pilot[]> {
     const { data, error } = await supabase.from('pilots').select('*');
@@ -17,70 +19,122 @@ async function fetchPilots(): Promise<Pilot[]> {
     return data || [];
 }
 
-async function fetchCategories(): Promise<PilotCategory[]> {
-    const { data, error } = await supabase.from('pilot_categories').select('*');
-    if (error) throw new Error(`Error fetching categories: ${error.message}`);
+async function fetchFlightPurposes(): Promise<FlightPurpose[]> {
+    const { data, error } = await supabase.from('flight_purposes').select('*');
+    if (error) throw new Error(`Error fetching flight purposes: ${error.message}`);
     return data || [];
 }
 
-async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
+
+async function fetchFlightsFromLastWeek(): Promise<CombinedFlight[]> {
     const today = new Date();
-    const oneWeekFromNow = addDays(today, 6);
-    const startDate = format(today, 'yyyy-MM-dd');
-    const endDate = format(oneWeekFromNow, 'yyyy-MM-dd');
+    const lastWeek = subWeeks(today, 1);
+    const startDate = format(startOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd'); // Monday
+    const endDate = format(endOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');   // Sunday
 
-    const { data, error } = await supabase
-        .from('schedule_entries')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date')
-        .order('start_time');
+    const [gliderFlights, engineFlights] = await Promise.all([
+        supabase
+            .from('completed_glider_flights')
+            .select('*')
+            .gte('date', startDate)
+            .lte('date', endDate),
+        supabase
+            .from('completed_engine_flights')
+            .select('*')
+            .gte('date', startDate)
+            .lte('date', endDate)
+    ]);
 
-    if (error) throw new Error(`Error fetching schedule: ${error.message}`);
-    return data || [];
+    if (gliderFlights.error) throw new Error(`Error fetching glider flights: ${gliderFlights.error.message}`);
+    if (engineFlights.error) throw new Error(`Error fetching engine flights: ${engineFlights.error.message}`);
+
+    const combined: CombinedFlight[] = [];
+    (gliderFlights.data || []).forEach(f => combined.push({ ...f, flight_type: 'Planeador' }));
+    (engineFlights.data || []).forEach(f => combined.push({ ...f, flight_type: 'Motor' }));
+    
+    combined.sort((a, b) => {
+        const dateComp = a.date.localeCompare(b.date);
+        if (dateComp !== 0) return dateComp;
+        return a.departure_time.localeCompare(b.departure_time);
+    });
+
+    return combined;
 }
 
-function formatReport(schedule: ScheduleEntry[], pilots: Pilot[], categories: PilotCategory[]): string {
-    if (schedule.length === 0) {
-        return "✈️ *Agenda de la Próxima Semana*\n\nNo hay turnos programados para los próximos 7 días.";
+function formatReport(flights: CombinedFlight[], pilots: Pilot[], purposes: FlightPurpose[]): string {
+    if (flights.length === 0) {
+        return "✈️ *Resumen de Actividad de la Semana Pasada*\n\nNo se registraron vuelos la semana anterior.";
     }
 
-    const getPilotName = (id: string) => pilots.find(p => p.id === id)?.first_name || 'Desconocido';
-    const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'N/A';
+    const getPilotName = (id: string | null | undefined) => {
+        if (!id) return 'N/A';
+        const pilot = pilots.find(p => p.id === id);
+        return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Desconocido';
+    };
+    const getPurposeName = (id: string) => purposes.find(p => p.id === id)?.name || 'N/A';
 
-    const groupedByDate = schedule.reduce((acc, entry) => {
-        const date = entry.date;
+    const groupedByDate = flights.reduce((acc, flight) => {
+        const date = flight.date;
         if (!acc[date]) {
             acc[date] = [];
         }
-        acc[date].push(entry);
+        acc[date].push(flight);
         return acc;
-    }, {} as Record<string, ScheduleEntry[]>);
-
-    let reportText = "✈️ *Agenda de la Próxima Semana*\n";
-
-    const today = new Date();
-    const oneWeekFromNow = addDays(today, 6);
-    const dateInterval = eachDayOfInterval({ start: today, end: oneWeekFromNow });
+    }, {} as Record<string, CombinedFlight[]>);
     
-    dateInterval.forEach(day => {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        const entriesForDay = groupedByDate[dateStr];
-        
-        const formattedDate = format(day, 'EEEE dd/MM', { locale: es });
-        reportText += `\n\n*${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}*`;
+    const today = new Date();
+    const lastWeek = subWeeks(today, 1);
+    const startOfLastWeek = startOfWeek(lastWeek, { weekStartsOn: 1 });
+    const endOfLastWeek = endOfWeek(lastWeek, { weekStartsOn: 1 });
+    
+    const weekInterval = eachDayOfInterval({ start: startOfLastWeek, end: endOfLastWeek });
+    
+    let reportText = `✈️ *Resumen de Actividad de la Semana Pasada*\n_(${format(startOfLastWeek, "dd/MM")} al ${format(endOfLastWeek, "dd/MM")})_\n`;
+    let totalGliderHours = 0;
+    let totalEngineHours = 0;
 
-        if (entriesForDay && entriesForDay.length > 0) {
-            entriesForDay.forEach(entry => {
-                const pilotName = getPilotName(entry.pilot_id);
-                const categoryName = getCategoryName(entry.pilot_category_id);
-                reportText += `\n- ${entry.start_time.substring(0,5)}: ${pilotName} (${categoryName})`;
+    const processedFlightKeys = new Set<string>();
+
+    weekInterval.forEach(day => {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const flightsForDay = groupedByDate[dateStr];
+        
+        if (flightsForDay && flightsForDay.length > 0) {
+            const formattedDate = format(parseISO(dateStr), 'EEEE dd/MM', { locale: es });
+            reportText += `\n\n*${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}*`;
+
+            flightsForDay.forEach(flight => {
+                 const purposeName = getPurposeName(flight.flight_purpose_id);
+                 const isInstruction = purposeName.includes('Instrucción');
+                 
+                 // Evitar duplicados de instrucción en el reporte y en los totales
+                 const flightEventKey = `${flight.date}-${flight.departure_time}-${(flight as CompletedEngineFlight).engine_aircraft_id || (flight as CompletedGliderFlight).glider_aircraft_id}`;
+                 if (isInstruction) {
+                    if (processedFlightKeys.has(flightEventKey)) return;
+                    processedFlightKeys.add(flightEventKey);
+                 }
+
+                // Acumular horas
+                if (flight.flight_type === 'Planeador') {
+                    totalGliderHours += flight.flight_duration_decimal;
+                } else {
+                    totalEngineHours += flight.flight_duration_decimal;
+                }
+                
+                if (isInstruction) {
+                    const student = getPilotName(flight.pilot_id);
+                    const instructor = getPilotName(flight.instructor_id);
+                    reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción ${flight.flight_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${student}, Instructor: ${instructor}`;
+                } else {
+                    reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.flight_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
+                }
             });
-        } else {
-            reportText += "\n_Sin turnos programados_";
         }
     });
+
+    reportText += "\n\n\n*Totales de la Semana:*";
+    reportText += `\n- Horas de Vuelo en Planeador: *${totalGliderHours.toFixed(1)} hs*`;
+    reportText += `\n- Horas de Vuelo a Motor: *${totalEngineHours.toFixed(1)} hs*`;
 
     return reportText;
 }
@@ -118,20 +172,17 @@ async function sendToTelegram(message: string) {
 
 export async function sendTelegramReport() {
     try {
-        const [schedule, pilots, categories] = await Promise.all([
-            fetchScheduleForNextWeek(),
+        const [flights, pilots, purposes] = await Promise.all([
+            fetchFlightsFromLastWeek(),
             fetchPilots(),
-            fetchCategories(),
+            fetchFlightPurposes(),
         ]);
 
-        const report = formatReport(schedule, pilots, categories);
+        const report = formatReport(flights, pilots, purposes);
         await sendToTelegram(report);
         return { success: true, message: "Report sent successfully." };
     } catch (error: any) {
         console.error("Failed to send Telegram report:", error);
-        // Do not throw in a serverless function context to avoid unhandled promise rejections,
-        // but return an error state. In a direct call, throwing is fine.
-        // For this use case, we'll throw to let the caller handle it.
         throw error;
     }
 }
