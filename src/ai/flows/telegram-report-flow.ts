@@ -1,18 +1,28 @@
 
 'use server';
 /**
- * @fileOverview Flow to generate and send a weekly activity report to Telegram.
+ * @fileOverview Flow to generate and send various reports to Telegram.
  * 
  * - sendTelegramReport - The main function to trigger the report generation and sending.
  */
 import 'dotenv/config'; // Ensure environment variables are loaded
 import { supabase } from '@/lib/supabaseClient';
-import { format, subWeeks, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
+import { format, subWeeks, startOfWeek, endOfWeek, eachDayOfInterval, parseISO, addDays, nextMonday } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose } from '@/types';
+import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose, ScheduleEntry, PilotCategory, Aircraft } from '@/types';
+import TelegramBot from 'node-telegram-bot-api';
+import { FLIGHT_TYPES } from '@/types';
 
-type CombinedFlight = (CompletedGliderFlight | CompletedEngineFlight) & { flight_type: 'Planeador' | 'Motor' };
 
+// Initialize bot
+const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+if (!botToken) {
+    console.error("Telegram Bot Token is not configured. Report generation will fail.");
+}
+const bot = new TelegramBot(botToken || 'dummy-token');
+
+
+// --- Data Fetching ---
 async function fetchPilots(): Promise<Pilot[]> {
     const { data, error } = await supabase.from('pilots').select('*');
     if (error) throw new Error(`Error fetching pilots: ${error.message}`);
@@ -25,8 +35,20 @@ async function fetchFlightPurposes(): Promise<FlightPurpose[]> {
     return data || [];
 }
 
+async function fetchAircraft(): Promise<Aircraft[]> {
+    const { data, error } = await supabase.from('aircraft').select('*');
+    if (error) throw new Error(`Error fetching aircraft: ${error.message}`);
+    return data || [];
+}
 
-async function fetchFlightsFromLastWeek(): Promise<CombinedFlight[]> {
+async function fetchPilotCategories(): Promise<PilotCategory[]> {
+    const { data, error } = await supabase.from('pilot_categories').select('*');
+    if (error) throw new Error(`Error fetching pilot categories: ${error.message}`);
+    return data || [];
+}
+
+
+async function fetchFlightsFromLastWeek(): Promise<(CompletedGliderFlight | CompletedEngineFlight)[]> {
     const today = new Date();
     const lastWeek = subWeeks(today, 1);
     const startDate = format(startOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd'); // Monday
@@ -48,9 +70,7 @@ async function fetchFlightsFromLastWeek(): Promise<CombinedFlight[]> {
     if (gliderFlights.error) throw new Error(`Error fetching glider flights: ${gliderFlights.error.message}`);
     if (engineFlights.error) throw new Error(`Error fetching engine flights: ${engineFlights.error.message}`);
 
-    const combined: CombinedFlight[] = [];
-    (gliderFlights.data || []).forEach(f => combined.push({ ...f, flight_type: 'Planeador' }));
-    (engineFlights.data || []).forEach(f => combined.push({ ...f, flight_type: 'Motor' }));
+    const combined = [...(gliderFlights.data || []), ...(engineFlights.data || [])];
     
     combined.sort((a, b) => {
         const dateComp = a.date.localeCompare(b.date);
@@ -61,128 +81,195 @@ async function fetchFlightsFromLastWeek(): Promise<CombinedFlight[]> {
     return combined;
 }
 
-function formatReport(flights: CombinedFlight[], pilots: Pilot[], purposes: FlightPurpose[]): string {
+async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
+    const today = new Date();
+    const monday = nextMonday(today);
+    const sunday = addDays(monday, 6);
+    
+    const startDate = format(monday, 'yyyy-MM-dd');
+    const endDate = format(sunday, 'yyyy-MM-dd');
+
+    const { data, error } = await supabase
+        .from('schedule_entries')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date')
+        .order('start_time');
+
+    if (error) throw new Error(`Error fetching schedule: ${error.message}`);
+    return data || [];
+}
+
+
+// --- Report Formatting ---
+
+function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[]): string {
     if (flights.length === 0) {
         return "✈️ *Resumen de Actividad de la Semana Pasada*\n\nNo se registraron vuelos la semana anterior.";
     }
 
     const getPilotName = (id: string | null | undefined) => {
         if (!id) return 'N/A';
-        const pilot = pilots.find(p => p.id === id);
-        return pilot ? `${pilot.first_name} ${pilot.last_name}` : 'Desconocido';
+        return pilots.find(p => p.id === id)?.last_name || 'Desconocido';
     };
     const getPurposeName = (id: string) => purposes.find(p => p.id === id)?.name || 'N/A';
 
     const groupedByDate = flights.reduce((acc, flight) => {
         const date = flight.date;
-        if (!acc[date]) {
-            acc[date] = [];
-        }
+        if (!acc[date]) acc[date] = [];
         acc[date].push(flight);
         return acc;
-    }, {} as Record<string, CombinedFlight[]>);
+    }, {} as Record<string, (CompletedGliderFlight | CompletedEngineFlight)[]>);
     
-    const today = new Date();
-    const lastWeek = subWeeks(today, 1);
-    const startOfLastWeek = startOfWeek(lastWeek, { weekStartsOn: 1 });
-    const endOfLastWeek = endOfWeek(lastWeek, { weekStartsOn: 1 });
-    
-    const weekInterval = eachDayOfInterval({ start: startOfLastWeek, end: endOfLastWeek });
+    const startOfLastWeek = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
+    const endOfLastWeek = endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
     
     let reportText = `✈️ *Resumen de Actividad de la Semana Pasada*\n_(${format(startOfLastWeek, "dd/MM")} al ${format(endOfLastWeek, "dd/MM")})_\n`;
     let totalGliderHours = 0;
     let totalEngineHours = 0;
-
     const processedFlightKeys = new Set<string>();
 
-    weekInterval.forEach(day => {
-        const dateStr = format(day, 'yyyy-MM-dd');
+    Object.keys(groupedByDate).sort().forEach(dateStr => {
         const flightsForDay = groupedByDate[dateStr];
-        
-        if (flightsForDay && flightsForDay.length > 0) {
-            const formattedDate = format(parseISO(dateStr), 'EEEE dd/MM', { locale: es });
-            reportText += `\n\n*${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}*`;
+        const formattedDate = format(parseISO(dateStr), 'EEEE dd/MM', { locale: es });
+        reportText += `\n\n*${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}*`;
 
-            flightsForDay.forEach(flight => {
-                 const purposeName = getPurposeName(flight.flight_purpose_id);
-                 const isInstruction = purposeName.includes('Instrucción');
-                 
-                 // Evitar duplicados de instrucción en el reporte y en los totales
-                 const flightEventKey = `${flight.date}-${flight.departure_time}-${(flight as CompletedEngineFlight).engine_aircraft_id || (flight as CompletedGliderFlight).glider_aircraft_id}`;
-                 if (isInstruction) {
-                    if (processedFlightKeys.has(flightEventKey)) return;
-                    processedFlightKeys.add(flightEventKey);
-                 }
+        flightsForDay.forEach(flight => {
+             const purposeName = getPurposeName(flight.flight_purpose_id);
+             const isInstruction = purposeName.includes('Instrucción');
+             
+             const flightEventKey = `${flight.date}-${flight.departure_time}-${(flight as CompletedEngineFlight).engine_aircraft_id || (flight as CompletedGliderFlight).glider_aircraft_id}`;
+             if (isInstruction && processedFlightKeys.has(flightEventKey)) return;
+             if (isInstruction) processedFlightKeys.add(flightEventKey);
 
-                // Acumular horas
-                if (flight.flight_type === 'Planeador') {
-                    totalGliderHours += flight.flight_duration_decimal;
-                } else {
-                    totalEngineHours += flight.flight_duration_decimal;
-                }
-                
-                if (isInstruction) {
-                    const student = getPilotName(flight.pilot_id);
-                    const instructor = getPilotName(flight.instructor_id);
-                    reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción ${flight.flight_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${student}, Instructor: ${instructor}`;
-                } else {
-                    reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.flight_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
-                }
-            });
-        }
+            if (flight.logbook_type === 'glider') {
+                totalGliderHours += flight.flight_duration_decimal;
+            } else {
+                totalEngineHours += flight.flight_duration_decimal;
+            }
+            
+            if (isInstruction) {
+                const student = getPilotName(flight.pilot_id);
+                const instructor = getPilotName(flight.instructor_id);
+                reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${student}, Instructor: ${instructor}`;
+            } else {
+                reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} ${flight.logbook_type} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
+            }
+        });
     });
 
-    reportText += "\n\n\n*Totales de la Semana:*";
+    reportText += `\n\n\n*Totales de la Semana:*`;
     reportText += `\n- Horas de Vuelo en Planeador: *${totalGliderHours.toFixed(1)} hs*`;
     reportText += `\n- Horas de Vuelo a Motor: *${totalEngineHours.toFixed(1)} hs*`;
+    return reportText;
+}
+
+function formatScheduleReport(schedule: ScheduleEntry[], allPilots: Pilot[], allCategories: PilotCategory[], allAircraft: Aircraft[]): string {
+    if (schedule.length === 0) {
+        return "🗓️ *Agenda de la Próxima Semana*\n\nNo hay turnos programados para la próxima semana.";
+    }
+
+    const getPilotName = (id: string | null | undefined) => {
+        if (!id) return 'N/A';
+        return allPilots.find(p => p.id === id)?.last_name || 'Desconocido';
+    };
+    const getAircraftName = (id: string | null | undefined) => {
+        if (!id) return 'N/A';
+        return allAircraft.find(a => a.id === id)?.name || 'N/A';
+    };
+    const getCategoryName = (id: string | null | undefined) => {
+        if (!id) return 'N/A';
+        return allCategories.find(c => c.id === id)?.name || 'N/A';
+    };
+     const getFlightTypeName = (id: string) => FLIGHT_TYPES.find(ft => ft.id === id)?.name || 'N/A';
+
+    const groupedByDate = schedule.reduce((acc, entry) => {
+        const date = entry.date;
+        if (!acc[date]) acc[date] = [];
+        acc[date].push(entry);
+        return acc;
+    }, {} as Record<string, ScheduleEntry[]>);
+
+    let reportText = `🗓️ *Agenda de la Próxima Semana*\n`;
+
+    Object.keys(groupedByDate).sort().forEach(dateStr => {
+        const entriesForDay = groupedByDate[dateStr];
+        const formattedDate = format(parseISO(dateStr), 'EEEE dd/MM', { locale: es });
+        reportText += `\n\n*${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}*`;
+
+        entriesForDay.forEach(entry => {
+            reportText += `\n- ${entry.start_time.substring(0, 5)}: ${getPilotName(entry.pilot_id)} (${getCategoryName(entry.pilot_category_id)}) - Vuelo: *${getFlightTypeName(entry.flight_type_id)}* - Aeronave: ${getAircraftName(entry.aircraft_id)}`;
+        });
+    });
 
     return reportText;
 }
 
-async function sendToTelegram(message: string) {
-    const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
 
-    if (!botToken || !chatId) {
-        throw new Error("Telegram Bot Token or Chat ID are not configured in environment variables.");
+// --- Main Sending Logic ---
+
+async function sendToTelegram(chatId: string | number, message: string, options?: any) {
+    if (!botToken) {
+        throw new Error("Telegram Bot Token is not configured in environment variables.");
     }
-
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'Markdown',
-        }),
-    });
-
-    const result = await response.json();
-    if (!result.ok) {
-        let errorMessage = `Error de la API de Telegram: ${result.description}`;
-        if (result.description?.includes('chat not found')) {
+    
+    try {
+        await bot.sendMessage(chatId, message, { parse_mode: 'Markdown', ...options });
+    } catch(error: any) {
+        let errorMessage = `Error de la API de Telegram: ${error.message}`;
+        if (error.response?.body?.description?.includes('chat not found')) {
             errorMessage += "\n\nSugerencia: Revisa que el TELEGRAM_CHAT_ID sea correcto y que el bot haya sido añadido al chat/canal.";
         }
         throw new Error(errorMessage);
     }
 }
 
-export async function sendTelegramReport() {
+export async function sendMainMenu(chatId: string | number) {
+    const text = "Hola! Soy el bot del Aeroclub. ¿Qué te gustaría hacer?";
+    const options = {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: 'Actividad Semana Pasada', callback_data: 'weekly_activity' },
+                    { text: 'Agenda Próxima Semana', callback_data: 'next_week_schedule' }
+                ],
+                [
+                    { text: 'Facturación del Mes (Próximamente)', callback_data: 'monthly_billing' }
+                ]
+            ]
+        }
+    };
+    await sendToTelegram(chatId, text, options);
+}
+
+export async function sendWeeklyActivityReport(chatId: string | number) {
     try {
         const [flights, pilots, purposes] = await Promise.all([
             fetchFlightsFromLastWeek(),
             fetchPilots(),
             fetchFlightPurposes(),
         ]);
-
-        const report = formatReport(flights, pilots, purposes);
-        await sendToTelegram(report);
-        return { success: true, message: "Report sent successfully." };
+        const report = formatActivityReport(flights, pilots, purposes);
+        await sendToTelegram(chatId, report);
     } catch (error: any) {
-        console.error("Failed to send Telegram report:", error);
-        throw error;
+        console.error("Failed to send weekly activity report:", error);
+        await sendToTelegram(chatId, `Error al generar el informe de actividad: ${error.message}`);
+    }
+}
+
+export async function sendNextWeekScheduleReport(chatId: string | number) {
+    try {
+        const [schedule, pilots, categories, aircraft] = await Promise.all([
+            fetchScheduleForNextWeek(),
+            fetchPilots(),
+            fetchPilotCategories(),
+            fetchAircraft(),
+        ]);
+        const report = formatScheduleReport(schedule, pilots, categories, aircraft);
+        await sendToTelegram(chatId, report);
+    } catch (error: any) {
+        console.error("Failed to send next week schedule report:", error);
+        await sendToTelegram(chatId, `Error al generar el informe de la agenda: ${error.message}`);
     }
 }

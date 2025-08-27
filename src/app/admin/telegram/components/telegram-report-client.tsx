@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import useLocalStorageState from "@/hooks/use-local-storage-state";
 import { Loader2, Send } from "lucide-react";
-import { sendTelegramReport } from "@/ai/flows/telegram-report-flow";
+import { sendWeeklyActivityReport } from "@/ai/flows/telegram-report-flow";
 
 
 export function TelegramReportClient() {
@@ -21,7 +21,7 @@ export function TelegramReportClient() {
         setIsReportEnabled(enabled);
         toast({
             title: "Configuración guardada",
-            description: `El informe semanal por Telegram ha sido ${enabled ? 'habilitado' : 'deshabilitado'}.`,
+            description: `El envío automático del informe de actividad semanal ha sido ${enabled ? 'habilitado' : 'deshabilitado'}.`,
         });
     };
     
@@ -39,10 +39,12 @@ export function TelegramReportClient() {
 
         setIsSending(true);
         try {
-            await sendTelegramReport();
+            const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
+            if (!chatId) throw new Error("Chat ID no configurado");
+            await sendWeeklyActivityReport(chatId);
             toast({
                 title: "Informe de prueba enviado",
-                description: "Se ha enviado un informe de la próxima semana al canal de Telegram configurado.",
+                description: "Se ha enviado el informe de actividad de la semana pasada al canal de Telegram configurado.",
             });
         } catch (error: any) {
             console.error("Error sending test report:", error);
@@ -61,14 +63,14 @@ export function TelegramReportClient() {
             <CardHeader>
                 <CardTitle>Informe Automático</CardTitle>
                 <CardDescription>
-                    Habilita esta opción para enviar un resumen de la agenda de la próxima semana al canal de Telegram todos los domingos.
+                    Habilita esta opción para enviar un resumen de la actividad de la semana pasada al canal de Telegram todos los domingos.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="flex items-center space-x-4 rounded-md border p-4">
                     <div className="flex-1 space-y-1">
                         <Label htmlFor="report-switch" className="text-base">
-                            Enviar Informe Semanal
+                            Enviar Informe de Actividad Semanal
                         </Label>
                         <p className="text-sm text-muted-foreground">
                             {isReportEnabled ? "El informe se enviará automáticamente." : "El informe no se enviará."}
@@ -84,7 +86,7 @@ export function TelegramReportClient() {
                 <div className="space-y-2">
                     <h3 className="text-base font-medium">Prueba de Envío</h3>
                      <p className="text-sm text-muted-foreground">
-                        Usa este botón para enviar un informe de prueba ahora mismo con la agenda de los próximos 7 días.
+                        Usa este botón para enviar el informe de actividad de la semana pasada ahora mismo.
                     </p>
                     <Button onClick={handleSendTest} disabled={isSending}>
                         {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
