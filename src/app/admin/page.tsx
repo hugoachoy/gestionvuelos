@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Receipt, Sheet } from 'lucide-react';
+import { Receipt, Sheet, Send } from 'lucide-react';
 
 export default function AdminPage() {
   return (
@@ -41,6 +41,22 @@ export default function AdminPage() {
           <CardContent>
             <Button asChild className="w-full">
               <Link href="/admin/rates">Gestionar Tarifas</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Send className="mr-2 h-6 w-6 text-primary" />
+              Informe Semanal por Telegram
+            </CardTitle>
+            <CardDescription>
+              Configura el envío automático del resumen de la agenda de la próxima semana.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/admin/telegram">Configurar Informe</Link>
             </Button>
           </CardContent>
         </Card>
