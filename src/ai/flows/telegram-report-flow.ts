@@ -7,7 +7,7 @@
  */
 import 'dotenv/config'; // Ensure environment variables are loaded
 import { supabase } from '@/lib/supabaseClient';
-import { format, subDays, startOfWeek, endOfWeek, parseISO, addDays, nextMonday, subWeeks } from 'date-fns';
+import { format, subDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose, ScheduleEntry, PilotCategory, Aircraft } from '@/types';
 import TelegramBot from 'node-telegram-bot-api';
@@ -71,15 +71,15 @@ async function fetchFlightsFromLastWeek(pilotId?: string): Promise<(CompletedGli
         engineQuery = engineQuery.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
     }
 
-    const [gliderFlights, engineFlights] = await Promise.all([
+    const [gliderFlightsResult, engineFlightsResult] = await Promise.all([
         gliderQuery,
         engineQuery
     ]);
 
-    if (gliderFlights.error) throw new Error(`Error fetching glider flights: ${gliderFlights.error.message}`);
-    if (engineFlights.error) throw new Error(`Error fetching engine flights: ${engineFlights.error.message}`);
+    if (gliderFlightsResult.error) throw new Error(`Error fetching glider flights: ${gliderFlightsResult.error.message}`);
+    if (engineFlightsResult.error) throw new Error(`Error fetching engine flights: ${engineFlightsResult.error.message}`);
 
-    const combined = [...(gliderFlights.data || []), ...(engineFlights.data || [])];
+    const combined = [...(gliderFlightsResult.data || []), ...(engineFlightsResult.data || [])];
     
     combined.sort((a, b) => {
         const dateComp = a.date.localeCompare(b.date);
@@ -92,11 +92,12 @@ async function fetchFlightsFromLastWeek(pilotId?: string): Promise<(CompletedGli
 
 async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
     const today = new Date();
-    const monday = nextMonday(today);
-    const sunday = addDays(monday, 6);
+    const mondayOfNextWeek = new Date(today.setDate(today.getDate() + (1 + 7 - today.getDay()) % 7));
+    const sundayOfNextWeek = new Date(mondayOfNextWeek);
+    sundayOfNextWeek.setDate(sundayOfNextWeek.getDate() + 6);
     
-    const startDate = format(monday, 'yyyy-MM-dd');
-    const endDate = format(sunday, 'yyyy-MM-dd');
+    const startDate = format(mondayOfNextWeek, 'yyyy-MM-dd');
+    const endDate = format(sundayOfNextWeek, 'yyyy-MM-dd');
 
     const { data, error } = await supabase
         .from('schedule_entries')
@@ -114,7 +115,9 @@ async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
 // --- Report Formatting ---
 function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[], aircraft: Aircraft[], isPersonalReport: boolean): string {
     if (flights.length === 0) {
-        return `*Resumen de Actividad de la Semana Pasada*\n\nNo registraste vuelos en este período.`;
+        return isPersonalReport 
+          ? `*Tu Resumen de Actividad de los Últimos 7 Días*\n\nNo registraste vuelos en este período.`
+          : `*Resumen de Actividad General de los Últimos 7 Días*\n\nNo se registraron vuelos en este período.`;
     }
 
     const getPilotName = (id: string | null | undefined) => {
@@ -153,55 +156,29 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
         const flightsForDay = groupedByDate[dateStr];
 
         flightsForDay.forEach(flight => {
-             const flightKey = `${flight.date}-${flight.departure_time}-${(flight as any).glider_aircraft_id || (flight as any).engine_aircraft_id}`;
+            const flightKey = `${flight.date}-${flight.departure_time}-${(flight as any).glider_aircraft_id || (flight as any).engine_aircraft_id}-${flight.pilot_id}`;
              if(processedFlightKeys.has(flightKey)) return;
+             processedFlightKeys.add(flightKey);
 
             const purposeName = getPurposeName(flight.flight_purpose_id);
+            const aircraftName = getAircraftName((flight as CompletedGliderFlight).glider_aircraft_id || (flight as CompletedEngineFlight).engine_aircraft_id);
+            const pilotName = getPilotName(flight.pilot_id);
+            const instructorName = flight.instructor_id ? getPilotName(flight.instructor_id) : null;
             
-            if (purposeName.includes('Instrucción')) {
-                const counterpart = flightsForDay.find(f => 
-                    f.id !== flight.id &&
-                    f.date === flight.date &&
-                    f.departure_time === flight.departure_time &&
-                    f.arrival_time === flight.arrival_time &&
-                    ((f as any).glider_aircraft_id === (flight as any).glider_aircraft_id || (f as any).engine_aircraft_id === (flight as any).engine_aircraft_id)
-                );
-                
-                if (counterpart) {
-                    const studentFlight = flight.instructor_id ? flight : counterpart;
-                    const aircraftName = getAircraftName((studentFlight as CompletedGliderFlight).glider_aircraft_id || (studentFlight as CompletedEngineFlight).engine_aircraft_id);
-                    reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${getPilotName(studentFlight.pilot_id)}, Instructor: ${getPilotName(studentFlight.instructor_id)}`;
-                    processedFlightKeys.add(flightKey);
-                    // Add flight duration only once for the instruction pair
-                    if (flight.logbook_type === 'glider') {
-                        totalGliderHours += flight.flight_duration_decimal;
-                    } else {
-                        totalEngineHours += flight.flight_duration_decimal;
-                    }
-                } else {
-                    // Orphaned instruction flight, log as is and count its duration
-                    const aircraftName = getAircraftName((flight as CompletedGliderFlight).glider_aircraft_id || (flight as CompletedEngineFlight).engine_aircraft_id);
-                    reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
-                    if (flight.logbook_type === 'glider') {
-                        totalGliderHours += flight.flight_duration_decimal;
-                    } else {
-                        totalEngineHours += flight.flight_duration_decimal;
-                    }
-                }
+            reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${pilotName}`;
+            if(instructorName) {
+                reportText += `, Instructor: ${instructorName}`;
+            }
 
+            if (flight.logbook_type === 'glider') {
+                totalGliderHours += flight.flight_duration_decimal;
             } else {
-                 const aircraftName = getAircraftName((flight as CompletedGliderFlight).glider_aircraft_id || (flight as CompletedEngineFlight).engine_aircraft_id);
-                 reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
-                 if (flight.logbook_type === 'glider') {
-                    totalGliderHours += flight.flight_duration_decimal;
-                } else {
-                    totalEngineHours += flight.flight_duration_decimal;
-                }
+                totalEngineHours += flight.flight_duration_decimal;
             }
         });
     });
 
-    reportText += `\n\n\n*Totales de la Semana:*`;
+    reportText += `\n\n\n*Totales del Período:*`;
     reportText += `\n- Horas de Vuelo en Planeador: *${totalGliderHours.toFixed(1)} hs*`;
     reportText += `\n- Horas de Vuelo a Motor: *${totalEngineHours.toFixed(1)} hs*`;
     return reportText;
