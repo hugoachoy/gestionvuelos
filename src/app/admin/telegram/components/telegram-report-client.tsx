@@ -30,7 +30,7 @@ export function TelegramReportClient() {
         if (!process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || !process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID) {
             toast({
                 title: "Configuración Incompleta",
-                description: "Por favor, configure el TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en su archivo .env y reinicie el servidor.",
+                description: "Por favor, configure NEXT_PUBLIC_TELEGRAM_BOT_TOKEN y NEXT_PUBLIC_TELEGRAM_CHAT_ID en su archivo .env y reinicie el servidor.",
                 variant: "destructive",
                 duration: 7000,
             });
@@ -40,8 +40,11 @@ export function TelegramReportClient() {
         setIsSending(true);
         try {
             const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
-            if (!chatId) throw new Error("Chat ID no configurado");
+            if (!chatId) throw new Error("Chat ID no configurado en las variables de entorno.");
+            
+            // This function now sends a GENERAL report of all flights to the specified group chat ID.
             await sendWeeklyActivityReport(chatId);
+
             toast({
                 title: "Informe de prueba enviado",
                 description: "Se ha enviado el informe de actividad de los últimos 7 días al canal de Telegram configurado.",
@@ -84,9 +87,9 @@ export function TelegramReportClient() {
                 </div>
 
                 <div className="space-y-2">
-                    <h3 className="text-base font-medium">Prueba de Envío</h3>
+                    <h3 className="text-base font-medium">Prueba de Envío al Grupo</h3>
                      <p className="text-sm text-muted-foreground">
-                        Usa este botón para enviar el informe de actividad de los últimos 7 días ahora mismo.
+                        Usa este botón para enviar el informe de actividad de los últimos 7 días al ID de chat del grupo configurado.
                     </p>
                     <Button onClick={handleSendTest} disabled={isSending}>
                         {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
