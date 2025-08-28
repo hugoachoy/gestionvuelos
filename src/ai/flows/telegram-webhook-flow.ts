@@ -3,6 +3,23 @@
 
 import { sendMainMenu, sendWeeklyActivityReport, sendNextWeekScheduleReport } from './telegram-report-flow';
 import { supabase } from '@/lib/supabaseClient';
+import TelegramBot from 'node-telegram-bot-api';
+
+// Helper to send a message back - integrated for simplicity and directness
+async function sendTelegramMessage(chatId: string | number, text: string) {
+    const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+        console.error("TELEGRAM_BOT_TOKEN not configured. Cannot send message.");
+        return; // Early exit if no token
+    }
+    const bot = new TelegramBot(botToken); // Initialize on-demand
+    try {
+        await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    } catch (error: any) {
+        console.error(`Failed to send message to chatId ${chatId}:`, error.message);
+    }
+}
+
 
 /**
  * Processes incoming updates from the Telegram webhook.
@@ -16,8 +33,10 @@ export async function processTelegramUpdate(update: any) {
 
     if (text === '/start' || text === '/menu') {
       await sendMainMenu(chatId);
-    } else if (text === '/testpilot') {
-      // DEBUGGING COMMAND
+      return;
+    } 
+    
+    if (text === '/testpilot') {
       try {
         const { data: pilot, error } = await supabase
           .from('pilots')
@@ -26,12 +45,12 @@ export async function processTelegramUpdate(update: any) {
           .single();
 
         if (error || !pilot) {
-          await sendToTelegram(chatId, `Fallo: No se pudo encontrar un perfil de piloto asociado a este ID de chat (${chatId}). Error: ${error?.message || 'Piloto no encontrado.'}`);
+          await sendTelegramMessage(chatId, `Fallo: No se pudo encontrar un perfil de piloto asociado a este ID de chat (${chatId}). Error: ${error?.message || 'Piloto no encontrado.'}`);
         } else {
-          await sendToTelegram(chatId, `Éxito: Se encontró un perfil de piloto para este chat. Piloto: ${pilot.first_name} ${pilot.last_name} (ID: ${pilot.id}).`);
+          await sendTelegramMessage(chatId, `Éxito: Se encontró un perfil de piloto para este chat. Piloto: *${pilot.first_name} ${pilot.last_name}* (ID: ${pilot.id}).`);
         }
       } catch (e: any) {
-        await sendToTelegram(chatId, `Error catastrófico en la prueba: ${e.message}`);
+        await sendTelegramMessage(chatId, `Error catastrófico en la prueba: ${e.message}`);
       }
       return;
     }
@@ -49,7 +68,7 @@ export async function processTelegramUpdate(update: any) {
       .single();
 
     if (error || !pilot) {
-      await sendToTelegram(chatId, "No pude encontrar un perfil de piloto asociado a este chat de Telegram. Por favor, asegúrate de que tu `telegram_chat_id` esté configurado correctamente en tu perfil.");
+      await sendTelegramMessage(chatId, "No pude encontrar un perfil de piloto asociado a este chat de Telegram. Por favor, asegúrate de que tu `telegram_chat_id` esté configurado correctamente en tu perfil.");
       return;
     }
 
@@ -61,35 +80,11 @@ export async function processTelegramUpdate(update: any) {
         await sendNextWeekScheduleReport(chatId);
         break;
       case 'monthly_billing':
-        await sendToTelegram(chatId, "La función de facturación mensual estará disponible próximamente.");
+        await sendTelegramMessage(chatId, "La función de facturación mensual estará disponible próximamente.");
         break;
       default:
         // Optionally handle unknown commands
         break;
     }
   }
-}
-
-// Helper to send a message back - useful for error messages.
-async function sendToTelegram(chatId: string | number, text: string) {
-    const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
-    if (!botToken) {
-        console.error("Telegram bot token not configured.");
-        return;
-    }
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    try {
-        await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: text,
-            }),
-        });
-    } catch (error) {
-        console.error("Error sending message to Telegram:", error);
-    }
 }
