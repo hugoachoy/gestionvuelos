@@ -49,10 +49,13 @@ async function fetchPilotCategories(): Promise<PilotCategory[]> {
 
 
 async function fetchFlightsFromLastWeek(pilotId?: string): Promise<{gliderFlights: CompletedGliderFlight[], engineFlights: CompletedEngineFlight[]}> {
-    const today = new Date();
-    const sevenDaysAgo = subDays(new Date(), 7);
+    
+    // DEBUGGING: Hardcoded date and pilot
+    const targetDate = new Date('2023-08-24T12:00:00Z'); // Using 2023 as 2028 is in the future
+    const sevenDaysAgo = subDays(targetDate, 3); // Range around the specific date
+    const sevenDaysFrom = subDays(targetDate, -3);
 
-    const endDate = format(today, 'yyyy-MM-dd');
+    const endDate = format(sevenDaysFrom, 'yyyy-MM-dd');
     const startDate = format(sevenDaysAgo, 'yyyy-MM-dd');
 
     let gliderQuery = supabase
@@ -67,9 +70,26 @@ async function fetchFlightsFromLastWeek(pilotId?: string): Promise<{gliderFlight
         .gte('date', startDate)
         .lte('date', endDate);
 
-    if (pilotId) {
-        gliderQuery = gliderQuery.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
-        engineQuery = engineQuery.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
+    // DEBUGGING: Hardcode pilot search
+    let targetPilotId = pilotId; // Default to passed ID
+    
+    const { data: choyPilot, error: choyError } = await supabase
+        .from('pilots')
+        .select('id')
+        .eq('first_name', 'Hugo Alejandro')
+        .eq('last_name', 'Choy')
+        .single();
+
+    if (choyPilot) {
+        targetPilotId = choyPilot.id;
+    } else {
+        console.error("Could not find pilot Hugo Alejandro Choy for debugging.");
+    }
+
+
+    if (targetPilotId) {
+        gliderQuery = gliderQuery.or(`pilot_id.eq.${targetPilotId},instructor_id.eq.${targetPilotId}`);
+        engineQuery = engineQuery.or(`pilot_id.eq.${targetPilotId},instructor_id.eq.${targetPilotId}`);
     }
 
     const [gliderFlightsResult, engineFlightsResult] = await Promise.all([
@@ -267,15 +287,18 @@ export async function sendWeeklyActivityReport(chatId: string | number, pilotId?
 
         if (combinedFlights.length === 0) {
             const isPersonal = !!pilotId;
-            const today = new Date();
-            const startDate = subDays(today, 7);
+             // DEBUGGING: Hardcoded date
+            const targetDate = new Date('2023-08-24T12:00:00Z');
+            const startDate = subDays(targetDate, 3);
+            const endDate = subDays(targetDate, -3);
+
             let debugMessage = isPersonal 
                 ? `No registraste vuelos en este período.`
                 : `No se registraron vuelos en este período.`;
             
             debugMessage += `\n\n--- Info de Depuración ---`;
-            debugMessage += `\n- Buscando para Pilot ID: ${pilotId || 'Todos'}`;
-            debugMessage += `\n- Rango de Fechas: ${format(startDate, "dd/MM/yyyy")} a ${format(today, "dd/MM/yyyy")}`;
+            debugMessage += `\n- Buscando para Pilot ID: ${pilotId || 'Todos (Debug: Hugo Choy)'}`;
+            debugMessage += `\n- Rango de Fechas: ${format(startDate, "dd/MM/yyyy")} a ${format(endDate, "dd/MM/yyyy")}`;
             debugMessage += `\n- Vuelos de Planeador Encontrados: ${gliderFlights.length}`;
             debugMessage += `\n- Vuelos de Motor Encontrados: ${engineFlights.length}`;
 
@@ -312,3 +335,5 @@ export async function sendNextWeekScheduleReport(chatId: string | number) {
         await sendToTelegram(chatId, `Error al generar el informe de la agenda: ${error.message}`);
     }
 }
+
+    
