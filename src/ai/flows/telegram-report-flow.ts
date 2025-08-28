@@ -48,11 +48,11 @@ async function fetchPilotCategories(): Promise<PilotCategory[]> {
 }
 
 
-async function fetchFlightsFromLastWeek(pilotId?: string): Promise<(CompletedGliderFlight | CompletedEngineFlight)[]> {
+async function fetchFlightsFromLastWeek(pilotId?: string): Promise<{gliderFlights: CompletedGliderFlight[], engineFlights: CompletedEngineFlight[]}> {
     const today = new Date();
     // Look for flights in the last 7 days for a rolling report
-    const startDate = format(subDays(today, 7), 'yyyy-MM-dd');
     const endDate = format(today, 'yyyy-MM-dd');
+    const startDate = format(subDays(today, 7), 'yyyy-MM-dd');
 
     let gliderQuery = supabase
         .from('completed_glider_flights')
@@ -79,15 +79,10 @@ async function fetchFlightsFromLastWeek(pilotId?: string): Promise<(CompletedGli
     if (gliderFlightsResult.error) throw new Error(`Error fetching glider flights: ${gliderFlightsResult.error.message}`);
     if (engineFlightsResult.error) throw new Error(`Error fetching engine flights: ${engineFlightsResult.error.message}`);
 
-    const combined = [...(gliderFlightsResult.data || []), ...(engineFlightsResult.data || [])];
-    
-    combined.sort((a, b) => {
-        const dateComp = a.date.localeCompare(b.date);
-        if (dateComp !== 0) return dateComp;
-        return a.departure_time.localeCompare(b.departure_time);
-    });
-
-    return combined;
+    return {
+        gliderFlights: gliderFlightsResult.data || [],
+        engineFlights: engineFlightsResult.data || [],
+    };
 }
 
 async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
@@ -114,12 +109,6 @@ async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
 
 // --- Report Formatting ---
 function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[], aircraft: Aircraft[], isPersonalReport: boolean): string {
-    if (flights.length === 0) {
-        return isPersonalReport 
-          ? `*Tu Resumen de Actividad de los Últimos 7 Días*\n\nNo registraste vuelos en este período.`
-          : `*Resumen de Actividad General de los Últimos 7 Días*\n\nNo se registraron vuelos en este período.`;
-    }
-
     const getPilotName = (id: string | null | undefined) => {
         if (!id) return 'N/A';
         const pilot = pilots.find(p => p.id === id);
@@ -131,7 +120,13 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
         return aircraft.find(a => a.id === id)?.name || 'N/A';
     };
 
-    const groupedByDate = flights.reduce((acc, flight) => {
+    const sortedFlights = flights.sort((a, b) => {
+        const dateComp = a.date.localeCompare(b.date);
+        if (dateComp !== 0) return dateComp;
+        return a.departure_time.localeCompare(b.departure_time);
+    });
+
+    const groupedByDate = sortedFlights.reduce((acc, flight) => {
         const date = flight.date;
         if (!acc[date]) acc[date] = [];
         acc[date].push(flight);
@@ -266,13 +261,34 @@ export async function sendMainMenu(chatId: string | number) {
 
 export async function sendWeeklyActivityReport(chatId: string | number, pilotId?: string) {
     try {
-        const [flights, pilots, purposes, aircraft] = await Promise.all([
-            fetchFlightsFromLastWeek(pilotId),
+        const { gliderFlights, engineFlights } = await fetchFlightsFromLastWeek(pilotId);
+        const combinedFlights = [...gliderFlights, ...engineFlights];
+
+        if (combinedFlights.length === 0) {
+            const isPersonal = !!pilotId;
+            const today = new Date();
+            const startDate = subDays(today, 7);
+            let debugMessage = isPersonal 
+                ? `No registraste vuelos en este período.`
+                : `No se registraron vuelos en este período.`;
+            
+            debugMessage += `\n\n--- Info de Depuración ---`;
+            debugMessage += `\n- Buscando para Pilot ID: ${pilotId || 'Todos'}`;
+            debugMessage += `\n- Rango de Fechas: ${format(startDate, "dd/MM/yyyy")} a ${format(today, "dd/MM/yyyy")}`;
+            debugMessage += `\n- Vuelos de Planeador Encontrados: ${gliderFlights.length}`;
+            debugMessage += `\n- Vuelos de Motor Encontrados: ${engineFlights.length}`;
+
+            await sendToTelegram(chatId, debugMessage);
+            return;
+        }
+
+        const [pilots, purposes, aircraft] = await Promise.all([
             fetchPilots(),
             fetchFlightPurposes(),
             fetchAircraft(),
         ]);
-        const report = formatActivityReport(flights, pilots, purposes, aircraft, !!pilotId);
+
+        const report = formatActivityReport(combinedFlights, pilots, purposes, aircraft, !!pilotId);
         await sendToTelegram(chatId, report);
     } catch (error: any) {
         console.error("Failed to send weekly activity report:", error);
@@ -295,3 +311,5 @@ export async function sendNextWeekScheduleReport(chatId: string | number) {
         await sendToTelegram(chatId, `Error al generar el informe de la agenda: ${error.message}`);
     }
 }
+
+    
