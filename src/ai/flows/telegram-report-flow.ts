@@ -50,9 +50,10 @@ async function fetchPilotCategories(): Promise<PilotCategory[]> {
 
 async function fetchFlightsFromLastWeek(pilotId?: string): Promise<{gliderFlights: CompletedGliderFlight[], engineFlights: CompletedEngineFlight[]}> {
     const today = new Date();
-    // Look for flights in the last 7 days for a rolling report
+    const sevenDaysAgo = subDays(new Date(), 7);
+
     const endDate = format(today, 'yyyy-MM-dd');
-    const startDate = format(subDays(today, 7), 'yyyy-MM-dd');
+    const startDate = format(sevenDaysAgo, 'yyyy-MM-dd');
 
     let gliderQuery = supabase
         .from('completed_glider_flights')
