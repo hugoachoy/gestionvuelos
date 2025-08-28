@@ -158,32 +158,41 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
                 
                 if (counterpart) {
                     const studentFlight = flight.instructor_id ? flight : counterpart;
-                    const instructorRecord = flight.instructor_id ? counterpart : flight;
                     const aircraftName = getAircraftName((studentFlight as CompletedGliderFlight).glider_aircraft_id || (studentFlight as CompletedEngineFlight).engine_aircraft_id);
                     reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${getPilotName(studentFlight.pilot_id)}, Instructor: ${getPilotName(studentFlight.instructor_id)}`;
                     processedFlights.add(flightKey);
+                    // Add flight duration only once for the instruction pair
+                    if (flight.logbook_type === 'glider') {
+                        totalGliderHours += flight.flight_duration_decimal;
+                    } else {
+                        totalEngineHours += flight.flight_duration_decimal;
+                    }
                 } else {
-                    // Orphaned instruction flight, log as is
+                    // Orphaned instruction flight, log as is and count its duration
                     const aircraftName = getAircraftName((flight as CompletedGliderFlight).glider_aircraft_id || (flight as CompletedEngineFlight).engine_aircraft_id);
                     reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
+                    if (flight.logbook_type === 'glider') {
+                        totalGliderHours += flight.flight_duration_decimal;
+                    } else {
+                        totalEngineHours += flight.flight_duration_decimal;
+                    }
                 }
 
             } else {
                  const aircraftName = getAircraftName((flight as CompletedGliderFlight).glider_aircraft_id || (flight as CompletedEngineFlight).engine_aircraft_id);
                  reportText += `\n- ${flight.departure_time.substring(0,5)}: ${purposeName} en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Piloto: ${getPilotName(flight.pilot_id)}`;
-            }
-
-            if (flight.logbook_type === 'glider') {
-                totalGliderHours += flight.flight_duration_decimal;
-            } else {
-                totalEngineHours += flight.flight_duration_decimal;
+                 if (flight.logbook_type === 'glider') {
+                    totalGliderHours += flight.flight_duration_decimal;
+                } else {
+                    totalEngineHours += flight.flight_duration_decimal;
+                }
             }
         });
     });
 
     reportText += `\n\n\n*Totales de la Semana:*`;
-    reportText += `\n- Horas de Vuelo en Planeador: *${(totalGliderHours / 2).toFixed(1)} hs*`;
-    reportText += `\n- Horas de Vuelo a Motor: *${(totalEngineHours / 2).toFixed(1)} hs*`;
+    reportText += `\n- Horas de Vuelo en Planeador: *${totalGliderHours.toFixed(1)} hs*`;
+    reportText += `\n- Horas de Vuelo a Motor: *${totalEngineHours.toFixed(1)} hs*`;
     return reportText;
 }
 
