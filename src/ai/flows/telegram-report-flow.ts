@@ -311,5 +311,3 @@ export async function sendNextWeekScheduleReport(chatId: string | number) {
         await sendToTelegram(chatId, `Error al generar el informe de la agenda: ${error.message}`);
     }
 }
-
-    
