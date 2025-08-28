@@ -16,6 +16,24 @@ export async function processTelegramUpdate(update: any) {
 
     if (text === '/start' || text === '/menu') {
       await sendMainMenu(chatId);
+    } else if (text === '/testpilot') {
+      // DEBUGGING COMMAND
+      try {
+        const { data: pilot, error } = await supabase
+          .from('pilots')
+          .select('id, first_name, last_name')
+          .eq('telegram_chat_id', chatId.toString())
+          .single();
+
+        if (error || !pilot) {
+          await sendToTelegram(chatId, `Fallo: No se pudo encontrar un perfil de piloto asociado a este ID de chat (${chatId}). Error: ${error?.message || 'Piloto no encontrado.'}`);
+        } else {
+          await sendToTelegram(chatId, `Éxito: Se encontró un perfil de piloto para este chat. Piloto: ${pilot.first_name} ${pilot.last_name} (ID: ${pilot.id}).`);
+        }
+      } catch (e: any) {
+        await sendToTelegram(chatId, `Error catastrófico en la prueba: ${e.message}`);
+      }
+      return;
     }
   }
   // Check for a callback query (button press)
