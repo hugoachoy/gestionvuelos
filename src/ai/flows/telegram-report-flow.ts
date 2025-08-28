@@ -7,7 +7,7 @@
  */
 import 'dotenv/config'; // Ensure environment variables are loaded
 import { supabase } from '@/lib/supabaseClient';
-import { format, subDays, startOfWeek, endOfWeek, parseISO, addDays, nextMonday, subWeeks, subYears } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, parseISO, addDays, nextMonday, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Pilot, CompletedGliderFlight, CompletedEngineFlight, FlightPurpose, ScheduleEntry, PilotCategory, Aircraft } from '@/types';
 import TelegramBot from 'node-telegram-bot-api';
@@ -48,23 +48,33 @@ async function fetchPilotCategories(): Promise<PilotCategory[]> {
 }
 
 
-async function fetchFlightsFromLastWeek(): Promise<(CompletedGliderFlight | CompletedEngineFlight)[]> {
+async function fetchFlightsFromLastWeek(pilotId?: string): Promise<(CompletedGliderFlight | CompletedEngineFlight)[]> {
     const today = new Date();
-    // Fetch flights from the last year to ensure test data is included.
-    const startDate = format(subYears(today, 1), 'yyyy-MM-dd');
-    const endDate = format(today, 'yyyy-MM-dd');
+    // Use last week (Monday to Sunday) for a consistent weekly report
+    const lastWeek = subWeeks(today, 1);
+    const startDate = format(startOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const endDate = format(endOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
+    let gliderQuery = supabase
+        .from('completed_glider_flights')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate);
+    
+    let engineQuery = supabase
+        .from('completed_engine_flights')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate);
+
+    if (pilotId) {
+        gliderQuery = gliderQuery.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
+        engineQuery = engineQuery.or(`pilot_id.eq.${pilotId},instructor_id.eq.${pilotId}`);
+    }
 
     const [gliderFlights, engineFlights] = await Promise.all([
-        supabase
-            .from('completed_glider_flights')
-            .select('*')
-            .gte('date', startDate)
-            .lte('date', endDate),
-        supabase
-            .from('completed_engine_flights')
-            .select('*')
-            .gte('date', startDate)
-            .lte('date', endDate)
+        gliderQuery,
+        engineQuery
     ]);
 
     if (gliderFlights.error) throw new Error(`Error fetching glider flights: ${gliderFlights.error.message}`);
@@ -103,9 +113,9 @@ async function fetchScheduleForNextWeek(): Promise<ScheduleEntry[]> {
 
 
 // --- Report Formatting ---
-function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[], aircraft: Aircraft[]): string {
+function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineFlight)[], pilots: Pilot[], purposes: FlightPurpose[], aircraft: Aircraft[], isPersonalReport: boolean): string {
     if (flights.length === 0) {
-        return "✈️ *Resumen de Actividad de los Últimos 7 Días*\n\nNo se registraron vuelos en este período.";
+        return `*Resumen de Actividad de la Semana Pasada*\n\nNo registraste vuelos en este período.`;
     }
 
     const getPilotName = (id: string | null | undefined) => {
@@ -119,7 +129,6 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
         return aircraft.find(a => a.id === id)?.name || 'N/A';
     };
 
-
     const groupedByDate = flights.reduce((acc, flight) => {
         const date = flight.date;
         if (!acc[date]) acc[date] = [];
@@ -128,14 +137,19 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
     }, {} as Record<string, (CompletedGliderFlight | CompletedEngineFlight)[]>);
     
     const today = new Date();
-    const sevenDaysAgo = subDays(today, 7);
+    const lastWeek = subWeeks(today, 1);
+    const startDate = startOfWeek(lastWeek, { weekStartsOn: 1 });
+    const endDate = endOfWeek(lastWeek, { weekStartsOn: 1 });
     
-    let reportText = `✈️ *Resumen de Actividad de los Últimos 7 Días*\n_(${format(sevenDaysAgo, "dd/MM/yyyy")} al ${format(today, "dd/MM/yyyy")})_\n`;
+    let reportText = isPersonalReport 
+        ? `✈️ *Tu Resumen de Actividad de la Semana Pasada*\n`
+        : `✈️ *Resumen de Actividad General*\n`;
+    reportText += `_(${format(startDate, "dd/MM/yyyy")} al ${format(endDate, "dd/MM/yyyy")})_\n`;
     
     let totalGliderHours = 0;
     let totalEngineHours = 0;
     
-    const processedFlights = new Set<string>();
+    const processedFlightKeys = new Set<string>();
 
     Object.keys(groupedByDate).sort().forEach(dateStr => {
         reportText += `\n\n*${format(parseISO(dateStr), 'EEEE dd/MM', { locale: es }).replace(/^\w/, (c) => c.toUpperCase())}*`;
@@ -143,7 +157,7 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
 
         flightsForDay.forEach(flight => {
              const flightKey = `${flight.date}-${flight.departure_time}-${(flight as any).glider_aircraft_id || (flight as any).engine_aircraft_id}`;
-             if(processedFlights.has(flightKey)) return;
+             if(processedFlightKeys.has(flightKey)) return;
 
             const purposeName = getPurposeName(flight.flight_purpose_id);
             
@@ -160,7 +174,7 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
                     const studentFlight = flight.instructor_id ? flight : counterpart;
                     const aircraftName = getAircraftName((studentFlight as CompletedGliderFlight).glider_aircraft_id || (studentFlight as CompletedEngineFlight).engine_aircraft_id);
                     reportText += `\n- ${flight.departure_time.substring(0,5)}: Instrucción en ${aircraftName} (${flight.flight_duration_decimal.toFixed(1)}hs) - Alumno: ${getPilotName(studentFlight.pilot_id)}, Instructor: ${getPilotName(studentFlight.instructor_id)}`;
-                    processedFlights.add(flightKey);
+                    processedFlightKeys.add(flightKey);
                     // Add flight duration only once for the instruction pair
                     if (flight.logbook_type === 'glider') {
                         totalGliderHours += flight.flight_duration_decimal;
@@ -276,15 +290,15 @@ export async function sendMainMenu(chatId: string | number) {
     await sendToTelegram(chatId, text, options);
 }
 
-export async function sendWeeklyActivityReport(chatId: string | number) {
+export async function sendWeeklyActivityReport(chatId: string | number, pilotId?: string) {
     try {
         const [flights, pilots, purposes, aircraft] = await Promise.all([
-            fetchFlightsFromLastWeek(),
+            fetchFlightsFromLastWeek(pilotId),
             fetchPilots(),
             fetchFlightPurposes(),
             fetchAircraft(),
         ]);
-        const report = formatActivityReport(flights, pilots, purposes, aircraft);
+        const report = formatActivityReport(flights, pilots, purposes, aircraft, !!pilotId);
         await sendToTelegram(chatId, report);
     } catch (error: any) {
         console.error("Failed to send weekly activity report:", error);

@@ -8,95 +8,70 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import useLocalStorageState from "@/hooks/use-local-storage-state";
-import { Loader2, Send } from "lucide-react";
-import { sendWeeklyActivityReport } from "@/ai/flows/telegram-report-flow";
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Bot, UserCheck } from "lucide-react";
 
 
 export function TelegramReportClient() {
     const [isReportEnabled, setIsReportEnabled] = useLocalStorageState<boolean>('telegramReportEnabled', false);
-    const [isSending, setIsSending] = useState(false);
     const { toast } = useToast();
 
     const handleToggleReport = (enabled: boolean) => {
         setIsReportEnabled(enabled);
         toast({
             title: "Configuración guardada",
-            description: `El envío automático del informe de actividad semanal ha sido ${enabled ? 'habilitado' : 'deshabilitado'}.`,
+            description: `El envío automático de informes semanales personales ha sido ${enabled ? 'habilitado' : 'deshabilitado'}.`,
         });
-    };
-    
-    const handleSendTest = async () => {
-        // Client-side check
-        if (!process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || !process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID) {
-            toast({
-                title: "Configuración Incompleta",
-                description: "Por favor, configure NEXT_PUBLIC_TELEGRAM_BOT_TOKEN y NEXT_PUBLIC_TELEGRAM_CHAT_ID en su archivo .env y reinicie el servidor.",
-                variant: "destructive",
-                duration: 7000,
-            });
-            return;
-        }
-
-        setIsSending(true);
-        try {
-            const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
-            if (!chatId) throw new Error("Chat ID no configurado en las variables de entorno.");
-            
-            // This function now sends a GENERAL report of all flights to the specified group chat ID.
-            await sendWeeklyActivityReport(chatId);
-
-            toast({
-                title: "Informe de prueba enviado",
-                description: "Se ha enviado el informe de actividad de los últimos 7 días al canal de Telegram configurado.",
-            });
-        } catch (error: any) {
-            console.error("Error sending test report:", error);
-            toast({
-                title: "Error al enviar",
-                description: error.message || "No se pudo enviar el informe de prueba.",
-                variant: "destructive",
-            });
-        } finally {
-            setIsSending(false);
-        }
+        // Here you would typically call a server action to save this setting in a database
+        // so the cron job can check it.
     };
 
     return (
-        <Card className="max-w-xl">
-            <CardHeader>
-                <CardTitle>Informe Automático</CardTitle>
-                <CardDescription>
-                    Habilita esta opción para enviar un resumen de la actividad de los últimos 7 días al canal de Telegram todos los lunes.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="flex items-center space-x-4 rounded-md border p-4">
-                    <div className="flex-1 space-y-1">
-                        <Label htmlFor="report-switch" className="text-base">
-                            Enviar Informe de Actividad Semanal
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                            {isReportEnabled ? "El informe se enviará automáticamente." : "El informe no se enviará."}
-                        </p>
-                    </div>
-                    <Switch
-                        id="report-switch"
-                        checked={isReportEnabled}
-                        onCheckedChange={handleToggleReport}
-                    />
-                </div>
+        <div className="space-y-6 max-w-2xl">
+            <Alert>
+                <Bot className="h-4 w-4" />
+                <AlertTitle>Nuevo Sistema de Reportes Personales</AlertTitle>
+                <AlertDescription>
+                    El sistema ahora envía un informe de actividad semanal personalizado a cada piloto que haya configurado su ID de Telegram.
+                    La opción a continuación habilita o deshabilita este envío automático para todos los pilotos.
+                </AlertDescription>
+            </Alert>
+             <Alert variant="default" className="border-blue-500 bg-blue-50">
+                <UserCheck className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-700">Instrucciones para Pilotos</AlertTitle>
+                <AlertDescription className="text-blue-700/90">
+                    Para recibir los informes, cada piloto debe iniciar un chat privado con el bot, escribir <strong>/start</strong> y seguir las instrucciones para configurar su ID de chat de Telegram en su perfil.
+                </AlertDescription>
+            </Alert>
 
-                <div className="space-y-2">
-                    <h3 className="text-base font-medium">Prueba de Envío al Grupo</h3>
-                     <p className="text-sm text-muted-foreground">
-                        Usa este botón para enviar el informe de actividad de los últimos 7 días al ID de chat del grupo configurado.
+            <Card>
+                <CardHeader>
+                    <CardTitle>Informe Automático Semanal Personal</CardTitle>
+                    <CardDescription>
+                        Habilita esta opción para que el sistema envíe un resumen de su propia actividad de la semana pasada a cada piloto todos los lunes.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="flex items-center space-x-4 rounded-md border p-4">
+                        <div className="flex-1 space-y-1">
+                            <Label htmlFor="report-switch" className="text-base">
+                                Enviar Informes Semanales Personales
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                {isReportEnabled ? "El envío automático está HABILITADO." : "El envío automático está DESHABILITADO."}
+                            </p>
+                        </div>
+                        <Switch
+                            id="report-switch"
+                            checked={isReportEnabled}
+                            onCheckedChange={handleToggleReport}
+                        />
+                    </div>
+                     <p className="text-xs text-muted-foreground">
+                        Nota: Esta configuración se guarda en tu navegador. Para una solución permanente, este ajuste debería guardarse en la base de datos para que el servidor (cron job) pueda leerlo.
                     </p>
-                    <Button onClick={handleSendTest} disabled={isSending}>
-                        {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                        Enviar Informe de Prueba
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
