@@ -50,10 +50,9 @@ async function fetchPilotCategories(): Promise<PilotCategory[]> {
 
 async function fetchFlightsFromLastWeek(pilotId?: string): Promise<(CompletedGliderFlight | CompletedEngineFlight)[]> {
     const today = new Date();
-    // Use last week (Monday to Sunday) for a consistent weekly report
-    const lastWeek = subWeeks(today, 1);
-    const startDate = format(startOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    const endDate = format(endOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    // Look for flights in the last 7 days for a rolling report
+    const startDate = format(subDays(today, 7), 'yyyy-MM-dd');
+    const endDate = format(today, 'yyyy-MM-dd');
 
     let gliderQuery = supabase
         .from('completed_glider_flights')
@@ -137,14 +136,12 @@ function formatActivityReport(flights: (CompletedGliderFlight | CompletedEngineF
     }, {} as Record<string, (CompletedGliderFlight | CompletedEngineFlight)[]>);
     
     const today = new Date();
-    const lastWeek = subWeeks(today, 1);
-    const startDate = startOfWeek(lastWeek, { weekStartsOn: 1 });
-    const endDate = endOfWeek(lastWeek, { weekStartsOn: 1 });
+    const startDate = subDays(today, 7);
     
     let reportText = isPersonalReport 
-        ? `✈️ *Tu Resumen de Actividad de la Semana Pasada*\n`
-        : `✈️ *Resumen de Actividad General*\n`;
-    reportText += `_(${format(startDate, "dd/MM/yyyy")} al ${format(endDate, "dd/MM/yyyy")})_\n`;
+        ? `✈️ *Tu Resumen de Actividad de los Últimos 7 Días*\n`
+        : `✈️ *Resumen de Actividad General de los Últimos 7 Días*\n`;
+    reportText += `_(${format(startDate, "dd/MM/yyyy")} al ${format(today, "dd/MM/yyyy")})_\n`;
     
     let totalGliderHours = 0;
     let totalEngineHours = 0;
