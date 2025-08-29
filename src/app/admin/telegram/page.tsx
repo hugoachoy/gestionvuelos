@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast";
 import { Copy } from 'lucide-react';
+import React from 'react';
 
 function WebhookSetupComponent() {
     const [webhookUrl, setWebhookUrl] = useState('');
