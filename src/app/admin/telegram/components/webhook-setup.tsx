@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast";
 import { Copy } from 'lucide-react';
 
-export function WebhookSetupComponent() {
+export const WebhookSetupComponent = () => {
     const [webhookUrl, setWebhookUrl] = useState('');
     const [botToken, setBotToken] = useState('');
     const { toast } = useToast();
@@ -76,4 +75,4 @@ export function WebhookSetupComponent() {
             </CardContent>
         </Card>
     );
-}
+};
