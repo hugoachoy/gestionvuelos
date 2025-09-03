@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -42,8 +43,8 @@ export const WebhookSetupComponent = () => {
             <CardHeader>
                 <CardTitle>1. Configurar Webhook</CardTitle>
                 <CardDescription>
-                    Para que el bot pueda recibir mensajes, debes indicarle a Telegram la URL de tu aplicación. 
-                    Este paso solo se necesita hacer una vez.
+                    Para que el bot pueda recibir mensajes, debes indicarle a Telegram la URL de tu aplicación.
+                    Este paso solo se necesita hacer una vez, o si la URL de tu aplicación cambia.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -53,9 +54,9 @@ export const WebhookSetupComponent = () => {
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="bot-token">Token de tu Bot de Telegram</Label>
-                    <Input 
-                        id="bot-token" 
-                        placeholder="Pega el token de tu bot aquí" 
+                    <Input
+                        id="bot-token"
+                        placeholder="Pega el token de tu bot aquí (Ej: 123456:ABC-DEF1234...)"
                         value={botToken}
                         onChange={(e) => setBotToken(e.target.value)}
                     />
