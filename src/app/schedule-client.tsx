@@ -300,14 +300,20 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = async (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => {
-    if (entryId) {
-      await updateScheduleEntry({ ...data, id: entryId });
-    } else {
-      await addScheduleEntry(data);
+  const handleSubmitForm = useCallback(async (data: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+    if (entryId) { // Editing existing entry
+      if(data.length === 1) { // Should always be one for editing
+        await updateScheduleEntry({ ...data[0], id: entryId });
+      } else {
+         toast({ title: "Error de Edición", description: "No se pueden crear múltiples turnos al editar.", variant: "destructive" });
+      }
+    } else { // Adding new entries
+      for (const entryData of data) {
+        await addScheduleEntry(entryData);
+      }
     }
     setIsFormOpen(false);
-  };
+  }, [addScheduleEntry, updateScheduleEntry, toast]);
 
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate || !scheduleEntries || categoriesLoading || aircraftLoading || !pilots?.length || !categories?.length || !aircraft?.length) {
