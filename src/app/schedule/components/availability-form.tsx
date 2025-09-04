@@ -2,7 +2,6 @@
 "use client";
 
 import type { ScheduleEntry, Pilot, PilotCategory, Aircraft } from '@/types';
-import { FLIGHT_TYPES } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -46,13 +45,12 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, AlertTriangle, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePilotsStore } from '@/store/data-hooks';
 
 // Simplified schema for this step
 const availabilitySchema = z.object({
@@ -278,5 +276,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    
