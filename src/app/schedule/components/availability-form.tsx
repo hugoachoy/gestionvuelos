@@ -45,39 +45,24 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, AlertTriangle, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, isBefore, isValid, startOfDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePilotsStore } from '@/store/data-hooks';
 
+// Simplified schema for this step
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM).").min(1, "La hora de inicio es obligatoria."),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
-  
-  // Changed to array of strings for checkboxes
-  pilot_category_ids: z.array(z.string()).min(1, "Seleccione al menos una categoría."),
-  
-  // Kept for potential future use but hidden for now
-  is_tow_pilot_available: z.boolean().optional(),
-  flight_type_id: z.string().optional(),
-  aircraft_id: z.string().optional(),
+  pilot_category_ids: z.array(z.string()).min(1, "Seleccione al menos una categoría de disponibilidad.").optional(),
 });
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
-
-
-interface MedicalWarningState {
-  show: boolean;
-  title: string;
-  message: string;
-  variant: 'default' | 'destructive';
-}
 
 const generateTimeSlots = () => {
   const slots: string[] = [];
@@ -105,14 +90,6 @@ interface AvailabilityFormProps {
   existingEntries?: ScheduleEntry[];
 }
 
-const normalizeCategoryName = (name?: string): string => {
-  return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
-};
-
-const NORMALIZED_INSTRUCTOR_AVION = "instructor avion";
-const NORMALIZED_INSTRUCTOR_PLANEADOR = "instructor planeador";
-const NORMALIZED_REMOLCADOR = "remolcador";
-
 export function AvailabilityForm({
   open,
   onOpenChange,
@@ -124,26 +101,22 @@ export function AvailabilityForm({
   selectedDate,
 }: AvailabilityFormProps) {
   const { user: currentUser } = useAuth();
-  const { getPilotName } = usePilotsStore();
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: {
-        date: selectedDate || new Date(),
-        start_time: '',
-        pilot_id: '',
-        pilot_category_ids: [], // Changed to array
-      },
+      date: selectedDate || new Date(),
+      start_time: '',
+      pilot_id: '',
+      pilot_category_ids: [],
+    },
   });
 
-  const [medicalWarning, setMedicalWarning] = useState<MedicalWarningState | null>(null);
   const [pilotSearchTerm, setPilotSearchTerm] = useState('');
   const [pilotPopoverOpen, setPilotPopoverOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
 
   const watchedPilotId = form.watch('pilot_id');
-  const watchedDate = form.watch('date');
-  const watchedStartTime = form.watch('start_time');
 
   useEffect(() => {
     if (currentUser && pilots && pilots.length > 0) {
@@ -174,7 +147,7 @@ export function AvailabilityForm({
             date: entry.date ? parseISO(entry.date) : (selectedDate || new Date()),
             start_time: entry.start_time ? entry.start_time.substring(0,5) : '',
             pilot_id: initialPilotId,
-            pilot_category_ids: [entry.pilot_category_id], // Set as array
+            pilot_category_ids: [entry.pilot_category_id],
           }
         : {
             date: selectedDate || new Date(),
@@ -191,23 +164,21 @@ export function AvailabilityForm({
     
     const entriesToCreate: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
     
-    // Create an entry for each selected category
-    data.pilot_category_ids.forEach(catId => {
-        const categoryDetails = categories.find(c => c.id === catId);
-        const isRemolcador = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_REMOLCADOR;
-
-        entriesToCreate.push({
-            date: format(data.date, 'yyyy-MM-dd'),
-            start_time: data.start_time,
-            pilot_id: data.pilot_id,
-            pilot_category_id: catId,
-            is_tow_pilot_available: isRemolcador,
-            // These need a default or derived value now
-            flight_type_id: isRemolcador ? 'towage' : 'local', // Example default
-            aircraft_id: null, // No longer in the form
-            auth_user_id: authUserIdToSet
+    if (data.pilot_category_ids && data.pilot_category_ids.length > 0) {
+        data.pilot_category_ids.forEach(catId => {
+            entriesToCreate.push({
+                date: format(data.date, 'yyyy-MM-dd'),
+                start_time: data.start_time,
+                pilot_id: data.pilot_id,
+                pilot_category_id: catId,
+                // These will be defaulted or handled by a later step
+                flight_type_id: 'local', 
+                aircraft_id: null,
+                is_tow_pilot_available: false,
+                auth_user_id: authUserIdToSet
+            });
         });
-    });
+    }
 
     if (entriesToCreate.length > 0) {
       onSubmit(entriesToCreate, entry?.id);
@@ -228,70 +199,72 @@ export function AvailabilityForm({
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg bg-red-200">
         <DialogHeader>
           <DialogTitle>{entry ? 'Editar Turno' : 'Agregar Disponibilidad'}</DialogTitle>
           <DialogDescription>{entry ? 'Modifica los detalles del turno.' : 'Ingresa los detalles del nuevo turno.'}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
-            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Fecha</FormLabel><Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={(date) => { if(date) field.onChange(date); setIsCalendarOpen(false); }} initialFocus locale={es} /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="start_time" render={({ field }) => ( <FormItem><FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora Inicial</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar hora" /></SelectTrigger></FormControl><SelectContent>{timeSlots.map(slot => (<SelectItem key={slot} value={slot}>{slot}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="pilot_id" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Piloto</FormLabel><Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")} disabled={disablePilotSelection}>{field.value && pilots.find(p => p.id === field.value) ? `${pilots.find(p => p.id === field.value)?.last_name}, ${pilots.find(p => p.id === field.value)?.first_name}` : "Seleccionar piloto"}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></FormControl></PopoverTrigger>{!disablePilotSelection && (<PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start"><Command><CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm}/><CommandList><CommandEmpty>No se encontraron pilotos.</CommandEmpty><CommandGroup>{sortedAndFilteredPilots.map((pilot) => (<CommandItem value={`${pilot.last_name}, ${pilot.first_name} (${pilot.id})`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id, { shouldValidate: true, shouldDirty: true }); form.setValue("pilot_category_ids", []); setPilotPopoverOpen(false); setPilotSearchTerm('');}}><Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>{pilot.last_name}, {pilot.first_name}</CommandItem>))}</CommandGroup></CommandList></Command></PopoverContent>)}</Popover><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Fecha</FormLabel><Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal bg-white",!field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={(date) => { if(date) field.onChange(date); setIsCalendarOpen(false); }} initialFocus locale={es} /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="start_time" render={({ field }) => ( <FormItem><FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block">Hora Inicial</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger className="bg-white"><SelectValue placeholder="Seleccionar hora" /></SelectTrigger></FormControl><SelectContent>{timeSlots.map(slot => (<SelectItem key={slot} value={slot}>{slot}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="pilot_id" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel className="bg-primary text-primary-foreground rounded-md px-2 py-1 inline-block self-start">Piloto</FormLabel><Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant="outline" role="combobox" className={cn("w-full justify-between bg-white", !field.value && "text-muted-foreground")} disabled={disablePilotSelection}>{field.value && pilots.find(p => p.id === field.value) ? `${pilots.find(p => p.id === field.value)?.last_name}, ${pilots.find(p => p.id === field.value)?.first_name}` : "Seleccionar piloto"}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></FormControl></PopoverTrigger>{!disablePilotSelection && (<PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start"><Command><CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm}/><CommandList><CommandEmpty>No se encontraron pilotos.</CommandEmpty><CommandGroup>{sortedAndFilteredPilots.map((pilot) => (<CommandItem value={`${pilot.last_name}, ${pilot.first_name} (${pilot.id})`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id, { shouldValidate: true, shouldDirty: true }); form.setValue("pilot_category_ids", []); setPilotPopoverOpen(false); setPilotSearchTerm('');}}><Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")}/>{pilot.last_name}, {pilot.first_name}</CommandItem>))}</CommandGroup></CommandList></Command></PopoverContent>)}</Popover><FormMessage /></FormItem>)}/>
             
-            {watchedPilotId && (
+            {watchedPilotId && pilotCategoriesForSelectedPilot.length > 0 && (
                  <FormField
                     control={form.control}
                     name="pilot_category_ids"
                     render={() => (
-                      <FormItem>
+                      <FormItem className="rounded-md border p-4 bg-white/50">
                         <div className="mb-4">
                           <FormLabel className="text-base font-semibold">
-                            Categorías Disponibles del Piloto
+                            Categorías de Disponibilidad
                           </FormLabel>
                           <FormDescription>
-                            Seleccione una o más categorías para este turno.
+                            Seleccione una o más categorías para el turno.
                           </FormDescription>
                         </div>
-                        {pilotCategoriesForSelectedPilot.length > 0 ? pilotCategoriesForSelectedPilot.map((item) => (
-                          <FormField
-                            key={item.id}
-                            control={form.control}
-                            name="pilot_category_ids"
-                            render={({ field }) => {
-                              return (
-                                <FormItem
-                                  key={item.id}
-                                  className="flex flex-row items-start space-x-3 space-y-0"
-                                >
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value?.includes(item.id)}
-                                      onCheckedChange={(checked) => {
-                                        return checked
-                                          ? field.onChange([...field.value, item.id])
-                                          : field.onChange(
-                                              field.value?.filter(
-                                                (value) => value !== item.id
-                                              )
-                                            )
-                                      }}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="font-normal">
-                                    {item.name}
-                                  </FormLabel>
-                                </FormItem>
-                              )
-                            }}
-                          />
-                        )) : <p className="text-sm text-muted-foreground">Este piloto no tiene categorías asignadas.</p>}
+                        <div className="space-y-2">
+                            {pilotCategoriesForSelectedPilot.map((item) => (
+                              <FormField
+                                key={item.id}
+                                control={form.control}
+                                name="pilot_category_ids"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem
+                                      key={item.id}
+                                      className="flex flex-row items-start space-x-3 space-y-0"
+                                    >
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(item.id)}
+                                          onCheckedChange={(checked) => {
+                                            const currentValue = field.value || [];
+                                            return checked
+                                              ? field.onChange([...currentValue, item.id])
+                                              : field.onChange(
+                                                  currentValue?.filter(
+                                                    (value) => value !== item.id
+                                                  )
+                                                )
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="font-normal">
+                                        {item.name}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            ))}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
             )}
-            
 
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
@@ -306,3 +279,4 @@ export function AvailabilityForm({
   );
 }
 
+    
