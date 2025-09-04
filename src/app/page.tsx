@@ -1,3 +1,4 @@
+
 import { Suspense } from 'react';
 import { PageHeader } from '@/components/common/page-header';
 import { MaintenanceWarnings } from '@/components/dashboard/maintenance-warnings';
@@ -5,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CalendarDays, BookOpen, Plane } from 'lucide-react';
+import { CalendarDays, BookOpen, Plane, Sheet } from 'lucide-react';
 
 export default function DashboardPage() {
   return (
@@ -63,6 +64,23 @@ export default function DashboardPage() {
           <CardContent>
             <Button asChild className="w-full">
               <Link href="/aircraft">Ir a Aeronaves</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Sheet className="mr-2 h-6 w-6 text-primary" />
+              Tarifas Vigentes
+            </CardTitle>
+            <CardDescription>
+              Consulta el listado de precios actual y exporta a PDF.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/rates">Consultar Tarifas</Link>
             </Button>
           </CardContent>
         </Card>

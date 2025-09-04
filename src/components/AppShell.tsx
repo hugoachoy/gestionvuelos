@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText, Shield } from 'lucide-react';
+import { LayoutDashboard, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText, Shield, Sheet } from 'lucide-react';
 
 interface NavItemProps {
   href: string;
@@ -67,11 +67,17 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     { href: '/schedule', label: 'Agenda', icon: <CalendarDays /> },
     { href: '/logbook', label: 'Libro de Vuelo', icon: <BookOpen /> },
     { href: '/pilots', label: 'Pilotos', icon: <Users /> },
-    { href: '/categories', label: 'Categoria Pilotos', icon: <Tags /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
+    { href: '/rates', label: 'Tarifas', icon: <Sheet /> },
     { href: '/twilight', label: 'Crepúsculo Civil', icon: <Sunrise /> },
     { href: '/notams', label: 'NOTAMs', icon: <FileText /> },
   ];
+
+  const adminNavItems = [
+    { href: '/categories', label: 'Categorías Pilotos', icon: <Tags /> },
+    { href: '/admin', label: 'Admin Panel', icon: <Shield /> },
+  ]
+
 
   const handleLogout = async () => {
     await logout();
@@ -119,9 +125,9 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             {navItems.map((item) => (
               <NavItem key={item.href} {...item} pathname={pathname} />
             ))}
-             {user?.is_admin && (
-              <NavItem href="/admin" icon={<Shield />} label="Admin" pathname={pathname} />
-            )}
+             {user?.is_admin && adminNavItems.map((item) => (
+              <NavItem key={item.href} {...item} pathname={pathname} />
+            ))}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">
