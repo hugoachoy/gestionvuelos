@@ -19,6 +19,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 export function RatesViewerClient() {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -154,7 +155,7 @@ export function RatesViewerClient() {
                 </TableRow>
               ) : (
                 rates.map((rate) => (
-                  <TableRow key={rate.id}>
+                  <TableRow key={rate.id} className="even:bg-muted/50">
                     <TableCell className="font-medium">{rate.item_name}</TableCell>
                     <TableCell className="text-right">{formatValue(rate.is_percentage ? rate.percentage_value : rate.member_price, rate.is_percentage)}</TableCell>
                     <TableCell className="text-right">{formatValue(rate.is_percentage ? rate.percentage_value : rate.non_member_price, rate.is_percentage)}</TableCell>
