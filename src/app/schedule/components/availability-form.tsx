@@ -49,7 +49,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, AlertTriangle, Plane as PlaneIconLucide, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
+import { format, parseISO, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -133,7 +133,6 @@ export function AvailabilityForm({
   categories,
   aircraft,
   selectedDate,
-  existingEntries
 }: AvailabilityFormProps) {
   const { user: currentUser } = useAuth();
   const { getPilotName } = usePilotsStore();
@@ -375,4 +374,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
