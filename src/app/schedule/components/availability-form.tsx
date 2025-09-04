@@ -900,5 +900,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    
