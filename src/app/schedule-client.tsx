@@ -252,32 +252,29 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (entryDataList: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+  const handleSubmitForm = useCallback(async (entryDataList: Omit<ScheduleEntry, 'id' | 'created_at'> | Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
     setEditingEntry(undefined);
     setIsFormOpen(false);
 
-    if (entryId && entryDataList.length === 1) { // Editing a single entry
-        await updateScheduleEntry({ ...entryDataList[0], id: entryId });
+    const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = Array.isArray(entryDataList) ? entryDataList : [entryDataList];
+
+    if (entryId && entriesToAdd.length === 1) { // Editing a single entry
+        await updateScheduleEntry({ ...entriesToAdd[0], id: entryId });
         toast({ title: "Turno Actualizado", description: "El turno ha sido actualizado." });
     } else { // Adding new entries
-        const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
-        
-        entryDataList.forEach(newEntry => {
-            const isDuplicate = scheduleEntries.some(
+        const validEntriesToAdd = entriesToAdd.filter(newEntry => {
+            return !scheduleEntries.some(
                 existingEntry =>
                     existingEntry.pilot_id === newEntry.pilot_id &&
                     existingEntry.pilot_category_id === newEntry.pilot_category_id &&
                     existingEntry.date === newEntry.date
             );
-            if (!isDuplicate) {
-                entriesToAdd.push(newEntry);
-            }
         });
 
-        if (entriesToAdd.length > 0) {
-            await addScheduleEntry(entriesToAdd);
-            toast({ title: "Turnos Agregados", description: `${entriesToAdd.length} nuevo(s) turno(s) agregado(s) a la agenda.` });
-        } else if (entryDataList.length > 0) { // Only show this if there was an attempt to add something
+        if (validEntriesToAdd.length > 0) {
+            await addScheduleEntry(validEntriesToAdd);
+            toast({ title: "Turnos Agregados", description: `${validEntriesToAdd.length} nuevo(s) turno(s) agregado(s) a la agenda.` });
+        } else if (entriesToAdd.length > 0) { // Only show this if there was an attempt to add something
             toast({ title: "Sin cambios", description: "Todos los turnos seleccionados ya existían en la agenda.", variant: "default" });
         }
     }
@@ -397,7 +394,8 @@ export function ScheduleClient() {
     if (!towPilotCategory) {
       return true;
     }
-    return scheduleEntries.some(entry => entry.pilot_category_id === towPilotCategory.id && entry.is_tow_pilot_available);
+    // A tow pilot is confirmed if they just sign up for the category.
+    return scheduleEntries.some(entry => entry.pilot_category_id === towPilotCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
 
