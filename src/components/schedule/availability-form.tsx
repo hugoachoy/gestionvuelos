@@ -57,11 +57,8 @@ import { usePilotsStore } from '@/store/data-hooks';
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
-  // pilot_category_id will be handled by the checkboxes logic
   categories: z.record(z.object({
     selected: z.boolean(),
-    is_tow_pilot_available: z.boolean().optional(),
-    is_instructor_available: z.boolean().optional(),
   })).refine(val => Object.values(val).some(cat => cat.selected), {
     message: "Debe seleccionar al menos una categoría."
   })
@@ -135,12 +132,6 @@ export function AvailabilityForm({
 
       if (entry) {
         form.setValue(`categories.${entry.pilot_category_id}.selected`, true);
-        if (entry.is_tow_pilot_available) {
-            form.setValue(`categories.${entry.pilot_category_id}.is_tow_pilot_available`, true);
-        }
-        if (entry.is_instructor_available) {
-            form.setValue(`categories.${entry.pilot_category_id}.is_instructor_available`, true);
-        }
       }
 
       setPilotSearchTerm('');
@@ -148,7 +139,6 @@ export function AvailabilityForm({
   }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin]);
 
   const watchedPilotId = form.watch('pilot_id');
-  const watchedCategories = form.watch('categories');
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
   
   const pilotCategoriesForSelectedPilot = useMemo(() => {
@@ -163,7 +153,7 @@ export function AvailabilityForm({
         const currentCategories = form.getValues('categories');
         const newCategoriesState: Record<string, any> = {};
         (pilotDetails?.category_ids || []).forEach(catId => {
-            newCategoriesState[catId] = currentCategories[catId] || { selected: false, is_tow_pilot_available: false, is_instructor_available: false };
+            newCategoriesState[catId] = currentCategories[catId] || { selected: false };
         });
         form.setValue('categories', newCategoriesState);
     }
@@ -183,12 +173,15 @@ export function AvailabilityForm({
     for (const categoryId in data.categories) {
         const catData = data.categories[categoryId];
         if (catData.selected) {
+            const categoryDetails = categories.find(c => c.id === categoryId);
+            const normalizedCategoryName = normalizeCategoryName(categoryDetails?.name);
+            
             entriesToSubmit.push({
                 date: format(data.date, 'yyyy-MM-dd'),
                 pilot_id: data.pilot_id,
                 pilot_category_id: categoryId,
-                is_tow_pilot_available: catData.is_tow_pilot_available ?? false,
-                is_instructor_available: catData.is_instructor_available ?? false,
+                is_tow_pilot_available: normalizedCategoryName === NORMALIZED_REMOLCADOR,
+                is_instructor_available: normalizedCategoryName.includes("instructor"),
                 auth_user_id: authUserIdToSet,
                 // Hardcoded values
                 start_time: '00:00',
@@ -298,60 +291,27 @@ export function AvailabilityForm({
                                 Marca todas las categorías en las que estarás disponible.
                             </FormDescription>
                         </div>
-                        {pilotCategoriesForSelectedPilot.length > 0 ? pilotCategoriesForSelectedPilot.map((category) => {
-                            const isInstructor = normalizeCategoryName(category.name).includes("instructor");
-                            const isRemolcador = normalizeCategoryName(category.name) === NORMALIZED_REMOLCADOR;
-
-                            return (
-                                <FormField
-                                    key={category.id}
-                                    control={form.control}
-                                    name={`categories.${category.id}.selected`}
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-col rounded-lg border p-3 shadow-sm mb-2">
-                                            <div className="flex flex-row items-center justify-between">
-                                                <FormLabel className="font-normal flex-1" htmlFor={`category-select-${category.id}`}>{category.name}</FormLabel>
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                        id={`category-select-${category.id}`}
-                                                    />
-                                                </FormControl>
-                                            </div>
-                                            {field.value && isInstructor && (
-                                                <FormField
-                                                    control={form.control}
-                                                    name={`categories.${category.id}.is_instructor_available`}
-                                                    render={({ field: subField }) => (
-                                                        <FormItem className="flex flex-row items-center justify-between rounded-md border bg-background/50 p-2 mt-2">
-                                                            <FormLabel className="text-sm font-normal">¿Disponible como Instructor?</FormLabel>
-                                                            <FormControl>
-                                                                <Checkbox checked={subField.value} onCheckedChange={subField.onChange} />
-                                                            </FormControl>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                            )}
-                                            {field.value && isRemolcador && (
-                                                 <FormField
-                                                    control={form.control}
-                                                    name={`categories.${category.id}.is_tow_pilot_available`}
-                                                    render={({ field: subField }) => (
-                                                        <FormItem className="flex flex-row items-center justify-between rounded-md border bg-background/50 p-2 mt-2">
-                                                            <FormLabel className="text-sm font-normal">¿Disponible como Remolcador?</FormLabel>
-                                                            <FormControl>
-                                                                <Checkbox checked={subField.value} onCheckedChange={subField.onChange} />
-                                                            </FormControl>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                            )}
-                                        </FormItem>
-                                    )}
-                                />
-                            )
-                        }) : <p className="text-sm text-muted-foreground">Este piloto no tiene categorías asignadas.</p>}
+                        {pilotCategoriesForSelectedPilot.length > 0 ? pilotCategoriesForSelectedPilot.map((category) => (
+                            <FormField
+                                key={category.id}
+                                control={form.control}
+                                name={`categories.${category.id}.selected`}
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-2 border-b">
+                                        <FormControl>
+                                            <Checkbox
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                                id={`category-select-${category.id}`}
+                                            />
+                                        </FormControl>
+                                        <FormLabel className="text-sm font-normal flex-1" htmlFor={`category-select-${category.id}`}>
+                                            {category.name}
+                                        </FormLabel>
+                                    </FormItem>
+                                )}
+                            />
+                        )) : <p className="text-sm text-muted-foreground">Este piloto no tiene categorías asignadas.</p>}
                         <FormMessage />
                     </FormItem>
                   )}
