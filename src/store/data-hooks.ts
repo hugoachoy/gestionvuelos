@@ -572,7 +572,6 @@ export function useScheduleStore() {
       }
 
       if (newEntries && newEntries.length > 0) {
-        // Fetch for the date of the first new entry to refresh the view
         await fetchScheduleEntries(newEntries[0].date);
       }
       return newEntries;

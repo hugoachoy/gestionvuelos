@@ -58,7 +58,7 @@ function getSortPriority(
   const isInstructor = normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME ||
                        normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME;
   if (isInstructor) {
-    return entry.is_instructor_available ? 3 : 4;
+    return 3;
   }
 
   return 5; // General pilots
@@ -359,7 +359,7 @@ export function ScheduleClient() {
     if (!avionInstructorCategory) {
       return true;
     }
-    return scheduleEntries.some(entry => entry.pilot_category_id === avionInstructorCategory.id && entry.is_instructor_available);
+    return scheduleEntries.some(entry => entry.pilot_category_id === avionInstructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
   // Check if "Instructor Planeador" category exists
@@ -377,7 +377,7 @@ export function ScheduleClient() {
     if (!planeadorInstructorCategory) {
       return true;
     }
-    return scheduleEntries.some(entry => entry.pilot_category_id === planeadorInstructorCategory.id && entry.is_instructor_available);
+    return scheduleEntries.some(entry => entry.pilot_category_id === planeadorInstructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
   // Check if "Remolcador" category exists and is confirmed

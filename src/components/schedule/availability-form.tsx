@@ -23,13 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -44,31 +38,23 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, AlertTriangle, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePilotsStore } from '@/store/data-hooks';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
-  // pilot_category_id is now replaced by category_selections
-  category_selections: z.record(z.boolean()), // e.g. { 'catId1': true, 'catId2': false }
-
-  // These will be set based on category selections
+  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
+  category_selections: z.record(z.boolean()),
   is_tow_pilot_available: z.boolean().default(false),
-
-  // Fields to be hardcoded or derived, not shown in UI
-  start_time: z.string().default('00:00'), 
   flight_type_id: z.string().default('local'), 
   aircraft_id: z.string().optional().nullable(),
 });
-
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
 
@@ -109,10 +95,9 @@ export function AvailabilityForm({
     defaultValues: {
         date: selectedDate || new Date(),
         pilot_id: '',
+        start_time: '09:00',
         category_selections: {},
         is_tow_pilot_available: false,
-        // Default hidden fields
-        start_time: '00:00',
         flight_type_id: 'local',
         aircraft_id: null,
       },
@@ -147,9 +132,9 @@ export function AvailabilityForm({
       form.reset({
         date: entry?.date ? parseISO(entry.date) : (selectedDate || new Date()),
         pilot_id: initialPilotId,
+        start_time: entry?.start_time?.substring(0,5) || '09:00',
         category_selections: initialSelections,
         is_tow_pilot_available: entry?.is_tow_pilot_available ?? false,
-        start_time: entry?.start_time || '00:00',
         flight_type_id: entry?.flight_type_id || 'local',
         aircraft_id: entry?.aircraft_id || null,
       });
@@ -165,26 +150,31 @@ export function AvailabilityForm({
     return pilotDetails.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[];
   }, [pilotDetails, categories]);
 
+  const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    let value = event.target.value.replace(/[^0-9]/g, '');
+    if (value.length > 4) value = value.substring(0, 4);
+    if (value.length === 3) value = '0' + value;
+    if (value.length === 4) {
+      const hours = value.substring(0, 2);
+      const minutes = value.substring(2, 4);
+      if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
+        form.setValue('start_time', `${hours}:${minutes}`, { shouldValidate: true });
+      }
+    }
+  };
 
-  // Reset category selections when pilot changes
+
   useEffect(() => {
     form.setValue('category_selections', {});
     form.setValue('is_tow_pilot_available', false);
   }, [watchedPilotId, form]);
 
   const watchedCategorySelections = form.watch('category_selections');
+  
   const isAnyRemolcadorCategorySelected = useMemo(() => {
     return pilotCategoriesForSelectedPilot.some(cat => {
         const isRemolcador = normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR;
         return isRemolcador && watchedCategorySelections[cat.id];
-    });
-  }, [pilotCategoriesForSelectedPilot, watchedCategorySelections]);
-  
-  const isAnyInstructorCategorySelected = useMemo(() => {
-    return pilotCategoriesForSelectedPilot.some(cat => {
-        const normalized = normalizeCategoryName(cat.name);
-        const isInstructor = normalized === NORMALIZED_INSTRUCTOR_AVION || normalized === NORMALIZED_INSTRUCTOR_PLANEADOR;
-        return isInstructor && watchedCategorySelections[cat.id];
     });
   }, [pilotCategoriesForSelectedPilot, watchedCategorySelections]);
 
@@ -201,7 +191,7 @@ export function AvailabilityForm({
       .filter(([, isSelected]) => isSelected)
       .map(([catId]) => catId);
 
-    const entriesToSubmit = selectedCategoryIds.map(catId => {
+    const entriesToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'>[] = selectedCategoryIds.map(catId => {
       const categoryDetails = categories.find(c => c.id === catId);
       const isRemolcador = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_REMOLCADOR;
       const isInstructor = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_AVION || normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_PLANEADOR;
@@ -210,11 +200,11 @@ export function AvailabilityForm({
           date: format(data.date, 'yyyy-MM-dd'),
           pilot_id: data.pilot_id,
           pilot_category_id: catId,
-          start_time: '00:00', // Hardcoded as per previous state
+          start_time: data.start_time,
           flight_type_id: 'local', // Hardcoded
           aircraft_id: null, // Hardcoded
-          is_tow_pilot_available: isRemolcador ? data.is_tow_pilot_available : false,
-          is_instructor_available: isInstructor ? true : false, // Logic restored from previous state
+          is_tow_pilot_available: isRemolcador ? true : false,
+          is_instructor_available: isInstructor ? true : false,
           auth_user_id: authUserIdToSet
       };
     });
@@ -307,6 +297,27 @@ export function AvailabilityForm({
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="start_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Disponible desde (HH:MM)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      placeholder="09:00" 
+                      {...field} 
+                      onBlur={handleTimeInputBlur}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Use formato 24hs (ej: 0900 o 1430).
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {watchedPilotId && pilotCategoriesForSelectedPilot.length > 0 && (
                 <FormField
@@ -318,11 +329,7 @@ export function AvailabilityForm({
                             <FormDescription>
                                 Marca las categorías en las que estarás disponible para esta fecha.
                             </FormDescription>
-                             {pilotCategoriesForSelectedPilot.map(cat => {
-                                const normalizedCatName = normalizeCategoryName(cat.name);
-                                const isRemolcador = normalizedCatName === NORMALIZED_REMOLCADOR;
-
-                                return (
+                             {pilotCategoriesForSelectedPilot.map(cat => (
                                 <FormField
                                     key={cat.id}
                                     control={form.control}
@@ -342,27 +349,7 @@ export function AvailabilityForm({
                                         </FormItem>
                                     )}
                                 />
-                                );
-                            })}
-                             {isAnyRemolcadorCategorySelected && (
-                                <FormField
-                                    control={form.control}
-                                    name="is_tow_pilot_available"
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 mt-2 bg-sky-50">
-                                            <FormControl>
-                                                <Checkbox
-                                                checked={field.value}
-                                                onCheckedChange={field.onChange}
-                                                />
-                                            </FormControl>
-                                            <div className="space-y-1 leading-none">
-                                                <FormLabel>Confirmar disponibilidad como Remolcador</FormLabel>
-                                            </div>
-                                        </FormItem>
-                                    )}
-                                />
-                            )}
+                            ))}
                             <FormMessage />
                         </FormItem>
                     )}
