@@ -23,6 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -201,7 +202,7 @@ export function AvailabilityForm({
       const hours = value.substring(0, 2);
       const minutes = value.substring(2, 4);
       if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
-        form.setValue('start_time', `${hours}:${minutes}`, { shouldValidate: true });
+        form.setValue('start_time', `${'hours'}:${'minutes'}`, { shouldValidate: true });
       }
     }
   };
