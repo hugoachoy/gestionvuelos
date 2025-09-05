@@ -3,7 +3,7 @@
 
 import type { ScheduleEntry, Pilot, PilotCategory, Aircraft } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,8 +50,10 @@ const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
-  category_selections: z.record(z.boolean()),
-  aircraft_selections: z.record(z.boolean()).optional(), // Aircraft selections by ID
+  category_selections: z.record(z.boolean()).refine(val => Object.values(val).some(v => v), {
+    message: "Debe seleccionar al menos una categoría."
+  }),
+  aircraft_selections: z.record(z.boolean()).optional(),
   is_tow_pilot_available: z.boolean().default(false),
   flight_type_id: z.string().default('local'),
 });
@@ -107,6 +109,9 @@ export function AvailabilityForm({
   const [pilotPopoverOpen, setPilotPopoverOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [currentUserLinkedPilotId, setCurrentUserLinkedPilotId] = useState<string | null>(null);
+  
+  const watchedPilotId = form.watch('pilot_id');
+  const watchedCategorySelections = form.watch('category_selections');
 
   useEffect(() => {
     if (currentUser && pilots && pilots.length > 0) {
@@ -146,9 +151,14 @@ export function AvailabilityForm({
     }
   }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin]);
 
-  const watchedPilotId = form.watch('pilot_id');
-  const watchedCategorySelections = form.watch('category_selections');
-  
+  useEffect(() => {
+    // Reset selections when pilot changes
+    form.setValue('category_selections', {});
+    form.setValue('aircraft_selections', {});
+    form.setValue('is_tow_pilot_available', false);
+  }, [watchedPilotId, form]);
+
+
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
   
   const pilotCategoriesForSelectedPilot = useMemo(() => {
@@ -156,24 +166,6 @@ export function AvailabilityForm({
     return pilotDetails.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[];
   }, [pilotDetails, categories]);
 
-  const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    let value = event.target.value.replace(/[^0-9]/g, '');
-    if (value.length > 4) value = value.substring(0, 4);
-    if (value.length === 3) value = '0' + value;
-    if (value.length === 4) {
-      const hours = value.substring(0, 2);
-      const minutes = value.substring(2, 4);
-      if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
-        form.setValue('start_time', `${hours}:${minutes}`, { shouldValidate: true });
-      }
-    }
-  };
-
-  useEffect(() => {
-    form.setValue('category_selections', {});
-    form.setValue('is_tow_pilot_available', false);
-    form.setValue('aircraft_selections', {});
-  }, [watchedPilotId, form]);
 
   const isAnyRemolcadorCategorySelected = useMemo(() => {
     return pilotCategoriesForSelectedPilot.some(cat => {
@@ -181,6 +173,7 @@ export function AvailabilityForm({
         return isRemolcador && watchedCategorySelections[cat.id];
     });
   }, [pilotCategoriesForSelectedPilot, watchedCategorySelections]);
+
 
   const availableAircraftForSelection = useMemo(() => {
     const selectedCategoryIds = Object.keys(watchedCategorySelections).filter(id => watchedCategorySelections[id]);
@@ -209,18 +202,37 @@ export function AvailabilityForm({
     return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
   }, [watchedCategorySelections, categories, aircraft]);
 
+  // Clean up aircraft selections if they become invalid
   useEffect(() => {
     const currentAircraftSelections = form.getValues('aircraft_selections') || {};
     const validAircraftIds = new Set(availableAircraftForSelection.map(ac => ac.id));
+    let selectionsChanged = false;
     const cleanedSelections: Record<string, boolean> = {};
     for (const acId in currentAircraftSelections) {
       if (validAircraftIds.has(acId)) {
         cleanedSelections[acId] = currentAircraftSelections[acId];
+      } else {
+        selectionsChanged = true;
       }
     }
-    form.setValue('aircraft_selections', cleanedSelections);
+    if (selectionsChanged) {
+        form.setValue('aircraft_selections', cleanedSelections);
+    }
   }, [availableAircraftForSelection, form]);
 
+
+  const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    let value = event.target.value.replace(/[^0-9]/g, '');
+    if (value.length > 4) value = value.substring(0, 4);
+    if (value.length === 3) value = '0' + value;
+    if (value.length === 4) {
+      const hours = value.substring(0, 2);
+      const minutes = value.substring(2, 4);
+      if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
+        form.setValue('start_time', `${hours}:${minutes}`, { shouldValidate: true });
+      }
+    }
+  };
 
   const handleSubmit = (data: AvailabilityFormData) => {
     let authUserIdToSet: string | null = null;
@@ -438,32 +450,34 @@ export function AvailabilityForm({
                   control={form.control}
                   name="aircraft_selections"
                   render={() => (
-                      <FormItem>
+                      <FormItem className="mt-4">
                           <FormLabel>Asignación de Aeronaves</FormLabel>
                           <FormDescription>
-                              Marca las aeronaves específicas que utilizarás.
+                              Marca las aeronaves específicas que utilizarás (opcional).
                           </FormDescription>
-                          {availableAircraftForSelection.map(ac => (
-                              <FormField
-                                  key={ac.id}
-                                  control={form.control}
-                                  name={`aircraft_selections.${ac.id}`}
-                                  render={({ field }) => (
-                                      <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 mt-2">
-                                          <FormControl>
-                                              <Checkbox
-                                              checked={field.value}
-                                              onCheckedChange={field.onChange}
-                                              disabled={!!entry && entry.aircraft_id !== ac.id}
-                                              />
-                                          </FormControl>
-                                          <div className="space-y-1 leading-none">
-                                              <FormLabel className="font-normal">{ac.name} ({ac.type})</FormLabel>
-                                          </div>
-                                      </FormItem>
-                                  )}
-                              />
-                          ))}
+                          <div className="space-y-2 pt-2">
+                            {availableAircraftForSelection.map(ac => (
+                                <FormField
+                                    key={ac.id}
+                                    control={form.control}
+                                    name={`aircraft_selections.${ac.id}`}
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                                            <FormControl>
+                                                <Checkbox
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                                disabled={!!entry && entry.aircraft_id !== ac.id}
+                                                />
+                                            </FormControl>
+                                            <div className="space-y-1 leading-none">
+                                                <FormLabel className="font-normal">{ac.name} ({ac.type})</FormLabel>
+                                            </div>
+                                        </FormItem>
+                                    )}
+                                />
+                            ))}
+                          </div>
                           <FormMessage />
                       </FormItem>
                   )}
@@ -479,6 +493,9 @@ export function AvailabilityForm({
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm mt-2">
                     <div className="space-y-0.5">
                       <FormLabel>¿Disponible como Remolcador?</FormLabel>
+                       <FormDescription>
+                        Marca si estarás disponible para remolcar.
+                      </FormDescription>
                     </div>
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
@@ -498,3 +515,5 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
