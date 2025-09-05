@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ScheduleEntry, Pilot, PilotCategory, Aircraft } from '@/types';
+import type { ScheduleEntry, Pilot, PilotCategory } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -23,13 +23,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -44,15 +37,13 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, AlertTriangle, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePilotsStore } from '@/store/data-hooks';
 
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
@@ -181,9 +172,7 @@ export function AvailabilityForm({
                 pilot_id: data.pilot_id,
                 pilot_category_id: categoryId,
                 is_tow_pilot_available: normalizedCategoryName === NORMALIZED_REMOLCADOR,
-                is_instructor_available: normalizedCategoryName.includes("instructor"),
                 auth_user_id: authUserIdToSet,
-                // Hardcoded values
                 start_time: '00:00',
                 flight_type_id: 'local',
                 aircraft_id: null,
