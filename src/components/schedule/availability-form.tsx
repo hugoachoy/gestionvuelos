@@ -194,7 +194,6 @@ export function AvailabilityForm({
     const entriesToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'>[] = selectedCategoryIds.map(catId => {
       const categoryDetails = categories.find(c => c.id === catId);
       const isRemolcador = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_REMOLCADOR;
-      const isInstructor = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_AVION || normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_PLANEADOR;
 
       return {
           date: format(data.date, 'yyyy-MM-dd'),
@@ -203,8 +202,7 @@ export function AvailabilityForm({
           start_time: data.start_time,
           flight_type_id: 'local', // Hardcoded
           aircraft_id: null, // Hardcoded
-          is_tow_pilot_available: isRemolcador ? true : false,
-          is_instructor_available: isInstructor ? true : false,
+          is_tow_pilot_available: isRemolcador,
           auth_user_id: authUserIdToSet
       };
     });
