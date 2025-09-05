@@ -51,9 +51,9 @@ const availabilitySchema = z.object({
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
   category_selections: z.record(z.boolean()),
+  aircraft_selections: z.record(z.boolean()).optional(), // Aircraft selections by ID
   is_tow_pilot_available: z.boolean().default(false),
   flight_type_id: z.string().default('local'), 
-  aircraft_id: z.string().optional().nullable(),
 });
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
@@ -97,9 +97,9 @@ export function AvailabilityForm({
         pilot_id: '',
         start_time: '09:00',
         category_selections: {},
+        aircraft_selections: {},
         is_tow_pilot_available: false,
         flight_type_id: 'local',
-        aircraft_id: null,
       },
   });
 
@@ -124,19 +124,23 @@ export function AvailabilityForm({
         initialPilotId = entry.pilot_id;
       }
       
-      const initialSelections: Record<string, boolean> = {};
+      const initialCatSelections: Record<string, boolean> = {};
+      const initialAircraftSelections: Record<string, boolean> = {};
       if (entry) {
-        initialSelections[entry.pilot_category_id] = true;
+        initialCatSelections[entry.pilot_category_id] = true;
+        if(entry.aircraft_id) {
+          initialAircraftSelections[entry.aircraft_id] = true;
+        }
       }
 
       form.reset({
         date: entry?.date ? parseISO(entry.date) : (selectedDate || new Date()),
         pilot_id: initialPilotId,
         start_time: entry?.start_time?.substring(0,5) || '09:00',
-        category_selections: initialSelections,
+        category_selections: initialCatSelections,
+        aircraft_selections: initialAircraftSelections,
         is_tow_pilot_available: entry?.is_tow_pilot_available ?? false,
         flight_type_id: entry?.flight_type_id || 'local',
-        aircraft_id: entry?.aircraft_id || null,
       });
       setPilotSearchTerm('');
     }
@@ -167,6 +171,7 @@ export function AvailabilityForm({
   useEffect(() => {
     form.setValue('category_selections', {});
     form.setValue('is_tow_pilot_available', false);
+    form.setValue('aircraft_selections', {});
   }, [watchedPilotId, form]);
 
   const watchedCategorySelections = form.watch('category_selections');
@@ -177,6 +182,37 @@ export function AvailabilityForm({
         return isRemolcador && watchedCategorySelections[cat.id];
     });
   }, [pilotCategoriesForSelectedPilot, watchedCategorySelections]);
+
+  const availableAircraftForSelection = useMemo(() => {
+    const selectedCategoryIds = Object.keys(watchedCategorySelections).filter(id => watchedCategorySelections[id]);
+    if (selectedCategoryIds.length === 0) return [];
+    
+    const relevantAircraftTypes = new Set<Aircraft['type']>();
+
+    selectedCategoryIds.forEach(catId => {
+        const category = categories.find(c => c.id === catId);
+        const normalizedName = normalizeCategoryName(category?.name);
+
+        if (normalizedName.includes('planeador')) relevantAircraftTypes.add('Glider');
+        if (normalizedName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
+        if (normalizedName.includes('avion')) relevantAircraftTypes.add('Avión');
+    });
+
+    return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
+
+  }, [watchedCategorySelections, categories, aircraft]);
+
+  useEffect(() => {
+    const currentAircraftSelections = form.getValues('aircraft_selections') || {};
+    const validAircraftIds = new Set(availableAircraftForSelection.map(ac => ac.id));
+    const cleanedSelections: Record<string, boolean> = {};
+    for (const acId in currentAircraftSelections) {
+      if (validAircraftIds.has(acId)) {
+        cleanedSelections[acId] = currentAircraftSelections[acId];
+      }
+    }
+    form.setValue('aircraft_selections', cleanedSelections);
+  }, [availableAircraftForSelection, form]);
 
 
   const handleSubmit = (data: AvailabilityFormData) => {
@@ -190,22 +226,53 @@ export function AvailabilityForm({
     const selectedCategoryIds = Object.entries(data.category_selections)
       .filter(([, isSelected]) => isSelected)
       .map(([catId]) => catId);
+    
+    const selectedAircraftIds = Object.entries(data.aircraft_selections || {})
+      .filter(([,isSelected]) => isSelected)
+      .map(([acId]) => acId);
 
-    const entriesToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'>[] = selectedCategoryIds.map(catId => {
+    const entriesToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
+
+    selectedCategoryIds.forEach(catId => {
       const categoryDetails = categories.find(c => c.id === catId);
       const isRemolcador = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_REMOLCADOR;
       const isInstructor = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_AVION || normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_PLANEADOR;
       
-      return {
-          date: format(data.date, 'yyyy-MM-dd'),
-          pilot_id: data.pilot_id,
-          pilot_category_id: catId,
-          start_time: data.start_time,
-          flight_type_id: isInstructor ? 'instruction_given' : 'local',
-          aircraft_id: null, // Hardcoded
-          is_tow_pilot_available: isRemolcador && data.is_tow_pilot_available,
-          auth_user_id: authUserIdToSet
-      };
+      const relevantAircraft = aircraft.filter(ac => {
+        const normCatName = normalizeCategoryName(categoryDetails?.name);
+        if(normCatName.includes('planeador')) return ac.type === 'Glider';
+        if(normCatName.includes('remolcador')) return ac.type === 'Tow Plane';
+        if(normCatName.includes('avion')) return ac.type === 'Avión';
+        return false;
+      });
+      const relevantSelectedAircraftIds = selectedAircraftIds.filter(acId => relevantAircraft.some(ac => ac.id === acId));
+
+      if(relevantSelectedAircraftIds.length > 0) {
+        relevantSelectedAircraftIds.forEach(aircraftId => {
+            entriesToSubmit.push({
+                date: format(data.date, 'yyyy-MM-dd'),
+                pilot_id: data.pilot_id,
+                pilot_category_id: catId,
+                start_time: data.start_time,
+                flight_type_id: isInstructor ? 'instruction_given' : 'local',
+                aircraft_id: aircraftId, 
+                is_tow_pilot_available: isRemolcador && data.is_tow_pilot_available,
+                auth_user_id: authUserIdToSet
+            });
+        });
+      } else {
+        // If no aircraft is selected for this category, create a general availability entry
+         entriesToSubmit.push({
+            date: format(data.date, 'yyyy-MM-dd'),
+            pilot_id: data.pilot_id,
+            pilot_category_id: catId,
+            start_time: data.start_time,
+            flight_type_id: isInstructor ? 'instruction_given' : 'local',
+            aircraft_id: null, 
+            is_tow_pilot_available: isRemolcador && data.is_tow_pilot_available,
+            auth_user_id: authUserIdToSet
+        });
+      }
     });
 
     onSubmit(entriesToSubmit, entry?.id);
@@ -355,6 +422,44 @@ export function AvailabilityForm({
                 />
             )}
             
+            {availableAircraftForSelection.length > 0 && (
+               <FormField
+                    control={form.control}
+                    name="aircraft_selections"
+                    render={() => (
+                        <FormItem>
+                            <FormLabel>Asignación de Aeronaves</FormLabel>
+                            <FormDescription>
+                                Marca las aeronaves específicas que utilizarás.
+                            </FormDescription>
+                             {availableAircraftForSelection.map(ac => (
+                                <FormField
+                                    key={ac.id}
+                                    control={form.control}
+                                    name={`aircraft_selections.${ac.id}`}
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 mt-2">
+                                            <FormControl>
+                                                <Checkbox
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                                disabled={!!entry && entry.aircraft_id !== ac.id}
+                                                />
+                                            </FormControl>
+                                            <div className="space-y-1 leading-none">
+                                                <FormLabel className="font-normal">{ac.name} ({ac.type})</FormLabel>
+                                            </div>
+                                        </FormItem>
+                                    )}
+                                />
+                            ))}
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+
+
             {isAnyRemolcadorCategorySelected && (
               <FormField
                 control={form.control}

@@ -256,25 +256,25 @@ export function ScheduleClient() {
     setEditingEntry(undefined);
     setIsFormOpen(false);
 
-    const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = Array.isArray(entryDataList) ? entryDataList : [entryDataList];
-
-    if (entryId && entriesToAdd.length === 1) { // Editing a single entry
-        await updateScheduleEntry({ ...entriesToAdd[0], id: entryId });
+    if (entryId) { // Editing a single entry
+        const entryToUpdate = { ...entryDataList[0], id: entryId };
+        await updateScheduleEntry(entryToUpdate);
         toast({ title: "Turno Actualizado", description: "El turno ha sido actualizado." });
     } else { // Adding new entries
-        const validEntriesToAdd = entriesToAdd.filter(newEntry => {
+        const validEntriesToAdd = entryDataList.filter(newEntry => {
             return !scheduleEntries.some(
                 existingEntry =>
                     existingEntry.pilot_id === newEntry.pilot_id &&
                     existingEntry.pilot_category_id === newEntry.pilot_category_id &&
-                    existingEntry.date === newEntry.date
+                    existingEntry.date === newEntry.date &&
+                    existingEntry.aircraft_id === newEntry.aircraft_id
             );
         });
 
         if (validEntriesToAdd.length > 0) {
             await addScheduleEntry(validEntriesToAdd);
             toast({ title: "Turnos Agregados", description: `${validEntriesToAdd.length} nuevo(s) turno(s) agregado(s) a la agenda.` });
-        } else if (entriesToAdd.length > 0) { // Only show this if there was an attempt to add something
+        } else if (entryDataList.length > 0) {
             toast({ title: "Sin cambios", description: "Todos los turnos seleccionados ya existían en la agenda.", variant: "default" });
         }
     }
@@ -285,12 +285,18 @@ export function ScheduleClient() {
         return { remolcadores: [], instructoresAvion: [], instructoresPlaneador: [], pilotosAvion: [], pilotosPlaneador: [] };
     }
     
-    const groups = {
-        remolcadores: [] as ScheduleEntry[],
-        instructoresAvion: [] as ScheduleEntry[],
-        instructoresPlaneador: [] as ScheduleEntry[],
-        pilotosAvion: [] as ScheduleEntry[],
-        pilotosPlaneador: [] as ScheduleEntry[],
+    const groups: {
+        remolcadores: ScheduleEntry[];
+        instructoresAvion: ScheduleEntry[];
+        instructoresPlaneador: ScheduleEntry[];
+        pilotosAvion: ScheduleEntry[];
+        pilotosPlaneador: ScheduleEntry[];
+    } = {
+        remolcadores: [],
+        instructoresAvion: [],
+        instructoresPlaneador: [],
+        pilotosAvion: [],
+        pilotosPlaneador: [],
     };
 
     scheduleEntries.forEach(entry => {
@@ -303,28 +309,22 @@ export function ScheduleClient() {
             groups.instructoresAvion.push(entry);
         } else if (normalizedCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME) {
             groups.instructoresPlaneador.push(entry);
-        } else {
-            // Further distinguish between Avion and Planeador for regular pilots
-            if (normalizedCategoryName.includes('avion')) {
-                groups.pilotosAvion.push(entry);
-            } else if (normalizedCategoryName.includes('planeador')) {
-                groups.pilotosPlaneador.push(entry);
-            }
+        } else if (normalizedCategoryName.includes('avion')) {
+            groups.pilotosAvion.push(entry);
+        } else if (normalizedCategoryName.includes('planeador')) {
+            groups.pilotosPlaneador.push(entry);
         }
     });
 
-    // Sort within groups
-    const sortByPilotName = (a: ScheduleEntry, b: ScheduleEntry) => {
+    const sortByTimeAndPilot = (a: ScheduleEntry, b: ScheduleEntry) => {
+        const timeComp = a.start_time.localeCompare(b.start_time);
+        if (timeComp !== 0) return timeComp;
         const pilotA = getPilotName(a.pilot_id) || '';
         const pilotB = getPilotName(b.pilot_id) || '';
         return pilotA.localeCompare(pilotB);
     };
 
-    groups.remolcadores.sort(sortByPilotName);
-    groups.instructoresAvion.sort(sortByPilotName);
-    groups.instructoresPlaneador.sort(sortByPilotName);
-    groups.pilotosAvion.sort(sortByPilotName);
-    groups.pilotosPlaneador.sort(sortByPilotName);
+    Object.values(groups).forEach(group => group.sort(sortByTimeAndPilot));
 
     return groups;
 
@@ -351,13 +351,11 @@ export function ScheduleClient() {
   const anyLoading = pilotsLoading || categoriesLoading || aircraftLoading || scheduleLoading || obsLoading || newsLoading;
   const anyError = pilotsError || categoriesError || aircraftError || scheduleError || obsError || newsError;
 
-  // Check if "Instructor Avión" category exists
   const avionInstructorCategoryExists = useMemo(() => {
     if (categoriesLoading || !categories || !categories.length) return false;
     return categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME);
   }, [categories, categoriesLoading]);
 
-  // Check if an "Instructor Avión" is confirmed for the selected date
   const isAvionInstructorConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !selectedDate) {
         return true;
@@ -369,13 +367,11 @@ export function ScheduleClient() {
     return scheduleEntries.some(entry => entry.pilot_category_id === avionInstructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
-  // Check if "Instructor Planeador" category exists
   const planeadorInstructorCategoryExists = useMemo(() => {
     if (categoriesLoading || !categories || !categories.length) return false;
     return categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME);
   }, [categories, categoriesLoading]);
 
-  // Check if an "Instructor Planeador" is confirmed for the selected date
   const isPlaneadorInstructorConfirmed = useMemo(() => {
     if (anyLoading || !categories || !categories.length || !selectedDate) {
         return true;
@@ -387,7 +383,6 @@ export function ScheduleClient() {
     return scheduleEntries.some(entry => entry.pilot_category_id === planeadorInstructorCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
-  // Check if "Remolcador" category exists and is confirmed
   const remolcadorCategoryExists = useMemo(() => {
     if (categoriesLoading || !categories || !categories.length) return false;
     return categories.some(cat => normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR_CATEGORY_NAME);
@@ -401,7 +396,6 @@ export function ScheduleClient() {
     if (!towPilotCategory) {
       return true;
     }
-    // A tow pilot is confirmed if they just sign up for the category.
     return scheduleEntries.some(entry => entry.pilot_category_id === towPilotCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
@@ -420,7 +414,6 @@ export function ScheduleClient() {
         queryParams.set('aircraft_id', entry.aircraft_id);
     }
 
-    // Logic based on aircraft type first
     if (aircraftUsed) {
         if (aircraftUsed.type === 'Glider') {
             flightTypeForLogbook = 'glider';
@@ -430,7 +423,6 @@ export function ScheduleClient() {
             targetPath = '/logbook/engine/new';
         }
     } 
-    // Fallback logic if no aircraft is selected in the schedule
     else {
         const pilotCategoryForTurn = categories.find(cat => cat.id === entry.pilot_category_id);
         const normalizedCategoryName = normalizeCategoryName(pilotCategoryForTurn?.name);

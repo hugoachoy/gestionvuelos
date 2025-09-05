@@ -1,12 +1,12 @@
 
 "use client";
 
-import type { ScheduleEntry, Pilot, PilotCategory } from '@/types'; 
+import type { ScheduleEntry, Pilot, PilotCategory, Aircraft } from '@/types'; 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Clock, AlertTriangle, User, Plane, CheckCircle, XCircle } from 'lucide-react';
-import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
+import { usePilotsStore, usePilotCategoriesStore, useAircraftStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,6 +27,7 @@ interface ScheduleDisplayProps {
 
 const PilotListItem: React.FC<{ entry: ScheduleEntry, onEdit: (entry: ScheduleEntry) => void, onDelete: (entry: ScheduleEntry) => void }> = ({ entry, onEdit, onDelete }) => {
     const { getPilotName, pilots } = usePilotsStore();
+    const { getAircraftName } = useAircraftStore();
     const { user: currentUser } = useAuth();
     
     const pilot = pilots.find(p => p.id === entry.pilot_id);
@@ -46,11 +47,15 @@ const PilotListItem: React.FC<{ entry: ScheduleEntry, onEdit: (entry: ScheduleEn
     
     const isOwner = currentUser && entry.auth_user_id && currentUser.id === entry.auth_user_id;
     const canManageEntry = isOwner || currentUser?.is_admin;
+    const aircraftName = entry.aircraft_id ? getAircraftName(entry.aircraft_id) : null;
 
     return (
         <div className="flex items-center justify-between p-2 border-b last:border-b-0">
             <div className="flex flex-col">
-                <span className="font-medium text-foreground">{getPilotName(entry.pilot_id)}</span>
+                <span className="font-medium text-foreground">
+                    {getPilotName(entry.pilot_id)}
+                    {aircraftName && <span className="text-muted-foreground font-normal"> en {aircraftName}</span>}
+                </span>
                 <span className="text-xs text-muted-foreground">Disponible desde: {entry.start_time.substring(0, 5)} hs</span>
                  {medicalWarning && (
                     <Badge variant="destructive" className="mt-1 w-fit">
