@@ -51,11 +51,13 @@ import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Simplified schema as requested
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
   pilot_category_id: z.string().min(1, "Seleccione una categoría para este turno."),
   is_tow_pilot_available: z.boolean().optional(),
+  is_instructor_available: z.boolean().optional(),
   // Fields to be hardcoded or derived, not shown in UI
   start_time: z.string().default('00:00'), 
   flight_type_id: z.string().default('local'), 
@@ -67,7 +69,7 @@ export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
 interface AvailabilityFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => void;
+  onSubmit: (data: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => void;
   entry?: ScheduleEntry;
   pilots: Pilot[];
   categories: PilotCategory[];
@@ -89,7 +91,6 @@ export function AvailabilityForm({
   entry,
   pilots,
   categories,
-  selectedDate,
 }: AvailabilityFormProps) {
   const { user: currentUser } = useAuth();
   const form = useForm<AvailabilityFormData>({
@@ -99,6 +100,7 @@ export function AvailabilityForm({
         pilot_id: '',
         pilot_category_id: '',
         is_tow_pilot_available: false,
+        is_instructor_available: false,
         // Default hidden fields
         start_time: '00:00',
         flight_type_id: 'local',
@@ -128,7 +130,9 @@ export function AvailabilityForm({
       }
 
       const categoryForEntry = entry?.pilot_category_id ? categories.find(c => c.id === entry.pilot_category_id) : null;
-      const isEntryCategoryRemolcador = normalizeCategoryName(categoryForEntry?.name) === NORMALIZED_REMOLCADOR;
+      const normalizedCatName = normalizeCategoryName(categoryForEntry?.name);
+      const isEntryCategoryRemolcador = normalizedCatName === NORMALIZED_REMOLCADOR;
+      const isEntryCategoryInstructor = normalizedCatName.includes("instructor");
 
       const initialFormValues = entry
         ? {
@@ -136,6 +140,7 @@ export function AvailabilityForm({
             date: entry.date ? parseISO(entry.date) : (selectedDate || new Date()),
             pilot_id: initialPilotId,
             is_tow_pilot_available: isEntryCategoryRemolcador ? entry.is_tow_pilot_available : false,
+            is_instructor_available: isEntryCategoryInstructor ? entry.is_instructor_available : false,
             start_time: entry.start_time || '00:00',
             flight_type_id: entry.flight_type_id || 'local',
             aircraft_id: entry.aircraft_id || null,
@@ -145,6 +150,7 @@ export function AvailabilityForm({
             pilot_id: initialPilotId,
             pilot_category_id: '',
             is_tow_pilot_available: false,
+            is_instructor_available: false,
             start_time: '00:00',
             flight_type_id: 'local',
             aircraft_id: null,
@@ -152,7 +158,7 @@ export function AvailabilityForm({
       form.reset(initialFormValues as AvailabilityFormData);
       setPilotSearchTerm('');
     }
-  }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
+  }, [open, entry, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
 
   const watchedPilotId = form.watch('pilot_id');
   const watchedPilotCategoryId = form.watch('pilot_category_id');
@@ -163,10 +169,17 @@ export function AvailabilityForm({
     return pilotDetails.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[];
   }, [pilotDetails, categories]);
 
-  const isRemolcadorCategorySelectedForTurn = useMemo(() => {
-    const cat = categories.find(c => c.id === watchedPilotCategoryId);
-    return normalizeCategoryName(cat?.name) === NORMALIZED_REMOLCADOR;
+  const categoryForTurn = useMemo(() => {
+    return categories.find(c => c.id === watchedPilotCategoryId);
   }, [watchedPilotCategoryId, categories]);
+
+  const isRemolcadorCategorySelectedForTurn = useMemo(() => {
+    return normalizeCategoryName(categoryForTurn?.name) === NORMALIZED_REMOLCADOR;
+  }, [categoryForTurn]);
+
+  const isInstructorCategorySelectedForTurn = useMemo(() => {
+    return normalizeCategoryName(categoryForTurn?.name).includes("instructor");
+  }, [categoryForTurn]);
 
   useEffect(() => {
     if (watchedPilotId && pilotDetails && form.getValues('pilot_category_id') && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
@@ -178,13 +191,13 @@ export function AvailabilityForm({
   }, [watchedPilotId, pilotDetails, form]);
 
   useEffect(() => {
-    const categoryForTurn = categories.find(c => c.id === watchedPilotCategoryId);
-    if (normalizeCategoryName(categoryForTurn?.name) !== NORMALIZED_REMOLCADOR) {
-      if (form.getValues('is_tow_pilot_available') === true) {
-        form.setValue('is_tow_pilot_available', false, { shouldValidate: true });
-      }
+    if (!isRemolcadorCategorySelectedForTurn && form.getValues('is_tow_pilot_available')) {
+      form.setValue('is_tow_pilot_available', false, { shouldValidate: true });
     }
-  }, [watchedPilotCategoryId, categories, form]);
+    if (!isInstructorCategorySelectedForTurn && form.getValues('is_instructor_available')) {
+      form.setValue('is_instructor_available', false, { shouldValidate: true });
+    }
+  }, [isRemolcadorCategorySelectedForTurn, isInstructorCategorySelectedForTurn, form]);
 
   const handleSubmit = (data: AvailabilityFormData) => {
     let authUserIdToSet: string | null = null;
@@ -194,16 +207,14 @@ export function AvailabilityForm({
         authUserIdToSet = entry.auth_user_id;
     }
 
-    const categoryForTurn = categories.find(c => c.id === data.pilot_category_id);
-    const isCategoryForTurnActuallyRemolcador = normalizeCategoryName(categoryForTurn?.name) === NORMALIZED_REMOLCADOR;
-
     const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
         ...data,
         date: format(data.date, 'yyyy-MM-dd'),
-        is_tow_pilot_available: isCategoryForTurnActuallyRemolcador ? data.is_tow_pilot_available : false,
+        is_tow_pilot_available: isRemolcadorCategorySelectedForTurn ? data.is_tow_pilot_available : false,
+        is_instructor_available: isInstructorCategorySelectedForTurn ? data.is_instructor_available : false,
         auth_user_id: authUserIdToSet,
     };
-    onSubmit(dataToSubmit, entry?.id);
+    onSubmit([dataToSubmit], entry?.id);
     onOpenChange(false);
   };
 
@@ -331,6 +342,22 @@ export function AvailabilityForm({
                 )}
               />
             )}
+             {isInstructorCategorySelectedForTurn && (
+              <FormField
+                control={form.control}
+                name="is_instructor_available"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm mt-2">
+                    <div className="space-y-0.5">
+                      <FormLabel>¿Disponible como Instructor?</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <Button type="submit">{entry ? 'Guardar Cambios' : 'Agregar Turno'}</Button>
@@ -341,4 +368,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-

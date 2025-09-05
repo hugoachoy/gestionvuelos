@@ -76,6 +76,7 @@ export interface ScheduleEntry {
   pilot_id: string;
   pilot_category_id: string; // Category chosen for this specific flight/slot
   is_tow_pilot_available?: boolean; // Relevant if pilot_category_id corresponds to "Remolcador"
+  is_instructor_available?: boolean; // Relevant if pilot_category_id corresponds to an Instructor category
   flight_type_id: FlightTypeId;
   aircraft_id?: string | null; // Optional: which specific aircraft, can be null
   auth_user_id?: string | null; // ID of the user who created this entry

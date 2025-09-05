@@ -163,8 +163,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
             key={entry.id}
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isCardStyleInstructor && 'bg-primary/30',
-              isCardStyleRemolcador && !isCardStyleInstructor && 'bg-primary/20'
+              isCardStyleInstructor && entry.is_instructor_available && 'bg-purple-100 border-purple-300',
+              isCardStyleRemolcador && entry.is_tow_pilot_available && !isCardStyleInstructor && 'bg-sky-100 border-sky-300'
             )}
           >
             <CardHeader className="pb-2">
@@ -218,6 +218,14 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> :
                     <XCircle className="h-4 w-4 mr-2 text-red-500" />}
                   Remolcador: {entry.is_tow_pilot_available ? 'Disponible' : 'No Disponible'}
+                </div>
+              )}
+               {isTurnByCategoryInstructor && ( 
+                <div className="flex items-center">
+                  {entry.is_instructor_available ?
+                    <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> :
+                    <XCircle className="h-4 w-4 mr-2 text-red-500" />}
+                  Instructor: {entry.is_instructor_available ? 'Disponible' : 'No Disponible'}
                 </div>
               )}
               {sportConflictMessage && (
