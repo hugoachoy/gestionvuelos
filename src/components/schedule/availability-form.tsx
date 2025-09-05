@@ -147,6 +147,8 @@ export function AvailabilityForm({
   }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin]);
 
   const watchedPilotId = form.watch('pilot_id');
+  const watchedCategorySelections = form.watch('category_selections');
+  
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
   
   const pilotCategoriesForSelectedPilot = useMemo(() => {
@@ -167,15 +169,12 @@ export function AvailabilityForm({
     }
   };
 
-
   useEffect(() => {
     form.setValue('category_selections', {});
     form.setValue('is_tow_pilot_available', false);
     form.setValue('aircraft_selections', {});
   }, [watchedPilotId, form]);
 
-  const watchedCategorySelections = form.watch('category_selections');
-  
   const isAnyRemolcadorCategorySelected = useMemo(() => {
     return pilotCategoriesForSelectedPilot.some(cat => {
         const isRemolcador = normalizeCategoryName(cat.name) === NORMALIZED_REMOLCADOR;
@@ -208,7 +207,6 @@ export function AvailabilityForm({
     });
 
     return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
-
   }, [watchedCategorySelections, categories, aircraft]);
 
   useEffect(() => {
