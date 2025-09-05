@@ -23,6 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -49,6 +50,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
+  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido. Use HH:MM."),
   categories: z.record(z.object({
     selected: z.boolean(),
   })).refine(val => Object.values(val).some(cat => cat.selected), {
@@ -91,6 +93,7 @@ export function AvailabilityForm({
     defaultValues: {
         date: selectedDate || new Date(),
         pilot_id: '',
+        start_time: '09:00',
         categories: {},
       },
   });
@@ -107,6 +110,25 @@ export function AvailabilityForm({
     }
   }, [currentUser, pilots]);
 
+  const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    let value = event.target.value.replace(/[^0-9]/g, '');
+    if (value.length > 4) {
+      value = value.substring(0, 4);
+    }
+    if (value.length === 3) {
+      value = '0' + value;
+    }
+    if (value.length === 4) {
+      const hours = value.substring(0, 2);
+      const minutes = value.substring(2, 4);
+      if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
+        const formattedTime = `${hours}:${minutes}`;
+        form.setValue('start_time', formattedTime, { shouldValidate: true });
+      }
+    }
+  };
+
+
   useEffect(() => {
     if (open) {
       let initialPilotId = '';
@@ -119,6 +141,7 @@ export function AvailabilityForm({
       const initialFormValues = {
             date: entry?.date ? parseISO(entry.date) : (selectedDate || new Date()),
             pilot_id: initialPilotId,
+            start_time: entry?.start_time?.substring(0, 5) || '09:00',
             categories: {},
       };
       
@@ -176,9 +199,9 @@ export function AvailabilityForm({
                 date: format(data.date, 'yyyy-MM-dd'),
                 pilot_id: data.pilot_id,
                 pilot_category_id: categoryId,
+                start_time: data.start_time,
                 is_tow_pilot_available: isRemolcador,
                 auth_user_id: authUserIdToSet,
-                start_time: '00:00',
                 flight_type_id: isInstructor ? 'instruction_given' : 'local',
                 aircraft_id: null,
             });
@@ -208,34 +231,54 @@ export function AvailabilityForm({
         <DialogHeader>
           <DialogTitle>{entry ? 'Editar Turno' : 'Agregar Disponibilidad'}</DialogTitle>
           <DialogDescription>
-            {entry ? 'Modifica los detalles del turno.' : 'Selecciona las categorías en las que estarás disponible.'}
+            {entry ? 'Modifica los detalles del turno.' : 'Ingresa los detalles del nuevo turno.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Fecha</FormLabel>
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                          {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value} onSelect={(date) => { if(date) field.onChange(date); setIsCalendarOpen(false); }} initialFocus locale={es} />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                    <FormLabel>Fecha</FormLabel>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                        <PopoverTrigger asChild>
+                        <FormControl>
+                            <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                        </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value} onSelect={(date) => { if(date) field.onChange(date); setIsCalendarOpen(false); }} initialFocus locale={es} />
+                        </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                    control={form.control}
+                    name="start_time"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Hora de Inicio (HH:MM)</FormLabel>
+                        <FormControl>
+                        <Input 
+                            type="text" 
+                            placeholder="09:00" 
+                            {...field} 
+                            onBlur={handleTimeInputBlur}
+                        />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            </div>
             <FormField
               control={form.control}
               name="pilot_id"

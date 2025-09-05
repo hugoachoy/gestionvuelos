@@ -93,8 +93,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
         const displayTime = entry.start_time.substring(0, 5); 
 
         const showAvailableSinceText = 
-            (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available && isTurnByCategoryRemolcador) || 
-            (isTurnByCategoryInstructor); // Anotarse como instructor implica disponibilidad
+            (isTurnByCategoryRemolcador && entry.is_tow_pilot_available) || 
+            (isTurnByCategoryInstructor);
 
 
         if (pilot && pilot.medical_expiry) {
@@ -173,7 +173,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
                   <CardTitle className="text-xl flex items-center flex-wrap">
                     <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
                     {showAvailableSinceText ? (
-                      <span className="mr-1">Disponible desde las {displayTime} - {getPilotName(entry.pilot_id)}</span>
+                      <span className="mr-1">Disponible desde: {displayTime} - {getPilotName(entry.pilot_id)}</span>
                     ) : (
                       <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
                     )}
@@ -182,8 +182,6 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
                   {expiredBlock}
                   <CardDescription className="flex items-center gap-2 mt-1 pt-1">
                     <Layers className="h-4 w-4 text-muted-foreground" /> <UnderlineKeywords text={pilotCategoryNameForTurn} />
-                    <FlightTypeIcon typeId={entry.flight_type_id} />
-                    {flightTypeDisplayNode}
                   </CardDescription>
                 </div>
                 <div className="flex gap-1 shrink-0">
