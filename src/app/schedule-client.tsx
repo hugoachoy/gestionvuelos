@@ -300,37 +300,38 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
-      setEditingEntry(undefined);
-      setIsFormOpen(false);
+  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'> | Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+    setEditingEntry(undefined);
+    setIsFormOpen(false);
 
-      if (entryId) { // Editing a single entry
-          const singleEntryData = entryData[0];
-          await updateScheduleEntry({ ...singleEntryData, id: entryId });
-          toast({ title: "Turno Actualizado", description: "El turno ha sido actualizado." });
-      } else { // Adding new entries
-          const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
-          
-          entryData.forEach(newEntry => {
-              const isDuplicate = scheduleEntries.some(
-                  existingEntry =>
-                      existingEntry.pilot_id === newEntry.pilot_id &&
-                      existingEntry.pilot_category_id === newEntry.pilot_category_id &&
-                      existingEntry.date === newEntry.date
-              );
-              if (!isDuplicate) {
-                  entriesToAdd.push(newEntry);
-              }
-          });
+    const entries = Array.isArray(entryData) ? entryData : [entryData];
 
-          if (entriesToAdd.length > 0) {
-              await addScheduleEntry(entriesToAdd);
-              toast({ title: "Turnos Agregados", description: `${entriesToAdd.length} nuevo(s) turno(s) agregado(s) a la agenda.` });
-          } else {
-              toast({ title: "Sin cambios", description: "Todos los turnos seleccionados ya existían en la agenda.", variant: "default" });
-          }
-      }
-  }, [addScheduleEntry, updateScheduleEntry, toast, scheduleEntries]);
+    if (entryId && !Array.isArray(entryData)) { // Editing a single entry
+        await updateScheduleEntry({ ...entryData, id: entryId });
+        toast({ title: "Turno Actualizado", description: "El turno ha sido actualizado." });
+    } else { // Adding new entries
+        const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
+        
+        entries.forEach(newEntry => {
+            const isDuplicate = scheduleEntries.some(
+                existingEntry =>
+                    existingEntry.pilot_id === newEntry.pilot_id &&
+                    existingEntry.pilot_category_id === newEntry.pilot_category_id &&
+                    existingEntry.date === newEntry.date
+            );
+            if (!isDuplicate) {
+                entriesToAdd.push(newEntry);
+            }
+        });
+
+        if (entriesToAdd.length > 0) {
+            await addScheduleEntry(entriesToAdd);
+            toast({ title: "Turnos Agregados", description: `${entriesToAdd.length} nuevo(s) turno(s) agregado(s) a la agenda.` });
+        } else if (entries.length > 0) { // Only show this if there was an attempt to add something
+            toast({ title: "Sin cambios", description: "Todos los turnos seleccionados ya existían en la agenda.", variant: "default" });
+        }
+    }
+}, [addScheduleEntry, updateScheduleEntry, toast, scheduleEntries]);
 
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate || !scheduleEntries || categoriesLoading || aircraftLoading || !pilots?.length || !categories?.length || !aircraft?.length) {
@@ -686,8 +687,8 @@ export function ScheduleClient() {
       <AvailabilityForm
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
-        onSubmit={handleSubmitForm}
         entry={editingEntry}
+        onSubmit={handleSubmitForm}
         pilots={pilots}
         categories={categories}
         aircraft={aircraft}
