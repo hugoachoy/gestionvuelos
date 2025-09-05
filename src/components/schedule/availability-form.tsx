@@ -53,7 +53,7 @@ const availabilitySchema = z.object({
   category_selections: z.record(z.boolean()),
   aircraft_selections: z.record(z.boolean()).optional(), // Aircraft selections by ID
   is_tow_pilot_available: z.boolean().default(false),
-  flight_type_id: z.string().default('local'), 
+  flight_type_id: z.string().default('local'),
 });
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
@@ -500,4 +500,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
