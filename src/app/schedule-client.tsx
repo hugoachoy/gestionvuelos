@@ -252,7 +252,7 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (entryDataList: Omit<ScheduleEntry, 'id' | 'created_at'> | Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+  const handleSubmitForm = useCallback(async (entryDataList: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
     setEditingEntry(undefined);
     setIsFormOpen(false);
 
@@ -282,14 +282,15 @@ export function ScheduleClient() {
   
   const groupedEntries = useMemo(() => {
     if (!scheduleEntries || !pilots.length || !categories.length) {
-        return { remolcadores: [], instructoresAvion: [], instructoresPlaneador: [], pilotos: [] };
+        return { remolcadores: [], instructoresAvion: [], instructoresPlaneador: [], pilotosAvion: [], pilotosPlaneador: [] };
     }
     
     const groups = {
         remolcadores: [] as ScheduleEntry[],
         instructoresAvion: [] as ScheduleEntry[],
         instructoresPlaneador: [] as ScheduleEntry[],
-        pilotos: [] as ScheduleEntry[],
+        pilotosAvion: [] as ScheduleEntry[],
+        pilotosPlaneador: [] as ScheduleEntry[],
     };
 
     scheduleEntries.forEach(entry => {
@@ -303,7 +304,12 @@ export function ScheduleClient() {
         } else if (normalizedCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME) {
             groups.instructoresPlaneador.push(entry);
         } else {
-            groups.pilotos.push(entry);
+            // Further distinguish between Avion and Planeador for regular pilots
+            if (normalizedCategoryName.includes('avion')) {
+                groups.pilotosAvion.push(entry);
+            } else if (normalizedCategoryName.includes('planeador')) {
+                groups.pilotosPlaneador.push(entry);
+            }
         }
     });
 
@@ -317,7 +323,8 @@ export function ScheduleClient() {
     groups.remolcadores.sort(sortByPilotName);
     groups.instructoresAvion.sort(sortByPilotName);
     groups.instructoresPlaneador.sort(sortByPilotName);
-    groups.pilotos.sort(sortByPilotName);
+    groups.pilotosAvion.sort(sortByPilotName);
+    groups.pilotosPlaneador.sort(sortByPilotName);
 
     return groups;
 

@@ -15,7 +15,8 @@ interface GroupedEntries {
     remolcadores: ScheduleEntry[];
     instructoresAvion: ScheduleEntry[];
     instructoresPlaneador: ScheduleEntry[];
-    pilotos: ScheduleEntry[];
+    pilotosAvion: ScheduleEntry[];
+    pilotosPlaneador: ScheduleEntry[];
 }
 
 interface ScheduleDisplayProps {
@@ -95,9 +96,9 @@ const GroupCard: React.FC<{ title: string; entries: ScheduleEntry[]; icon: React
 
 
 export function ScheduleDisplay({ groupedEntries, onEdit, onDelete }: ScheduleDisplayProps) {
-  const { remolcadores, instructoresAvion, instructoresPlaneador, pilotos } = groupedEntries;
+  const { remolcadores, instructoresAvion, instructoresPlaneador, pilotosAvion, pilotosPlaneador } = groupedEntries;
 
-  const hasAnyEntries = [remolcadores, instructoresAvion, instructoresPlaneador, pilotos].some(group => group.length > 0);
+  const hasAnyEntries = [remolcadores, instructoresAvion, instructoresPlaneador, pilotosAvion, pilotosPlaneador].some(group => group.length > 0);
 
   if (!hasAnyEntries) {
     return (
@@ -133,8 +134,15 @@ export function ScheduleDisplay({ groupedEntries, onEdit, onDelete }: ScheduleDi
             onDelete={onDelete}
         />
         <GroupCard 
-            title="Pilotos"
-            entries={pilotos}
+            title="Pilotos de Avión"
+            entries={pilotosAvion}
+            icon={<User className="h-5 w-5 text-muted-foreground" />}
+            onEdit={onEdit}
+            onDelete={onDelete}
+        />
+        <GroupCard 
+            title="Pilotos de Planeador"
+            entries={pilotosPlaneador}
             icon={<User className="h-5 w-5 text-muted-foreground" />}
             onEdit={onEdit}
             onDelete={onDelete}
