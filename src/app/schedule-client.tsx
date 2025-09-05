@@ -22,7 +22,7 @@ import {
 } from '@/store/data-hooks';
 import type { ScheduleEntry, PilotCategory, DailyNews, Aircraft } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
-import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquarePlus, Send, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquare, Send, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
@@ -98,8 +98,8 @@ export function ScheduleClient() {
   const auth = useAuth();
   const router = useRouter();
 
-  const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots } = usePilotsStore();
-  const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories } = usePilotCategoriesStore();
+  const { pilots, loading: pilotsLoading, error: pilotsError, fetchPilots, getPilotName } = usePilotsStore();
+  const { categories, loading: categoriesLoading, error: categoriesError, fetchCategories, getCategoryName } = usePilotCategoriesStore();
   const { aircraft, loading: aircraftLoading, error: aircraftError, fetchAircraft: fetchAircrafts } = useAircraftStore();
   const { scheduleEntries, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry: removeEntry, loading: scheduleLoading, error: scheduleError, fetchScheduleEntries } = useScheduleStore();
   const { getObservation, updateObservation, loading: obsLoading, error: obsError, fetchObservations } = useDailyObservationsStore();
@@ -300,24 +300,36 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => {
-    if (entryId) {
-        await updateScheduleEntry({ ...entryData, id: entryId });
-    } else {
-      const isDuplicate = scheduleEntries.some(
-        existingEntry =>
-          existingEntry.pilot_id === entryData.pilot_id &&
-          existingEntry.pilot_category_id === entryData.pilot_category_id &&
-          existingEntry.date === entryData.date
-      );
-      if (isDuplicate) {
-        toast({ title: "Turno Duplicado", description: "Este piloto ya tiene un turno con esta categoría para este día.", variant: "default" });
-      } else {
-        await addScheduleEntry(entryData);
-        toast({ title: "Turno Agregado", description: `Se ha agregado el turno.` });
+  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+      setEditingEntry(undefined);
+      setIsFormOpen(false);
+
+      if (entryId) { // Editing a single entry
+          const singleEntryData = entryData[0];
+          await updateScheduleEntry({ ...singleEntryData, id: entryId });
+          toast({ title: "Turno Actualizado", description: "El turno ha sido actualizado." });
+      } else { // Adding new entries
+          const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
+          
+          entryData.forEach(newEntry => {
+              const isDuplicate = scheduleEntries.some(
+                  existingEntry =>
+                      existingEntry.pilot_id === newEntry.pilot_id &&
+                      existingEntry.pilot_category_id === newEntry.pilot_category_id &&
+                      existingEntry.date === newEntry.date
+              );
+              if (!isDuplicate) {
+                  entriesToAdd.push(newEntry);
+              }
+          });
+
+          if (entriesToAdd.length > 0) {
+              await addScheduleEntry(entriesToAdd);
+              toast({ title: "Turnos Agregados", description: `${entriesToAdd.length} nuevo(s) turno(s) agregado(s) a la agenda.` });
+          } else {
+              toast({ title: "Sin cambios", description: "Todos los turnos seleccionados ya existían en la agenda.", variant: "default" });
+          }
       }
-    }
-    setIsFormOpen(false);
   }, [addScheduleEntry, updateScheduleEntry, toast, scheduleEntries]);
 
   const filteredAndSortedEntries = useMemo(() => {
