@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ScheduleEntry, Pilot, PilotCategory } from '@/types';
+import type { ScheduleEntry, Pilot, PilotCategory, Aircraft } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -45,6 +45,7 @@ import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
+
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
@@ -65,6 +66,7 @@ interface AvailabilityFormProps {
   pilots: Pilot[];
   categories: PilotCategory[];
   selectedDate?: Date;
+  existingEntries?: ScheduleEntry[];
 }
 
 const normalizeCategoryName = (name?: string): string => {
@@ -81,6 +83,7 @@ export function AvailabilityForm({
   pilots,
   categories,
   selectedDate,
+  existingEntries
 }: AvailabilityFormProps) {
   const { user: currentUser } = useAuth();
   const form = useForm<AvailabilityFormData>({
@@ -166,15 +169,17 @@ export function AvailabilityForm({
         if (catData.selected) {
             const categoryDetails = categories.find(c => c.id === categoryId);
             const normalizedCategoryName = normalizeCategoryName(categoryDetails?.name);
+            const isInstructor = normalizedCategoryName.includes('instructor');
+            const isRemolcador = normalizedCategoryName === NORMALIZED_REMOLCADOR;
             
             entriesToSubmit.push({
                 date: format(data.date, 'yyyy-MM-dd'),
                 pilot_id: data.pilot_id,
                 pilot_category_id: categoryId,
-                is_tow_pilot_available: normalizedCategoryName === NORMALIZED_REMOLCADOR,
+                is_tow_pilot_available: isRemolcador,
                 auth_user_id: authUserIdToSet,
                 start_time: '00:00',
-                flight_type_id: 'local',
+                flight_type_id: isInstructor ? 'instruction_given' : 'local',
                 aircraft_id: null,
             });
         }
@@ -195,6 +200,7 @@ export function AvailabilityForm({
   }, [pilots, pilotSearchTerm]);
 
   const disablePilotSelection = !entry && !!currentUserLinkedPilotId && !currentUser?.is_admin;
+  const disableCategorySelection = !!entry; // Disable if we are editing an entry
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -277,7 +283,7 @@ export function AvailabilityForm({
                         <div className="mb-4">
                             <FormLabel className="text-base">Categorías Disponibles</FormLabel>
                             <FormDescription>
-                                Marca todas las categorías en las que estarás disponible.
+                                {disableCategorySelection ? "Para cambiar categorías, elimina este turno y créalo de nuevo." : "Marca todas las categorías en las que estarás disponible."}
                             </FormDescription>
                         </div>
                         {pilotCategoriesForSelectedPilot.length > 0 ? pilotCategoriesForSelectedPilot.map((category) => (
@@ -292,6 +298,7 @@ export function AvailabilityForm({
                                                 checked={field.value}
                                                 onCheckedChange={field.onChange}
                                                 id={`category-select-${category.id}`}
+                                                disabled={disableCategorySelection}
                                             />
                                         </FormControl>
                                         <FormLabel className="text-sm font-normal flex-1" htmlFor={`category-select-${category.id}`}>

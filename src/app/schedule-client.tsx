@@ -308,12 +308,30 @@ export function ScheduleClient() {
          toast({ title: "Error de Edición", description: "No se pueden crear múltiples turnos al editar.", variant: "destructive" });
       }
     } else { // Adding new entries
+      let addedCount = 0;
       for (const entryData of data) {
-        await addScheduleEntry(entryData);
+        // Check for duplicates before adding
+        const isDuplicate = scheduleEntries.some(
+          existingEntry => 
+            existingEntry.pilot_id === entryData.pilot_id &&
+            existingEntry.pilot_category_id === entryData.pilot_category_id &&
+            existingEntry.date === entryData.date
+        );
+        
+        if (!isDuplicate) {
+          await addScheduleEntry(entryData);
+          addedCount++;
+        }
+      }
+      if (addedCount > 0) {
+        toast({ title: "Turnos Agregados", description: `Se han agregado ${addedCount} nuevo(s) turno(s).` });
+      }
+       if (addedCount < data.length) {
+        toast({ title: "Turnos Duplicados Omitidos", description: `${data.length - addedCount} turno(s) ya existía(n) y no se agregaron de nuevo.`, variant: "default" });
       }
     }
     setIsFormOpen(false);
-  }, [addScheduleEntry, updateScheduleEntry, toast]);
+  }, [addScheduleEntry, updateScheduleEntry, toast, scheduleEntries]);
 
   const filteredAndSortedEntries = useMemo(() => {
     if (!selectedDate || !scheduleEntries || categoriesLoading || aircraftLoading || !pilots?.length || !categories?.length || !aircraft?.length) {
@@ -673,7 +691,6 @@ export function ScheduleClient() {
         entry={editingEntry}
         pilots={pilots}
         categories={categories}
-        aircraft={aircraft}
         selectedDate={selectedDate}
         existingEntries={scheduleEntries}
       />
