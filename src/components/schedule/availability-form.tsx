@@ -201,7 +201,7 @@ export function AvailabilityForm({
       if (normalizedName === NORMALIZED_REMOLCADOR) {
           relevantAircraftTypes.add('Tow Plane');
       }
-      if (normalizedName.includes('avion')) { // This covers "Piloto de Avion" and "Instructor Avion"
+      if (normalizedName.includes('avion')) { 
           relevantAircraftTypes.add('Avión');
           relevantAircraftTypes.add('Tow Plane');
       }
@@ -247,14 +247,19 @@ export function AvailabilityForm({
       const isRemolcador = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_REMOLCADOR;
       const isInstructor = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_AVION || normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_PLANEADOR;
       
-      const relevantAircraft = aircraft.filter(ac => {
-        const normCatName = normalizeCategoryName(categoryDetails?.name);
-        if(normCatName.includes('planeador')) return ac.type === 'Glider';
-        if(normCatName.includes('remolcador')) return ac.type === 'Tow Plane';
-        if(normCatName.includes('avion')) return ac.type === 'Avión';
-        return false;
+      const relevantAircraftTypes = new Set<Aircraft['type']>();
+      const normCatName = normalizeCategoryName(categoryDetails?.name);
+      if (normCatName.includes('planeador')) relevantAircraftTypes.add('Glider');
+      if (normCatName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
+      if (normCatName.includes('avion')) {
+          relevantAircraftTypes.add('Avión');
+          relevantAircraftTypes.add('Tow Plane');
+      }
+
+      const relevantSelectedAircraftIds = selectedAircraftIds.filter(acId => {
+          const ac = aircraft.find(a => a.id === acId);
+          return ac && relevantAircraftTypes.has(ac.type);
       });
-      const relevantSelectedAircraftIds = selectedAircraftIds.filter(acId => relevantAircraft.some(ac => ac.id === acId));
 
       if(relevantSelectedAircraftIds.length > 0) {
         relevantSelectedAircraftIds.forEach(aircraftId => {
@@ -270,7 +275,6 @@ export function AvailabilityForm({
             });
         });
       } else {
-        // If no aircraft is selected for this category, create a general availability entry
          entriesToSubmit.push({
             date: format(data.date, 'yyyy-MM-dd'),
             pilot_id: data.pilot_id,
@@ -299,6 +303,48 @@ export function AvailabilityForm({
   }, [pilots, pilotSearchTerm]);
 
   const disablePilotSelection = !entry && !!currentUserLinkedPilotId && !currentUser?.is_admin;
+  
+  const AircraftSelectionComponent = () => {
+    if (availableAircraftForSelection.length === 0) return null;
+    
+    return (
+        <FormField
+            control={form.control}
+            name="aircraft_selections"
+            render={() => (
+                <FormItem>
+                    <FormLabel>Asignación de Aeronaves</FormLabel>
+                    <FormDescription>
+                        Marca las aeronaves específicas que utilizarás.
+                    </FormDescription>
+                     {availableAircraftForSelection.map(ac => (
+                        <FormField
+                            key={ac.id}
+                            control={form.control}
+                            name={`aircraft_selections.${ac.id}`}
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 mt-2">
+                                    <FormControl>
+                                        <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        disabled={!!entry && entry.aircraft_id !== ac.id}
+                                        />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                        <FormLabel className="font-normal">{ac.name} ({ac.type})</FormLabel>
+                                    </div>
+                                </FormItem>
+                            )}
+                        />
+                    ))}
+                    <FormMessage />
+                </FormItem>
+            )}
+        />
+    );
+  };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -431,42 +477,7 @@ export function AvailabilityForm({
                 />
             )}
             
-            {availableAircraftForSelection.length > 0 && (
-               <FormField
-                    control={form.control}
-                    name="aircraft_selections"
-                    render={() => (
-                        <FormItem>
-                            <FormLabel>Asignación de Aeronaves</FormLabel>
-                            <FormDescription>
-                                Marca las aeronaves específicas que utilizarás.
-                            </FormDescription>
-                             {availableAircraftForSelection.map(ac => (
-                                <FormField
-                                    key={ac.id}
-                                    control={form.control}
-                                    name={`aircraft_selections.${ac.id}`}
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 mt-2">
-                                            <FormControl>
-                                                <Checkbox
-                                                checked={field.value}
-                                                onCheckedChange={field.onChange}
-                                                disabled={!!entry && entry.aircraft_id !== ac.id}
-                                                />
-                                            </FormControl>
-                                            <div className="space-y-1 leading-none">
-                                                <FormLabel className="font-normal">{ac.name} ({ac.type})</FormLabel>
-                                            </div>
-                                        </FormItem>
-                                    )}
-                                />
-                            ))}
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            )}
+            <AircraftSelectionComponent />
 
 
             {isAnyRemolcadorCategorySelected && (
