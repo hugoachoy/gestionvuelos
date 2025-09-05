@@ -94,7 +94,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
 
         const showAvailableSinceText = 
             (entry.flight_type_id === towageFlightId && entry.is_tow_pilot_available && isTurnByCategoryRemolcador) || 
-            (isTurnByCategoryInstructor && entry.flight_type_id === instructionGivenFlightId);
+            (isTurnByCategoryInstructor); // Anotarse como instructor implica disponibilidad
 
 
         if (pilot && pilot.medical_expiry) {
@@ -152,8 +152,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
           }
         }
 
-        const isCardStyleRemolcador = isTurnByCategoryRemolcador || entry.flight_type_id === towageFlightId;
-        const isCardStyleInstructor = isTurnByCategoryInstructor && entry.flight_type_id === instructionGivenFlightId;
+        const isCardStyleRemolcador = isTurnByCategoryRemolcador;
+        const isCardStyleInstructor = isTurnByCategoryInstructor;
         
         const isOwner = currentUser && entry.auth_user_id && currentUser.id === entry.auth_user_id;
         const canManageEntry = isOwner || currentUser?.is_admin;
@@ -163,7 +163,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
             key={entry.id}
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isCardStyleInstructor && entry.is_instructor_available && 'bg-purple-100 border-purple-300',
+              isCardStyleInstructor && 'bg-purple-100 border-purple-300',
               isCardStyleRemolcador && entry.is_tow_pilot_available && !isCardStyleInstructor && 'bg-sky-100 border-sky-300'
             )}
           >
@@ -222,10 +222,8 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
               )}
                {isTurnByCategoryInstructor && ( 
                 <div className="flex items-center">
-                  {entry.is_instructor_available ?
-                    <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> :
-                    <XCircle className="h-4 w-4 mr-2 text-red-500" />}
-                  Instructor: {entry.is_instructor_available ? 'Disponible' : 'No Disponible'}
+                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                  Instructor: Disponible
                 </div>
               )}
               {sportConflictMessage && (
