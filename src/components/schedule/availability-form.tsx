@@ -190,12 +190,21 @@ export function AvailabilityForm({
     const relevantAircraftTypes = new Set<Aircraft['type']>();
 
     selectedCategoryIds.forEach(catId => {
-        const category = categories.find(c => c.id === catId);
-        const normalizedName = normalizeCategoryName(category?.name);
+      const category = categories.find(c => c.id === catId);
+      const normalizedName = normalizeCategoryName(category?.name);
+      
+      const isPilotoPlaneador = normalizedName.includes('piloto') && normalizedName.includes('planeador');
 
-        if (normalizedName.includes('planeador')) relevantAircraftTypes.add('Glider');
-        if (normalizedName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
-        if (normalizedName.includes('avion')) relevantAircraftTypes.add('Avión');
+      if (isPilotoPlaneador || normalizedName === NORMALIZED_INSTRUCTOR_PLANEADOR) {
+          relevantAircraftTypes.add('Glider');
+      }
+      if (normalizedName === NORMALIZED_REMOLCADOR) {
+          relevantAircraftTypes.add('Tow Plane');
+      }
+      if (normalizedName.includes('avion')) { // This covers "Piloto de Avion" and "Instructor Avion"
+          relevantAircraftTypes.add('Avión');
+          relevantAircraftTypes.add('Tow Plane');
+      }
     });
 
     return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
