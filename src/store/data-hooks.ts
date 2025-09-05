@@ -556,32 +556,35 @@ export function useScheduleStore() {
     }
   }, []);
 
-  const addScheduleEntry = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>) => {
+  const addScheduleEntry = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>[]) => {
     setError(null);
     setLoading(true);
     try {
-        const { data: newEntry, error: insertError } = await supabase
+      const { data: newEntries, error: insertError } = await supabase
         .from('schedule_entries')
-        .insert([entryData])
-        .select()
-        .single();
-        if (insertError) {
+        .insert(entryData)
+        .select();
+
+      if (insertError) {
         logSupabaseError('Error adding schedule entry', insertError);
         setError(insertError);
         return null;
-        }
-        if (newEntry) {
-        await fetchScheduleEntries(newEntry.date);
-        }
-        return newEntry;
+      }
+
+      if (newEntries && newEntries.length > 0) {
+        // Fetch for the date of the first new entry to refresh the view
+        await fetchScheduleEntries(newEntries[0].date);
+      }
+      return newEntries;
     } catch (e) {
-        logSupabaseError('Unexpected error adding schedule entry', e);
-        setError(e);
-        return null;
+      logSupabaseError('Unexpected error adding schedule entry', e);
+      setError(e);
+      return null;
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   }, [fetchScheduleEntries]);
+
 
   const updateScheduleEntry = useCallback(async (updatedEntryData: ScheduleEntry) => {
     setError(null);
