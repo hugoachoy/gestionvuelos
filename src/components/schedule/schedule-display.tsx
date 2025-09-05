@@ -77,14 +77,12 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
         const flightTypeName = getFlightTypeName(entry.flight_type_id);
         let flightTypeDisplayNode: React.ReactNode = flightTypeName;
 
-        const towageFlightId = FLIGHT_TYPES.find(ft => ft.id === 'towage')?.id;
         const sportFlightId = FLIGHT_TYPES.find(ft => ft.id === 'sport')?.id;
         const instructionGivenFlightId = FLIGHT_TYPES.find(ft => ft.id === 'instruction_given')?.id;
 
         const shouldFlightTypeBeBold = 
           (entry.flight_type_id === instructionGivenFlightId && isTurnByCategoryInstructor) ||
-          (isTurnByCategoryRemolcador) || 
-          (entry.flight_type_id === towageFlightId); 
+          (isTurnByCategoryRemolcador);
 
         if (shouldFlightTypeBeBold) {
           flightTypeDisplayNode = <strong className="text-foreground">{flightTypeName}</strong>;
@@ -175,7 +173,7 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
                     {showAvailableSinceText ? (
                       <span className="mr-1">Disponible desde: {displayTime} - {getPilotName(entry.pilot_id)}</span>
                     ) : (
-                      <span className="mr-1">{displayTime} - {getPilotName(entry.pilot_id)}</span>
+                      <span className="mr-1">{getPilotName(entry.pilot_id)}</span>
                     )}
                     {expiringBadge}
                   </CardTitle>

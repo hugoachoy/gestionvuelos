@@ -300,34 +300,21 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (data: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
-    if (entryId) { // Editing existing entry
-      if(data.length === 1) { // Should always be one for editing
-        await updateScheduleEntry({ ...data[0], id: entryId });
+  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => {
+    if (entryId) {
+        await updateScheduleEntry({ ...entryData, id: entryId });
+    } else {
+      const isDuplicate = scheduleEntries.some(
+        existingEntry =>
+          existingEntry.pilot_id === entryData.pilot_id &&
+          existingEntry.pilot_category_id === entryData.pilot_category_id &&
+          existingEntry.date === entryData.date
+      );
+      if (isDuplicate) {
+        toast({ title: "Turno Duplicado", description: "Este piloto ya tiene un turno con esta categoría para este día.", variant: "default" });
       } else {
-         toast({ title: "Error de Edición", description: "No se pueden crear múltiples turnos al editar.", variant: "destructive" });
-      }
-    } else { // Adding new entries
-      let addedCount = 0;
-      for (const entryData of data) {
-        // Check for duplicates before adding
-        const isDuplicate = scheduleEntries.some(
-          existingEntry => 
-            existingEntry.pilot_id === entryData.pilot_id &&
-            existingEntry.pilot_category_id === entryData.pilot_category_id &&
-            existingEntry.date === entryData.date
-        );
-        
-        if (!isDuplicate) {
-          await addScheduleEntry(entryData);
-          addedCount++;
-        }
-      }
-      if (addedCount > 0) {
-        toast({ title: "Turnos Agregados", description: `Se han agregado ${addedCount} nuevo(s) turno(s).` });
-      }
-       if (addedCount < data.length) {
-        toast({ title: "Turnos Duplicados Omitidos", description: `${data.length - addedCount} turno(s) ya existía(n) y no se agregaron de nuevo.`, variant: "default" });
+        await addScheduleEntry(entryData);
+        toast({ title: "Turno Agregado", description: `Se ha agregado el turno.` });
       }
     }
     setIsFormOpen(false);
@@ -691,6 +678,7 @@ export function ScheduleClient() {
         entry={editingEntry}
         pilots={pilots}
         categories={categories}
+        aircraft={aircraft}
         selectedDate={selectedDate}
         existingEntries={scheduleEntries}
       />
@@ -698,7 +686,7 @@ export function ScheduleClient() {
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         onConfirm={confirmDelete}
-        itemName={entryToDelete ? `el turno de las ${entryToDelete.start_time.substring(0,5)}` : 'este turno'}
+        itemName={entryToDelete ? `el turno de ${getPilotName(entryToDelete.pilot_id)} (${getCategoryName(entryToDelete.pilot_category_id)})` : 'este turno'}
       />
       <DeleteDialog
         open={isNewsDeleteDialogOpen}
