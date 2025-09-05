@@ -273,7 +273,7 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'> | Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
     setEditingEntry(undefined);
     setIsFormOpen(false);
 
@@ -394,10 +394,8 @@ export function ScheduleClient() {
     if (!towPilotCategory) {
       return true;
     }
-    return scheduleEntries.some(entry =>
-      entry.pilot_category_id === towPilotCategory.id &&
-      entry.is_tow_pilot_available === true
-    );
+    // Updated logic: Just check if someone signed up as a tow pilot.
+    return scheduleEntries.some(entry => entry.pilot_category_id === towPilotCategory.id);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
 
