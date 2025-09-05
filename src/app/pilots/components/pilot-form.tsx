@@ -32,13 +32,14 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarIcon, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, ChevronsUpDown, AlertTriangle } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
 import { cn } from "@/lib/utils";
 import { format, parseISO, parse, isValid, startOfDay, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { DeleteDialog } from '@/components/common/delete-dialog';
 
 type PilotFormData = z.infer<ReturnType<typeof createPilotSchema>>;
 
@@ -117,6 +118,8 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
 
   const [isMedicalCalendarOpen, setIsMedicalCalendarOpen] = useState(false);
   const [isBirthDateCalendarOpen, setIsBirthDateCalendarOpen] = useState(false);
+  const [isUnlinkConfirmOpen, setIsUnlinkConfirmOpen] = useState(false);
+
 
   useEffect(() => {
     if (open) {
@@ -169,7 +172,24 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
     onOpenChange(false);
   };
 
+  const handleUnlinkUser = () => {
+    if (!pilot || !pilot.auth_user_id) return;
+
+    const unlinkedData: Omit<Pilot, 'id' | 'created_at'> = {
+      ...pilot,
+      medical_expiry: pilot.medical_expiry ? format(parseISO(pilot.medical_expiry), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+      birth_date: pilot.birth_date ? format(parseISO(pilot.birth_date), 'yyyy-MM-dd') : null,
+      auth_user_id: null,
+    };
+    
+    onSubmit(unlinkedData, pilot.id);
+    onOpenChange(false);
+    setIsUnlinkConfirmOpen(false);
+  };
+
+
   return (
+    <>
     <Dialog open={open} onOpenChange={(isOpen) => { onOpenChange(isOpen); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -281,6 +301,29 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
                 </FormItem>
             )}/>
 
+             {pilot?.auth_user_id && allowIsAdminChange && (
+              <>
+                <Separator className="my-6" />
+                <div className="space-y-4 rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                    <h3 className="text-lg font-semibold text-destructive">Zona de Peligro</h3>
+                    <div className="space-y-2">
+                        <FormLabel>Usuario Vinculado</FormLabel>
+                        <p className="text-sm text-destructive/90">
+                            Este perfil de piloto está vinculado a la cuenta de autenticación: <strong className="font-mono">{pilot.email}</strong>.
+                        </p>
+                        <p className="text-xs text-destructive/80">
+                           Al desvincular, el usuario con este correo ya no podrá acceder a los datos de este piloto. El perfil del piloto y todo su historial de vuelos se conservarán, pero no tendrán un inicio de sesión asociado hasta que un administrador lo vincule a otra cuenta.
+                        </p>
+                    </div>
+                    <Button type="button" variant="destructive" onClick={() => setIsUnlinkConfirmOpen(true)}>
+                        <AlertTriangle className="mr-2 h-4 w-4" />
+                        Desvincular Usuario de Autenticación
+                    </Button>
+                </div>
+              </>
+            )}
+
+
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => { onOpenChange(false); }}>Cancelar</Button>
               <Button type="submit">{pilot ? 'Guardar Cambios' : 'Crear Piloto'}</Button>
@@ -289,5 +332,12 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
         </Form>
       </DialogContent>
     </Dialog>
+    <DeleteDialog
+        open={isUnlinkConfirmOpen}
+        onOpenChange={setIsUnlinkConfirmOpen}
+        onConfirm={handleUnlinkUser}
+        itemName={`la cuenta de login de ${pilot?.email} del perfil de este piloto`}
+    />
+    </>
   );
 }
