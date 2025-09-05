@@ -8,7 +8,6 @@ import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AvailabilityForm } from '@/components/schedule/availability-form';
 import { ScheduleDisplay } from '@/components/schedule/schedule-display';
 import { DeleteDialog } from '@/components/common/delete-dialog';
@@ -20,18 +19,19 @@ import {
   useDailyObservationsStore,
   useDailyNewsStore,
 } from '@/store/data-hooks';
-import type { ScheduleEntry, PilotCategory, DailyNews, Aircraft } from '@/types';
+import type { ScheduleEntry, PilotCategory, DailyNews, Aircraft, Pilot } from '@/types';
 import { FLIGHT_TYPES } from '@/types';
 import { PlusCircle, CalendarIcon, Save, RefreshCw, AlertTriangle, MessageSquare, Send, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UnderlineKeywords } from '@/components/common/underline-keywords';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { ShareButton } from '@/components/schedule/share-button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 
 const normalizeCategoryName = (name?: string): string => {
@@ -42,27 +42,6 @@ const normalizeCategoryName = (name?: string): string => {
 const NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME = "instructor avion";
 const NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME = "instructor planeador";
 const NORMALIZED_REMOLCADOR_CATEGORY_NAME = "remolcador";
-
-
-function getSortPriority(
-  entry: ScheduleEntry,
-  categories: PilotCategory[]
-): number {
-  const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
-  const normalizedEntryCategoryName = normalizeCategoryName(entryCategoryDetails?.name);
-  
-  if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR_CATEGORY_NAME) {
-    return entry.is_tow_pilot_available ? 1 : 2; // Disponibles primero
-  }
-  
-  const isInstructor = normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME ||
-                       normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME;
-  if (isInstructor) {
-    return 3;
-  }
-
-  return 5; // General pilots
-}
 
 
 export function ScheduleClient() {
@@ -273,20 +252,17 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'> | Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+  const handleSubmitForm = useCallback(async (entryDataList: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
     setEditingEntry(undefined);
     setIsFormOpen(false);
 
-    // This handles both single object and array. We always work with an array internally now.
-    const entries = Array.isArray(entryData) ? entryData : [entryData];
-
-    if (entryId && entries.length === 1) { // Editing a single entry
-        await updateScheduleEntry({ ...entries[0], id: entryId });
+    if (entryId && entryDataList.length === 1) { // Editing a single entry
+        await updateScheduleEntry({ ...entryDataList[0], id: entryId });
         toast({ title: "Turno Actualizado", description: "El turno ha sido actualizado." });
     } else { // Adding new entries
         const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
         
-        entries.forEach(newEntry => {
+        entryDataList.forEach(newEntry => {
             const isDuplicate = scheduleEntries.some(
                 existingEntry =>
                     existingEntry.pilot_id === newEntry.pilot_id &&
@@ -301,27 +277,54 @@ export function ScheduleClient() {
         if (entriesToAdd.length > 0) {
             await addScheduleEntry(entriesToAdd);
             toast({ title: "Turnos Agregados", description: `${entriesToAdd.length} nuevo(s) turno(s) agregado(s) a la agenda.` });
-        } else if (entries.length > 0) { // Only show this if there was an attempt to add something
+        } else if (entryDataList.length > 0) { // Only show this if there was an attempt to add something
             toast({ title: "Sin cambios", description: "Todos los turnos seleccionados ya existían en la agenda.", variant: "default" });
         }
     }
   }, [addScheduleEntry, updateScheduleEntry, toast, scheduleEntries]);
-
-  const filteredAndSortedEntries = useMemo(() => {
-    if (!selectedDate || !scheduleEntries || categoriesLoading || !pilots?.length || !categories?.length) {
-      return [];
+  
+  const groupedEntries = useMemo(() => {
+    if (!scheduleEntries || !pilots.length || !categories.length) {
+        return { remolcadores: [], instructoresAvion: [], instructoresPlaneador: [], pilotos: [] };
     }
+    
+    const groups = {
+        remolcadores: [] as ScheduleEntry[],
+        instructoresAvion: [] as ScheduleEntry[],
+        instructoresPlaneador: [] as ScheduleEntry[],
+        pilotos: [] as ScheduleEntry[],
+    };
 
-    return [...scheduleEntries].sort((a, b) => {
-      const priorityA = getSortPriority(a, categories);
-      const priorityB = getSortPriority(b, categories);
+    scheduleEntries.forEach(entry => {
+        const category = categories.find(c => c.id === entry.pilot_category_id);
+        const normalizedCategoryName = normalizeCategoryName(category?.name);
 
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-      return a.start_time.localeCompare(b.start_time);
+        if (normalizedCategoryName === NORMALIZED_REMOLCADOR_CATEGORY_NAME) {
+            groups.remolcadores.push(entry);
+        } else if (normalizedCategoryName === NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME) {
+            groups.instructoresAvion.push(entry);
+        } else if (normalizedCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME) {
+            groups.instructoresPlaneador.push(entry);
+        } else {
+            groups.pilotos.push(entry);
+        }
     });
-  }, [selectedDate, scheduleEntries, categories, categoriesLoading, pilots]);
+
+    // Sort within groups
+    const sortByPilotName = (a: ScheduleEntry, b: ScheduleEntry) => {
+        const pilotA = getPilotName(a.pilot_id) || '';
+        const pilotB = getPilotName(b.pilot_id) || '';
+        return pilotA.localeCompare(pilotB);
+    };
+
+    groups.remolcadores.sort(sortByPilotName);
+    groups.instructoresAvion.sort(sortByPilotName);
+    groups.instructoresPlaneador.sort(sortByPilotName);
+    groups.pilotos.sort(sortByPilotName);
+
+    return groups;
+
+  }, [scheduleEntries, pilots, categories, getPilotName]);
 
 
   const handleRefreshAll = useCallback(() => {
@@ -394,8 +397,7 @@ export function ScheduleClient() {
     if (!towPilotCategory) {
       return true;
     }
-    // Updated logic: Just check if someone signed up as a tow pilot.
-    return scheduleEntries.some(entry => entry.pilot_category_id === towPilotCategory.id);
+    return scheduleEntries.some(entry => entry.pilot_category_id === towPilotCategory.id && entry.is_tow_pilot_available);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
 
@@ -574,23 +576,22 @@ export function ScheduleClient() {
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription>
             <strong className="text-orange-700">
-                Aún no hay "<UnderlineKeywords text="REMOLCADOR" />" confirmado para esta fecha.
+                Aún no hay "<UnderlineKeywords text="REMOLCADOR" />" disponible confirmado para esta fecha.
             </strong>
           </AlertDescription>
         </Alert>
       }
 
-      {(scheduleLoading || auth.loading) && !filteredAndSortedEntries.length ? (
+      {(scheduleLoading || auth.loading) && !scheduleEntries.length ? (
         <div className="space-y-4 mt-6">
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-32 w-full" />
           <Skeleton className="h-24 w-full" />
         </div>
       ) : selectedDate && (
         <ScheduleDisplay
-          entries={filteredAndSortedEntries}
-          onEdit={handleEditEntry}
-          onDelete={handleDeleteEntry}
-          onRegisterFlight={handleRegisterFlight}
+            groupedEntries={groupedEntries}
+            onEdit={handleEditEntry}
+            onDelete={handleDeleteEntry}
         />
       )}
 

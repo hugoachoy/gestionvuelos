@@ -1,32 +1,105 @@
 
 "use client";
 
-import type { ScheduleEntry } from '@/types'; 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import type { ScheduleEntry, Pilot, PilotCategory } from '@/types'; 
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2, Clock, Layers, AlertTriangle } from 'lucide-react';
+import { Edit, Trash2, Clock, AlertTriangle, User, Plane, CheckCircle, XCircle } from 'lucide-react';
 import { usePilotsStore, usePilotCategoriesStore } from '@/store/data-hooks';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, differenceInDays, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
-import React from 'react';
-import { UnderlineKeywords } from '@/components/common/underline-keywords';
 
-interface ScheduleDisplayProps {
-  entries: ScheduleEntry[];
-  onEdit: (entry: ScheduleEntry) => void;
-  onDelete: (entry: ScheduleEntry) => void;
-  onRegisterFlight: (entry: ScheduleEntry) => void; 
+interface GroupedEntries {
+    remolcadores: ScheduleEntry[];
+    instructoresAvion: ScheduleEntry[];
+    instructoresPlaneador: ScheduleEntry[];
+    pilotos: ScheduleEntry[];
 }
 
-export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }: ScheduleDisplayProps) {
-  const { getPilotName, pilots } = usePilotsStore();
-  const { getCategoryName } = usePilotCategoriesStore(); 
-  const { user: currentUser } = useAuth();
+interface ScheduleDisplayProps {
+  groupedEntries: GroupedEntries;
+  onEdit: (entry: ScheduleEntry) => void;
+  onDelete: (entry: ScheduleEntry) => void;
+}
 
-  if (entries.length === 0) {
+const PilotListItem: React.FC<{ entry: ScheduleEntry, onEdit: (entry: ScheduleEntry) => void, onDelete: (entry: ScheduleEntry) => void }> = ({ entry, onEdit, onDelete }) => {
+    const { getPilotName, pilots } = usePilotsStore();
+    const { user: currentUser } = useAuth();
+    
+    const pilot = pilots.find(p => p.id === entry.pilot_id);
+    let medicalWarning = null;
+    
+    if (pilot && pilot.medical_expiry) {
+        const medicalExpiryDate = parseISO(pilot.medical_expiry);
+        const entryDate = parseISO(entry.date);
+        
+        if (isValid(medicalExpiryDate) && isValid(entryDate)) {
+            const isExpired = isBefore(startOfDay(medicalExpiryDate), startOfDay(entryDate));
+            if (isExpired) {
+                medicalWarning = `PF VENCIDO (${format(medicalExpiryDate, "dd/MM/yy", { locale: es })})`;
+            }
+        }
+    }
+    
+    const isOwner = currentUser && entry.auth_user_id && currentUser.id === entry.auth_user_id;
+    const canManageEntry = isOwner || currentUser?.is_admin;
+
+    return (
+        <div className="flex items-center justify-between p-2 border-b last:border-b-0">
+            <div className="flex flex-col">
+                <span className="font-medium text-foreground">{getPilotName(entry.pilot_id)}</span>
+                <span className="text-xs text-muted-foreground">Disponible desde: {entry.start_time.substring(0, 5)} hs</span>
+                 {medicalWarning && (
+                    <Badge variant="destructive" className="mt-1 w-fit">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        {medicalWarning}
+                    </Badge>
+                )}
+            </div>
+            {canManageEntry && (
+                <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="h-8 w-8 hover:text-primary">
+                        <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(entry)} className="h-8 w-8 hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const GroupCard: React.FC<{ title: string; entries: ScheduleEntry[]; icon: React.ReactNode; onEdit: (entry: ScheduleEntry) => void; onDelete: (entry: ScheduleEntry) => void; }> = ({ title, entries, icon, onEdit, onDelete }) => {
+    if (entries.length === 0) return null;
+    
+    return (
+        <Card>
+            <CardHeader className="p-4 bg-muted/50 rounded-t-lg">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    {icon}
+                    {title}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+                {entries.map(entry => (
+                    <PilotListItem key={entry.id} entry={entry} onEdit={onEdit} onDelete={onDelete} />
+                ))}
+            </CardContent>
+        </Card>
+    );
+};
+
+
+export function ScheduleDisplay({ groupedEntries, onEdit, onDelete }: ScheduleDisplayProps) {
+  const { remolcadores, instructoresAvion, instructoresPlaneador, pilotos } = groupedEntries;
+
+  const hasAnyEntries = [remolcadores, instructoresAvion, instructoresPlaneador, pilotos].some(group => group.length > 0);
+
+  if (!hasAnyEntries) {
     return (
       <Card className="mt-6">
         <CardContent className="pt-6">
@@ -38,94 +111,34 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
   
   return (
     <div className="space-y-4 mt-6">
-      {entries.map((entry) => {
-        const pilot = pilots.find(p => p.id === entry.pilot_id);
-        let expiringBadge = null;
-        let expiredBlock = null;
-
-        const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id);
-        
-        if (pilot && pilot.medical_expiry) {
-          const medicalExpiryDate = parseISO(pilot.medical_expiry);
-          const entryDate = parseISO(entry.date); 
-          const todayNormalized = startOfDay(new Date());
-
-          if (isValid(medicalExpiryDate) && isValid(entryDate)) {
-            const normalizedMedicalExpiryDate = startOfDay(medicalExpiryDate);
-            const entryDateNormalized = startOfDay(entryDate);
-
-            const isExpiredOnEntryDate = isBefore(normalizedMedicalExpiryDate, entryDateNormalized);
-            const daysUntilExpiryFromToday = differenceInDays(normalizedMedicalExpiryDate, todayNormalized);
-
-            if (isExpiredOnEntryDate) {
-              expiredBlock = (
-                <div className="mt-1 text-xs font-medium text-destructive-foreground bg-destructive p-1 px-2 rounded inline-flex items-center">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  PF VENCIDO ({format(medicalExpiryDate, "dd/MM/yy", { locale: es })})
-                </div>
-              );
-            } else {
-              if (daysUntilExpiryFromToday <= 30) {
-                expiringBadge = (
-                  <Badge variant="destructive" className="ml-2 text-xs shrink-0">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Psicofísico vence {format(medicalExpiryDate, "dd/MM/yy", { locale: es })} (en {daysUntilExpiryFromToday} días)
-                  </Badge>
-                );
-              } else if (daysUntilExpiryFromToday <= 60) {
-                expiringBadge = (
-                  <Badge className="ml-2 text-xs shrink-0 bg-yellow-400 text-black hover:bg-yellow-500">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Psicofísico vence {format(medicalExpiryDate, "dd/MM/yy", { locale: es })} (en {daysUntilExpiryFromToday} días)
-                  </Badge>
-                );
-              }
-            }
-          }
-        }
-        
-        const isOwner = currentUser && entry.auth_user_id && currentUser.id === entry.auth_user_id;
-        const canManageEntry = isOwner || currentUser?.is_admin;
-
-        return (
-          <Card key={entry.id} className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-4">
-               <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-xl flex items-center flex-wrap">
-                    <span className="mr-1">{getPilotName(entry.pilot_id)}</span>
-                    {expiringBadge}
-                  </CardTitle>
-                  {expiredBlock}
-                  <CardDescription className="flex items-center gap-2 mt-1 pt-1">
-                    <Layers className="h-4 w-4 text-muted-foreground" /> <UnderlineKeywords text={pilotCategoryNameForTurn} />
-                  </CardDescription>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                    {canManageEntry && ( 
-                        <>
-                        <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="hover:text-primary">
-                            <Edit className="h-4 w-4" />
-                            <span className="sr-only">Editar Turno</span>
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onDelete(entry)} className="hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Eliminar Turno</span>
-                        </Button>
-                        </>
-                    )}
-                </div>
-              </div>
-            </CardHeader>
-             <CardContent className="text-sm text-muted-foreground space-y-2 pt-0 pb-4">
-                <div className="flex items-center">
-                    <Clock className="h-4 w-4 mr-2 text-green-500" />
-                    Disponible desde: <span className="font-semibold text-foreground ml-1">{entry.start_time.substring(0,5)} hs</span>
-                </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+        <GroupCard 
+            title="Remolcadores"
+            entries={remolcadores}
+            icon={<Plane className="h-5 w-5 text-primary" />}
+            onEdit={onEdit}
+            onDelete={onDelete}
+        />
+         <GroupCard 
+            title="Instructores de Avión"
+            entries={instructoresAvion}
+            icon={<CheckCircle className="h-5 w-5 text-green-600" />}
+            onEdit={onEdit}
+            onDelete={onDelete}
+        />
+         <GroupCard 
+            title="Instructores de Planeador"
+            entries={instructoresPlaneador}
+            icon={<CheckCircle className="h-5 w-5 text-green-600" />}
+            onEdit={onEdit}
+            onDelete={onDelete}
+        />
+        <GroupCard 
+            title="Pilotos"
+            entries={pilotos}
+            icon={<User className="h-5 w-5 text-muted-foreground" />}
+            onEdit={onEdit}
+            onDelete={onDelete}
+        />
     </div>
   );
 }
