@@ -73,9 +73,7 @@ interface AvailabilityFormProps {
   entry?: ScheduleEntry;
   pilots: Pilot[];
   categories: PilotCategory[];
-  aircraft: Aircraft[];
   selectedDate?: Date;
-  existingEntries?: ScheduleEntry[];
 }
 
 const normalizeCategoryName = (name?: string): string => {
@@ -91,6 +89,7 @@ export function AvailabilityForm({
   entry,
   pilots,
   categories,
+  selectedDate,
 }: AvailabilityFormProps) {
   const { user: currentUser } = useAuth();
   const form = useForm<AvailabilityFormData>({
@@ -158,7 +157,7 @@ export function AvailabilityForm({
       form.reset(initialFormValues as AvailabilityFormData);
       setPilotSearchTerm('');
     }
-  }, [open, entry, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
+  }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
 
   const watchedPilotId = form.watch('pilot_id');
   const watchedPilotCategoryId = form.watch('pilot_category_id');
