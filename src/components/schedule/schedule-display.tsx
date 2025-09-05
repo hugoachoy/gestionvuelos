@@ -22,17 +22,6 @@ interface ScheduleDisplayProps {
   onRegisterFlight: (entry: ScheduleEntry) => void; 
 }
 
-const FlightTypeIcon: React.FC<{ typeId: typeof FLIGHT_TYPES[number]['id'] }> = ({ typeId }) => {
-  switch (typeId) {
-    case 'sport': return <Award className="h-4 w-4 text-yellow-500" />;
-    case 'instruction_taken': return <BookOpen className="h-4 w-4 text-blue-500" />;
-    case 'instruction_given': return <BookOpen className="h-4 w-4 text-purple-500" />; 
-    case 'local': return <PlaneLanding className="h-4 w-4 text-green-500" />;
-    case 'towage': return <PlaneTakeoff className="h-4 w-4 text-sky-500" />;
-    default: return null;
-  }
-};
-
 const normalizeCategoryName = (name?: string): string => {
   return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
@@ -56,8 +45,6 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
       </Card>
     );
   }
-
-  const getFlightTypeName = (id: typeof FLIGHT_TYPES[number]['id']) => FLIGHT_TYPES.find(ft => ft.id === id)?.name || 'Desconocido';
   
   return (
     <div className="space-y-4 mt-6">
@@ -65,7 +52,6 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
         const pilot = pilots.find(p => p.id === entry.pilot_id);
         let expiringBadge = null;
         let expiredBlock = null;
-        let sportConflictMessage = null;
 
         const pilotCategoryNameForTurn = getCategoryName(entry.pilot_category_id);
         const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
@@ -74,26 +60,9 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
         const isTurnByCategoryInstructor = normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION || normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR;
         const isTurnByCategoryRemolcador = normalizedEntryCategoryName === NORMALIZED_REMOLCADOR;
 
-        const flightTypeName = getFlightTypeName(entry.flight_type_id);
-        let flightTypeDisplayNode: React.ReactNode = flightTypeName;
-
-        const sportFlightId = FLIGHT_TYPES.find(ft => ft.id === 'sport')?.id;
-        const instructionGivenFlightId = FLIGHT_TYPES.find(ft => ft.id === 'instruction_given')?.id;
-
-        const shouldFlightTypeBeBold = 
-          (entry.flight_type_id === instructionGivenFlightId && isTurnByCategoryInstructor) ||
-          (isTurnByCategoryRemolcador);
-
-        if (shouldFlightTypeBeBold) {
-          flightTypeDisplayNode = <strong className="text-foreground">{flightTypeName}</strong>;
-        }
-
-        const displayTime = entry.start_time.substring(0, 5); 
-
         const showAvailableSinceText = 
             (isTurnByCategoryRemolcador && entry.is_tow_pilot_available) || 
-            (isTurnByCategoryInstructor);
-
+            (isTurnByCategoryInstructor && entry.is_instructor_available);
 
         if (pilot && pilot.medical_expiry) {
           const medicalExpiryDate = parseISO(pilot.medical_expiry);
@@ -134,22 +103,6 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
           }
         }
 
-        // Check for sport flight conflict on the same aircraft for the day
-        if (entry.aircraft_id && entry.flight_type_id !== sportFlightId) {
-          const conflictingSportEntry = entries.find(
-            otherEntry =>
-              otherEntry.aircraft_id === entry.aircraft_id &&
-              otherEntry.flight_type_id === sportFlightId &&
-              otherEntry.id !== entry.id
-          );
-
-          if (conflictingSportEntry) {
-            const sportPilotName = getPilotName(conflictingSportEntry.pilot_id);
-            const aircraftName = getAircraftName(entry.aircraft_id);
-            sportConflictMessage = `Supeditado a vuelo deportivo de ${sportPilotName} (${conflictingSportEntry.start_time.substring(0,5)}) en ${aircraftName}.`;
-          }
-        }
-
         const isCardStyleRemolcador = isTurnByCategoryRemolcador;
         const isCardStyleInstructor = isTurnByCategoryInstructor;
         
@@ -161,20 +114,15 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
             key={entry.id}
             className={cn(
               "shadow-md hover:shadow-lg transition-shadow",
-              isCardStyleInstructor && 'bg-purple-100 border-purple-300',
+              isCardStyleInstructor && entry.is_instructor_available && 'bg-purple-100 border-purple-300',
               isCardStyleRemolcador && entry.is_tow_pilot_available && !isCardStyleInstructor && 'bg-sky-100 border-sky-300'
             )}
           >
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-4">
                <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-xl flex items-center flex-wrap">
-                    <Clock className="h-5 w-5 mr-2 text-primary shrink-0" />
-                    {showAvailableSinceText ? (
-                      <span className="mr-1">Disponible desde: {displayTime} - {getPilotName(entry.pilot_id)}</span>
-                    ) : (
-                      <span className="mr-1">{getPilotName(entry.pilot_id)}</span>
-                    )}
+                    <span className="mr-1">{getPilotName(entry.pilot_id)}</span>
                     {expiringBadge}
                   </CardTitle>
                   {expiredBlock}
@@ -195,37 +143,16 @@ export function ScheduleDisplay({ entries, onEdit, onDelete, onRegisterFlight }:
                         </Button>
                         </>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => onRegisterFlight(entry)} className="hover:text-green-600" title="Registrar Vuelo Realizado">
-                        <ClipboardPlus className="h-4 w-4" />
-                        <span className="sr-only">Registrar Vuelo Realizado</span>
-                    </Button>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-1 pt-2 pb-4">
-              {entry.aircraft_id && (
+             <CardContent className="text-sm text-muted-foreground space-y-2 pt-0 pb-4">
+              {(isTurnByCategoryRemolcador || isTurnByCategoryInstructor) && (
                 <div className="flex items-center">
-                  <Plane className="h-4 w-4 mr-2" /> Aeronave: {getAircraftName(entry.aircraft_id)}
-                </div>
-              )}
-              {isTurnByCategoryRemolcador && ( 
-                <div className="flex items-center">
-                  {entry.is_tow_pilot_available ?
+                  {entry.is_tow_pilot_available || entry.is_instructor_available ?
                     <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> :
                     <XCircle className="h-4 w-4 mr-2 text-red-500" />}
-                  Remolcador: {entry.is_tow_pilot_available ? 'Disponible' : 'No Disponible'}
-                </div>
-              )}
-               {isTurnByCategoryInstructor && ( 
-                <div className="flex items-center">
-                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                  Instructor: Disponible
-                </div>
-              )}
-              {sportConflictMessage && (
-                <div className="mt-2 text-xs font-medium text-orange-700 bg-orange-100 p-2 rounded-md inline-flex items-center border border-orange-300 shadow-sm">
-                  <AlertTriangle className="h-4 w-4 mr-2 text-orange-600" />
-                  {sportConflictMessage}
+                  {isTurnByCategoryRemolcador ? 'Remolcador' : 'Instructor'}: {entry.is_tow_pilot_available || entry.is_instructor_available ? 'Disponible' : 'No Disponible'}
                 </div>
               )}
             </CardContent>

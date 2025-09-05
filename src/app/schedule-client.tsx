@@ -38,10 +38,6 @@ const normalizeCategoryName = (name?: string): string => {
   return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
 
-// Keywords for flexible matching in sorting/logic
-const INSTRUCTOR_AVION_KEYWORDS = ["instructor", "avion"];
-const INSTRUCTOR_PLANEADOR_KEYWORDS = ["instructor", "planeador"];
-
 // Exact normalized names for warning checks
 const NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME = "instructor avion";
 const NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME = "instructor planeador";
@@ -50,45 +46,22 @@ const NORMALIZED_REMOLCADOR_CATEGORY_NAME = "remolcador";
 
 function getSortPriority(
   entry: ScheduleEntry,
-  categories: PilotCategory[],
-  aircraftList: Aircraft[]
+  categories: PilotCategory[]
 ): number {
   const entryCategoryDetails = categories.find(c => c.id === entry.pilot_category_id);
   const normalizedEntryCategoryName = normalizeCategoryName(entryCategoryDetails?.name);
-  const flightTypeId = entry.flight_type_id;
-  const aircraftDetails = aircraftList.find(a => a.id === entry.aircraft_id);
-  const aircraftType = aircraftDetails?.type;
-
-  // Prioridad 1: Remolcadores
+  
   if (normalizedEntryCategoryName === NORMALIZED_REMOLCADOR_CATEGORY_NAME) {
-    return entry.is_tow_pilot_available ? 1.1 : 1.2; // Disponibles primero
+    return entry.is_tow_pilot_available ? 1 : 2; // Disponibles primero
   }
-
-  // Prioridad 2: Instructores
+  
   const isInstructor = normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME ||
                        normalizedEntryCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME;
   if (isInstructor) {
-    return 2;
-  }
-  
-  // Prioridades para Pilotos
-  if (flightTypeId === 'instruction_taken') {
-    if (aircraftType === 'Glider') return 3; // 3. Pilotos de planeador en instrucción
-    if (aircraftType === 'Tow Plane' || aircraftType === 'Avión') return 4; // 4. Pilotos de avión en instrucción
-    return 4; // Default para instrucción
+    return entry.is_instructor_available ? 3 : 4;
   }
 
-  if (aircraftType === 'Glider') {
-    if (flightTypeId === 'sport') return 5; // 5. Pilotos de planeador en vuelo deportivo
-    if (flightTypeId === 'local') return 6; // 6. Pilotos de planeador en vuelo local
-  }
-
-  if (aircraftType === 'Tow Plane' || aircraftType === 'Avión') {
-    if (flightTypeId === 'sport') return 7; // 7. Pilotos de avión en travesía (usando 'sport')
-    if (flightTypeId === 'local') return 8; // 8. Pilotos de avión en vuelo local
-  }
-
-  return 99; // Default para otros casos
+  return 5; // General pilots
 }
 
 
@@ -300,14 +273,15 @@ export function ScheduleClient() {
     setEntryToDelete(null);
   };
 
-  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'> | Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
+  const handleSubmitForm = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => {
     setEditingEntry(undefined);
     setIsFormOpen(false);
 
+    // This handles both single object and array. We always work with an array internally now.
     const entries = Array.isArray(entryData) ? entryData : [entryData];
 
-    if (entryId && !Array.isArray(entryData)) { // Editing a single entry
-        await updateScheduleEntry({ ...entryData, id: entryId });
+    if (entryId && entries.length === 1) { // Editing a single entry
+        await updateScheduleEntry({ ...entries[0], id: entryId });
         toast({ title: "Turno Actualizado", description: "El turno ha sido actualizado." });
     } else { // Adding new entries
         const entriesToAdd: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
@@ -331,25 +305,23 @@ export function ScheduleClient() {
             toast({ title: "Sin cambios", description: "Todos los turnos seleccionados ya existían en la agenda.", variant: "default" });
         }
     }
-}, [addScheduleEntry, updateScheduleEntry, toast, scheduleEntries]);
+  }, [addScheduleEntry, updateScheduleEntry, toast, scheduleEntries]);
 
   const filteredAndSortedEntries = useMemo(() => {
-    if (!selectedDate || !scheduleEntries || categoriesLoading || aircraftLoading || !pilots?.length || !categories?.length || !aircraft?.length) {
+    if (!selectedDate || !scheduleEntries || categoriesLoading || !pilots?.length || !categories?.length) {
       return [];
     }
 
     return [...scheduleEntries].sort((a, b) => {
-      const priorityA = getSortPriority(a, categories, aircraft);
-      const priorityB = getSortPriority(b, categories, aircraft);
+      const priorityA = getSortPriority(a, categories);
+      const priorityB = getSortPriority(b, categories);
 
       if (priorityA !== priorityB) {
         return priorityA - priorityB;
       }
-      
-      // Secondary sort by time if priorities are equal
       return a.start_time.localeCompare(b.start_time);
     });
-  }, [selectedDate, scheduleEntries, categories, categoriesLoading, aircraft, aircraftLoading, pilots]);
+  }, [selectedDate, scheduleEntries, categories, categoriesLoading, pilots]);
 
 
   const handleRefreshAll = useCallback(() => {
@@ -387,7 +359,7 @@ export function ScheduleClient() {
     if (!avionInstructorCategory) {
       return true;
     }
-    return scheduleEntries.some(entry => entry.pilot_category_id === avionInstructorCategory.id);
+    return scheduleEntries.some(entry => entry.pilot_category_id === avionInstructorCategory.id && entry.is_instructor_available);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
   // Check if "Instructor Planeador" category exists
@@ -405,7 +377,7 @@ export function ScheduleClient() {
     if (!planeadorInstructorCategory) {
       return true;
     }
-    return scheduleEntries.some(entry => entry.pilot_category_id === planeadorInstructorCategory.id);
+    return scheduleEntries.some(entry => entry.pilot_category_id === planeadorInstructorCategory.id && entry.is_instructor_available);
   }, [scheduleEntries, categories, anyLoading, selectedDate]);
 
   // Check if "Remolcador" category exists and is confirmed
@@ -443,7 +415,7 @@ export function ScheduleClient() {
         queryParams.set('aircraft_id', entry.aircraft_id);
     }
 
-
+    // Logic based on aircraft type first
     if (aircraftUsed) {
         if (aircraftUsed.type === 'Glider') {
             flightTypeForLogbook = 'glider';
@@ -452,18 +424,19 @@ export function ScheduleClient() {
             flightTypeForLogbook = 'engine';
             targetPath = '/logbook/engine/new';
         }
-    } else {
+    } 
+    // Fallback logic if no aircraft is selected in the schedule
+    else {
         const pilotCategoryForTurn = categories.find(cat => cat.id === entry.pilot_category_id);
         const normalizedCategoryName = normalizeCategoryName(pilotCategoryForTurn?.name);
         
-        const isCurrentTurnAvionInstructor = INSTRUCTOR_AVION_KEYWORDS.every(kw => normalizedCategoryName.includes(kw));
-        const isCurrentTurnPlaneadorInstructor = INSTRUCTOR_PLANEADOR_KEYWORDS.every(kw => normalizedCategoryName.includes(kw));
-
-
-        if (normalizedCategoryName.includes('planeador') || entry.flight_type_id === 'sport' || entry.flight_type_id === 'instruction_taken' || (entry.flight_type_id === 'instruction_given' && isCurrentTurnPlaneadorInstructor) ) {
+        const isCurrentTurnAvionInstructor = normalizedCategoryName === NORMALIZED_INSTRUCTOR_AVION_CATEGORY_NAME;
+        const isCurrentTurnPlaneadorInstructor = normalizedCategoryName === NORMALIZED_INSTRUCTOR_PLANEADOR_CATEGORY_NAME;
+        
+        if (normalizedCategoryName.includes('planeador') || isCurrentTurnPlaneadorInstructor) {
             flightTypeForLogbook = 'glider';
             targetPath = '/logbook/glider/new';
-        } else if (entry.flight_type_id === 'towage' || normalizedCategoryName.includes('remolcador') || normalizedCategoryName.includes('avion') || (entry.flight_type_id === 'instruction_given' && isCurrentTurnAvionInstructor)) {
+        } else if (normalizedCategoryName.includes('remolcador') || normalizedCategoryName.includes('avion') || isCurrentTurnAvionInstructor) {
             flightTypeForLogbook = 'engine';
             targetPath = '/logbook/engine/new';
         }
@@ -474,8 +447,9 @@ export function ScheduleClient() {
     } else {
         toast({
             title: "Tipo de Vuelo Ambiguo",
-            description: "No se pudo determinar el tipo de vuelo para registrar. Revise los datos del turno o registre manualmente.",
+            description: "No se pudo determinar el tipo de vuelo para registrar. Edite el turno para seleccionar una aeronave o registre el vuelo manualmente desde el Libro de Vuelo.",
             variant: "destructive",
+            duration: 8000
         });
     }
   };
@@ -692,7 +666,7 @@ export function ScheduleClient() {
         pilots={pilots}
         categories={categories}
         aircraft={aircraft}
-        selectedDate={selectedDate}
+        selectedDate={selectedDate!}
         existingEntries={scheduleEntries}
       />
       <DeleteDialog
