@@ -303,48 +303,6 @@ export function AvailabilityForm({
   }, [pilots, pilotSearchTerm]);
 
   const disablePilotSelection = !entry && !!currentUserLinkedPilotId && !currentUser?.is_admin;
-  
-  const AircraftSelectionComponent = () => {
-    if (availableAircraftForSelection.length === 0) return null;
-    
-    return (
-        <FormField
-            control={form.control}
-            name="aircraft_selections"
-            render={() => (
-                <FormItem>
-                    <FormLabel>Asignación de Aeronaves</FormLabel>
-                    <FormDescription>
-                        Marca las aeronaves específicas que utilizarás.
-                    </FormDescription>
-                     {availableAircraftForSelection.map(ac => (
-                        <FormField
-                            key={ac.id}
-                            control={form.control}
-                            name={`aircraft_selections.${ac.id}`}
-                            render={({ field }) => (
-                                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 mt-2">
-                                    <FormControl>
-                                        <Checkbox
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                        disabled={!!entry && entry.aircraft_id !== ac.id}
-                                        />
-                                    </FormControl>
-                                    <div className="space-y-1 leading-none">
-                                        <FormLabel className="font-normal">{ac.name} ({ac.type})</FormLabel>
-                                    </div>
-                                </FormItem>
-                            )}
-                        />
-                    ))}
-                    <FormMessage />
-                </FormItem>
-            )}
-        />
-    );
-  };
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -477,7 +435,42 @@ export function AvailabilityForm({
                 />
             )}
             
-            <AircraftSelectionComponent />
+            {availableAircraftForSelection.length > 0 && (
+              <FormField
+                  control={form.control}
+                  name="aircraft_selections"
+                  render={() => (
+                      <FormItem>
+                          <FormLabel>Asignación de Aeronaves</FormLabel>
+                          <FormDescription>
+                              Marca las aeronaves específicas que utilizarás.
+                          </FormDescription>
+                          {availableAircraftForSelection.map(ac => (
+                              <FormField
+                                  key={ac.id}
+                                  control={form.control}
+                                  name={`aircraft_selections.${ac.id}`}
+                                  render={({ field }) => (
+                                      <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 mt-2">
+                                          <FormControl>
+                                              <Checkbox
+                                              checked={field.value}
+                                              onCheckedChange={field.onChange}
+                                              disabled={!!entry && entry.aircraft_id !== ac.id}
+                                              />
+                                          </FormControl>
+                                          <div className="space-y-1 leading-none">
+                                              <FormLabel className="font-normal">{ac.name} ({ac.type})</FormLabel>
+                                          </div>
+                                      </FormItem>
+                                  )}
+                              />
+                          ))}
+                          <FormMessage />
+                      </FormItem>
+                  )}
+              />
+            )}
 
 
             {isAnyRemolcadorCategorySelected && (
