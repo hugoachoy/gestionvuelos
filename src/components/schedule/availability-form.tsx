@@ -194,15 +194,16 @@ export function AvailabilityForm({
     const entriesToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'>[] = selectedCategoryIds.map(catId => {
       const categoryDetails = categories.find(c => c.id === catId);
       const isRemolcador = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_REMOLCADOR;
-
+      const isInstructor = normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_AVION || normalizeCategoryName(categoryDetails?.name) === NORMALIZED_INSTRUCTOR_PLANEADOR;
+      
       return {
           date: format(data.date, 'yyyy-MM-dd'),
           pilot_id: data.pilot_id,
           pilot_category_id: catId,
           start_time: data.start_time,
-          flight_type_id: 'local', // Hardcoded
+          flight_type_id: isInstructor ? 'instruction_given' : 'local',
           aircraft_id: null, // Hardcoded
-          is_tow_pilot_available: isRemolcador,
+          is_tow_pilot_available: isRemolcador && data.is_tow_pilot_available,
           auth_user_id: authUserIdToSet
       };
     });
@@ -352,6 +353,23 @@ export function AvailabilityForm({
                         </FormItem>
                     )}
                 />
+            )}
+            
+            {isAnyRemolcadorCategorySelected && (
+              <FormField
+                control={form.control}
+                name="is_tow_pilot_available"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm mt-2">
+                    <div className="space-y-0.5">
+                      <FormLabel>¿Disponible como Remolcador?</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             )}
 
             <DialogFooter className="pt-4">
