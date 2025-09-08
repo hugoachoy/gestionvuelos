@@ -43,6 +43,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { FLIGHT_TYPES } from '@/types';
 
 // Schema now handles multiple selections via arrays of objects
 const availabilitySchema = z.object({
@@ -51,9 +52,13 @@ const availabilitySchema = z.object({
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
   category_selections: z.array(z.object({
     categoryId: z.string(),
-    aircraftIds: z.array(z.string()).min(1, "Debe seleccionar al menos una aeronave por categoría."),
-  })).min(1, "Debe seleccionar al menos una categoría y una aeronave."),
+    aircraftIds: z.array(z.string()),
+  })).min(1, "Debe seleccionar al menos una categoría.")
+   .refine(selections => selections.every(sel => sel.aircraftIds.length > 0), {
+    message: "Debe seleccionar al menos una aeronave para cada categoría marcada."
+  }),
 });
+
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
 
@@ -146,13 +151,23 @@ export function AvailabilityForm({
     
     data.category_selections.forEach(selection => {
       selection.aircraftIds.forEach(aircraftId => {
+        
+        const selectedCategory = categories.find(c => c.id === selection.categoryId);
+        const normalizedCategoryName = normalizeCategoryName(selectedCategory?.name);
+        let flightTypeId: string = 'local';
+        if (normalizedCategoryName.includes('instructor')) {
+            flightTypeId = 'instruction_given';
+        } else if (normalizedCategoryName.includes('remolcador')) {
+            flightTypeId = 'towage';
+        }
+
         entriesToCreate.push({
           date: format(data.date, 'yyyy-MM-dd'),
           start_time: data.start_time,
           pilot_id: data.pilot_id,
           pilot_category_id: selection.categoryId,
           aircraft_id: aircraftId,
-          flight_type_id: 'local', // Default, can be refined later
+          flight_type_id: flightTypeId, 
           auth_user_id: entry?.auth_user_id || currentUser?.id || null,
         });
       });
@@ -174,33 +189,6 @@ export function AvailabilityForm({
       }
     }
   };
-  
-  const availableAircraftForSelection = useMemo(() => {
-    if (watchedCategorySelections.length === 0) return [];
-    
-    const selectedCategoryIds = new Set(watchedCategorySelections.map(sel => sel.categoryId));
-    const relevantTypes = new Set<Aircraft['type']>();
-
-    categories.forEach(category => {
-        if (selectedCategoryIds.has(category.id)) {
-            const normalizedName = normalizeCategoryName(category.name);
-            if (normalizedName.includes('planeador')) {
-                relevantTypes.add('Glider');
-            }
-            if (normalizedName.includes('avion')) {
-                relevantTypes.add('Avión');
-                // An instructor de avion can also be a tow pilot
-                relevantTypes.add('Tow Plane');
-            }
-            if (normalizedName.includes('remolcador')) {
-                relevantTypes.add('Tow Plane');
-            }
-        }
-    });
-
-    return aircraft.filter(ac => relevantTypes.has(ac.type) && !ac.is_out_of_service);
-  }, [watchedCategorySelections, categories, aircraft]);
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -260,7 +248,7 @@ export function AvailabilityForm({
               />
             )}
             
-            {watchedCategorySelections.length > 0 && availableAircraftForSelection.length > 0 && (
+            {watchedCategorySelections.length > 0 && (
                <FormField
                   control={form.control}
                   name="category_selections"
@@ -274,7 +262,6 @@ export function AvailabilityForm({
 
                             const normalizedCatName = normalizeCategoryName(category.name);
                             const aircraftForThisCategory = aircraft.filter(ac => {
-                                if (ac.is_out_of_service) return false;
                                 if (normalizedCatName.includes('planeador')) return ac.type === 'Glider';
                                 if (normalizedCatName.includes('remolcador')) return ac.type === 'Tow Plane';
                                 if (normalizedCatName.includes('avion')) return ac.type === 'Avión' || ac.type === 'Tow Plane';
@@ -295,16 +282,20 @@ export function AvailabilityForm({
                                             <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                                                 <FormControl>
                                                     <Checkbox
-                                                    checked={field.value.includes(ac.id)}
-                                                    onCheckedChange={(checked) => {
-                                                        const newAircraftIds = checked
-                                                        ? [...field.value, ac.id]
-                                                        : field.value.filter(id => id !== ac.id);
-                                                        field.onChange(newAircraftIds);
-                                                    }}
+                                                        checked={field.value.includes(ac.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            const newAircraftIds = checked
+                                                            ? [...field.value, ac.id]
+                                                            : field.value.filter(id => id !== ac.id);
+                                                            field.onChange(newAircraftIds);
+                                                        }}
+                                                        disabled={ac.is_out_of_service}
                                                     />
                                                 </FormControl>
-                                                <FormLabel className="font-normal">{ac.name}</FormLabel>
+                                                <FormLabel className={cn("font-normal", ac.is_out_of_service && "text-muted-foreground line-through")}>
+                                                    {ac.name}
+                                                    {ac.is_out_of_service && <span className="text-xs"> (Fuera de servicio)</span>}
+                                                </FormLabel>
                                             </FormItem>
                                             )}
                                         />
