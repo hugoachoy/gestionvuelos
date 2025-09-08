@@ -43,7 +43,6 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { FLIGHT_TYPES } from '@/types';
 
 // Schema now handles multiple selections via arrays of objects
 const availabilitySchema = z.object({
@@ -159,9 +158,6 @@ export function AvailabilityForm({
       });
     });
     
-    // While the form now supports multiple additions, the onSubmit prop from parent only takes one.
-    // We pass an array now. The parent component `schedule-client` must be updated to handle this.
-    // For now, let's assume it can.
     onSubmit(entriesToCreate, entry?.id);
     onOpenChange(false);
   };
@@ -179,7 +175,7 @@ export function AvailabilityForm({
     }
   };
   
-    const availableAircraftForSelection = useMemo(() => {
+  const availableAircraftForSelection = useMemo(() => {
     if (watchedCategorySelections.length === 0) return [];
     
     const selectedCategoryIds = new Set(watchedCategorySelections.map(sel => sel.categoryId));
@@ -188,12 +184,17 @@ export function AvailabilityForm({
     categories.forEach(category => {
         if (selectedCategoryIds.has(category.id)) {
             const normalizedName = normalizeCategoryName(category.name);
-            if (normalizedName.includes('planeador')) relevantTypes.add('Glider');
+            if (normalizedName.includes('planeador')) {
+                relevantTypes.add('Glider');
+            }
             if (normalizedName.includes('avion')) {
                 relevantTypes.add('Avión');
+                // An instructor de avion can also be a tow pilot
                 relevantTypes.add('Tow Plane');
             }
-            if (normalizedName.includes('remolcador')) relevantTypes.add('Tow Plane');
+            if (normalizedName.includes('remolcador')) {
+                relevantTypes.add('Tow Plane');
+            }
         }
     });
 
@@ -269,34 +270,49 @@ export function AvailabilityForm({
                        <div className="space-y-2">
                         {watchedCategorySelections.map((selection, index) => {
                            const category = categories.find(c => c.id === selection.categoryId);
+                           if (!category) return null;
+
+                            const normalizedCatName = normalizeCategoryName(category.name);
+                            const aircraftForThisCategory = aircraft.filter(ac => {
+                                if (ac.is_out_of_service) return false;
+                                if (normalizedCatName.includes('planeador')) return ac.type === 'Glider';
+                                if (normalizedCatName.includes('remolcador')) return ac.type === 'Tow Plane';
+                                if (normalizedCatName.includes('avion')) return ac.type === 'Avión' || ac.type === 'Tow Plane';
+                                return false;
+                            });
+
                            return (
                             <div key={selection.categoryId} className="p-3 border rounded-md">
                                 <p className="font-semibold text-sm mb-2">{category?.name}</p>
-                                <div className="space-y-1">
-                                {availableAircraftForSelection.map(ac => (
-                                    <Controller
-                                        key={ac.id}
-                                        name={`category_selections.${index}.aircraftIds`}
-                                        control={form.control}
-                                        render={({ field }) => (
-                                         <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                            <FormControl>
-                                                <Checkbox
-                                                checked={field.value.includes(ac.id)}
-                                                onCheckedChange={(checked) => {
-                                                    const newAircraftIds = checked
-                                                    ? [...field.value, ac.id]
-                                                    : field.value.filter(id => id !== ac.id);
-                                                    field.onChange(newAircraftIds);
-                                                }}
-                                                />
-                                            </FormControl>
-                                            <FormLabel className="font-normal">{ac.name}</FormLabel>
-                                         </FormItem>
-                                        )}
-                                    />
-                                ))}
-                                </div>
+                                {aircraftForThisCategory.length > 0 ? (
+                                    <div className="space-y-1">
+                                    {aircraftForThisCategory.map(ac => (
+                                        <Controller
+                                            key={ac.id}
+                                            name={`category_selections.${index}.aircraftIds`}
+                                            control={form.control}
+                                            render={({ field }) => (
+                                            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <Checkbox
+                                                    checked={field.value.includes(ac.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        const newAircraftIds = checked
+                                                        ? [...field.value, ac.id]
+                                                        : field.value.filter(id => id !== ac.id);
+                                                        field.onChange(newAircraftIds);
+                                                    }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">{ac.name}</FormLabel>
+                                            </FormItem>
+                                            )}
+                                        />
+                                    ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">No hay aeronaves disponibles para esta categoría.</p>
+                                )}
                             </div>
                            )
                         })}
