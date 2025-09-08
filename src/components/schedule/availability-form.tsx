@@ -39,7 +39,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isBefore, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -133,6 +133,7 @@ export function AvailabilityForm({
 
   const watchedPilotId = form.watch('pilot_id');
   const watchedCategorySelections = form.watch('category_selections');
+  const watchedDate = form.watch('date');
 
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
   
@@ -145,6 +146,24 @@ export function AvailabilityForm({
   useEffect(() => {
     form.setValue('category_selections', []);
   }, [watchedPilotId, form]);
+
+  const availableAircraftForSelection = useMemo(() => {
+    const relevantAircraftTypes = new Set<string>();
+    
+    watchedCategorySelections.forEach(selection => {
+        const category = categories.find(c => c.id === selection.categoryId);
+        if (category) {
+            const normalizedCatName = normalizeCategoryName(category.name);
+            if (normalizedCatName.includes('planeador')) relevantAircraftTypes.add('Glider');
+            if (normalizedCatName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
+            if (normalizedCatName.includes('avion')) relevantAircraftTypes.add('Avión');
+        }
+    });
+
+    if (relevantAircraftTypes.size === 0) return [];
+    
+    return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
+  }, [watchedCategorySelections, categories, aircraft]);
 
   const handleSubmit = (data: AvailabilityFormData) => {
     const entriesToCreate: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
@@ -248,7 +267,7 @@ export function AvailabilityForm({
               />
             )}
             
-            {watchedCategorySelections.length > 0 && (
+            {watchedCategorySelections.length > 0 && availableAircraftForSelection.length > 0 && (
                <FormField
                   control={form.control}
                   name="category_selections"
@@ -262,9 +281,10 @@ export function AvailabilityForm({
 
                             const normalizedCatName = normalizeCategoryName(category.name);
                             const aircraftForThisCategory = aircraft.filter(ac => {
-                                if (normalizedCatName.includes('planeador')) return ac.type === 'Glider';
-                                if (normalizedCatName.includes('remolcador')) return ac.type === 'Tow Plane';
-                                if (normalizedCatName.includes('avion')) return ac.type === 'Avión' || ac.type === 'Tow Plane';
+                                const type = ac.type;
+                                if (normalizedCatName.includes('planeador')) return type === 'Glider';
+                                if (normalizedCatName.includes('remolcador')) return type === 'Tow Plane';
+                                if (normalizedCatName.includes('avion')) return type === 'Avión' || type === 'Tow Plane';
                                 return false;
                             });
 
@@ -273,33 +293,40 @@ export function AvailabilityForm({
                                 <p className="font-semibold text-sm mb-2">{category?.name}</p>
                                 {aircraftForThisCategory.length > 0 ? (
                                     <div className="space-y-1">
-                                    {aircraftForThisCategory.map(ac => (
-                                        <Controller
-                                            key={ac.id}
-                                            name={`category_selections.${index}.aircraftIds`}
-                                            control={form.control}
-                                            render={({ field }) => (
-                                            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value.includes(ac.id)}
-                                                        onCheckedChange={(checked) => {
-                                                            const newAircraftIds = checked
-                                                            ? [...field.value, ac.id]
-                                                            : field.value.filter(id => id !== ac.id);
-                                                            field.onChange(newAircraftIds);
-                                                        }}
-                                                        disabled={ac.is_out_of_service}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className={cn("font-normal", ac.is_out_of_service && "text-muted-foreground line-through")}>
-                                                    {ac.name}
-                                                    {ac.is_out_of_service && <span className="text-xs"> (Fuera de servicio)</span>}
-                                                </FormLabel>
-                                            </FormItem>
-                                            )}
-                                        />
-                                    ))}
+                                    {aircraftForThisCategory.map(ac => {
+                                        const flightDateStart = watchedDate ? startOfDay(watchedDate) : startOfDay(new Date());
+                                        const isInsuranceExpiredOnFlightDate = ac.insurance_expiry_date && isValid(parseISO(ac.insurance_expiry_date)) && isBefore(parseISO(ac.insurance_expiry_date), flightDateStart);
+                                        const isAnnualExpiredOnFlightDate = ac.annual_review_date && isValid(parseISO(ac.annual_review_date)) && isBefore(parseISO(ac.annual_review_date), flightDateStart);
+                                        const isEffectivelyOutOfService = ac.is_out_of_service || isInsuranceExpiredOnFlightDate || isAnnualExpiredOnFlightDate;
+
+                                        return (
+                                            <Controller
+                                                key={ac.id}
+                                                name={`category_selections.${index}.aircraftIds`}
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value.includes(ac.id)}
+                                                            onCheckedChange={(checked) => {
+                                                                const newAircraftIds = checked
+                                                                ? [...field.value, ac.id]
+                                                                : field.value.filter(id => id !== ac.id);
+                                                                field.onChange(newAircraftIds);
+                                                            }}
+                                                            disabled={isEffectivelyOutOfService}
+                                                        />
+                                                    </FormControl>
+                                                    <FormLabel className={cn("font-normal", isEffectivelyOutOfService && "text-muted-foreground line-through")}>
+                                                        {ac.name}
+                                                        {isEffectivelyOutOfService && <span className="text-xs"> (Fuera de servicio)</span>}
+                                                    </FormLabel>
+                                                </FormItem>
+                                                )}
+                                            />
+                                        )
+                                    })}
                                     </div>
                                 ) : (
                                     <p className="text-xs text-muted-foreground">No hay aeronaves disponibles para esta categoría.</p>
