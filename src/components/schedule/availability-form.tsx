@@ -53,8 +53,12 @@ const availabilitySchema = z.object({
   category_selections: z.array(z.object({
     categoryId: z.string(),
     aircraftIds: z.array(z.string()),
+    is_tow_pilot_available: z.boolean().optional(),
   })).min(1, "Debe seleccionar al menos una categoría.")
-   .refine(selections => selections.every(sel => sel.aircraftIds.length > 0), {
+   .refine(selections => {
+    // Every selected category must have at least one aircraft selected
+    return selections.every(sel => sel.aircraftIds.length > 0);
+  }, {
     message: "Debe seleccionar al menos una aeronave para cada categoría marcada."
   }),
 });
@@ -76,6 +80,8 @@ interface AvailabilityFormProps {
 const normalizeCategoryName = (name?: string): string => {
   return name?.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
 };
+
+const NORMALIZED_REMOLCADOR = "remolcador";
 
 export function AvailabilityForm({
   open,
@@ -119,6 +125,7 @@ export function AvailabilityForm({
             category_selections: [{
               categoryId: entry.pilot_category_id,
               aircraftIds: entry.aircraft_id ? [entry.aircraft_id] : [],
+              is_tow_pilot_available: entry.is_tow_pilot_available,
             }],
           }
         : {
@@ -147,24 +154,6 @@ export function AvailabilityForm({
     form.setValue('category_selections', []);
   }, [watchedPilotId, form]);
 
-  const availableAircraftForSelection = useMemo(() => {
-    const relevantAircraftTypes = new Set<string>();
-    
-    watchedCategorySelections.forEach(selection => {
-        const category = categories.find(c => c.id === selection.categoryId);
-        if (category) {
-            const normalizedCatName = normalizeCategoryName(category.name);
-            if (normalizedCatName.includes('planeador')) relevantAircraftTypes.add('Glider');
-            if (normalizedCatName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
-            if (normalizedCatName.includes('avion')) relevantAircraftTypes.add('Avión');
-        }
-    });
-
-    if (relevantAircraftTypes.size === 0) return [];
-    
-    return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
-  }, [watchedCategorySelections, categories, aircraft]);
-
   const handleSubmit = (data: AvailabilityFormData) => {
     const entriesToCreate: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
     
@@ -187,6 +176,7 @@ export function AvailabilityForm({
           pilot_category_id: selection.categoryId,
           aircraft_id: aircraftId,
           flight_type_id: flightTypeId, 
+          is_tow_pilot_available: selection.is_tow_pilot_available ?? false,
           auth_user_id: entry?.auth_user_id || currentUser?.id || null,
         });
       });
@@ -233,33 +223,58 @@ export function AvailabilityForm({
                   <FormItem>
                     <FormLabel>Categorías para el Turno</FormLabel>
                     <div className="space-y-2">
-                      {pilotCategoriesForSelectedPilot.map(category => (
+                      {pilotCategoriesForSelectedPilot.map(category => {
+                        const isRemolcador = normalizeCategoryName(category.name) === NORMALIZED_REMOLCADOR;
+                        return (
                         <Controller
                           key={category.id}
                           name="category_selections"
                           control={form.control}
                           render={({ field }) => {
-                            const isSelected = field.value.some(sel => sel.categoryId === category.id);
+                            const selectionIndex = field.value.findIndex(sel => sel.categoryId === category.id);
+                            const isSelected = selectionIndex > -1;
+
                             return (
-                              <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={isSelected}
-                                    onCheckedChange={(checked) => {
-                                      const currentSelections = field.value;
-                                      const newSelections = checked
-                                        ? [...currentSelections, { categoryId: category.id, aircraftIds: [] }]
-                                        : currentSelections.filter(sel => sel.categoryId !== category.id);
-                                      field.onChange(newSelections);
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="font-normal flex-1 cursor-pointer">{category.name}</FormLabel>
-                              </FormItem>
+                              <div className="rounded-md border p-3">
+                                <div className="flex flex-row items-center space-x-3">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        const currentSelections = field.value;
+                                        const newSelections = checked
+                                          ? [...currentSelections, { categoryId: category.id, aircraftIds: [], is_tow_pilot_available: isRemolcador }]
+                                          : currentSelections.filter(sel => sel.categoryId !== category.id);
+                                        field.onChange(newSelections);
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-medium text-base flex-1 cursor-pointer">{category.name}</FormLabel>
+                                </div>
+                                {isSelected && isRemolcador && (
+                                  <div className="mt-2 pl-6">
+                                    <Controller
+                                      name={`category_selections.${selectionIndex}.is_tow_pilot_available`}
+                                      control={form.control}
+                                      render={({ field: towField }) => (
+                                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                          <FormControl>
+                                              <Checkbox
+                                                checked={towField.value}
+                                                onCheckedChange={towField.onChange}
+                                              />
+                                          </FormControl>
+                                           <FormLabel className="text-sm font-normal">Confirmar disponibilidad como Remolcador</FormLabel>
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             );
                           }}
                         />
-                      ))}
+                      )})}
                     </div>
                     <FormMessage />
                   </FormItem>
@@ -267,7 +282,7 @@ export function AvailabilityForm({
               />
             )}
             
-            {watchedCategorySelections.length > 0 && availableAircraftForSelection.length > 0 && (
+            {watchedCategorySelections.length > 0 && (
                <FormField
                   control={form.control}
                   name="category_selections"

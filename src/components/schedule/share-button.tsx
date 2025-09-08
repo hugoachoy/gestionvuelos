@@ -348,9 +348,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           const formatted = getFormattedEntry(entry, allPilots, entriesForDay);
           
           let flightTypeString = formatted.flightType;
-          if (formatted.shouldFlightTypeBeBoldForInstructorOrTow) {
-            flightTypeString = `*${formatted.flightType}*`; 
-          } else if (formatted.isSportFlight) {
+          if (formatted.shouldFlightTypeBeBoldForInstructorOrTow || formatted.isSportFlight) {
             flightTypeString = `*${formatted.flightType}*`;
           }
 
