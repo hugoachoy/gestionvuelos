@@ -202,7 +202,7 @@ export function AvailabilityForm({
       const hours = value.substring(0, 2);
       const minutes = value.substring(2, 4);
       if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
-        form.setValue('start_time', `${'hours'}:${'minutes'}`, { shouldValidate: true });
+        form.setValue('start_time', `${hours}:${minutes}`, { shouldValidate: true });
       }
     }
   };
@@ -229,17 +229,16 @@ export function AvailabilityForm({
             )}/>
             {watchedPilotId && (<>
                 <FormField control={form.control} name="pilot_category_id" render={({ field }) => (
-                    <FormItem><FormLabel>Categoría para el Turno</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl>
+                    <FormItem><FormLabel>Categoría para el Turno</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl>
                         <SelectTrigger><SelectValue placeholder="Seleccionar categoría" /></SelectTrigger>
                     </FormControl><SelectContent>
                         {pilotCategoriesForSelectedPilot.map(cat => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}
                     </SelectContent></Select><FormMessage /></FormItem>
                 )}/>
                 {availableAircraft.length > 0 && (<FormField control={form.control} name="aircraft_id" render={({ field }) => (
-                    <FormItem><FormLabel>Aeronave (Opcional)</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ''}><FormControl>
-                        <SelectTrigger><SelectValue placeholder="Seleccionar aeronave" /></SelectTrigger>
+                    <FormItem><FormLabel>Aeronave (Opcional)</FormLabel><Select onValueChange={field.onChange} value={field.value ?? undefined}><FormControl>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar aeronave (opcional)" /></SelectTrigger>
                     </FormControl><SelectContent>
-                        <SelectItem value="">Ninguna específica</SelectItem>
                         {availableAircraft.map(ac => (<SelectItem key={ac.id} value={ac.id}>{ac.name}</SelectItem>))}
                     </SelectContent></Select><FormMessage /></FormItem>
                 )}/>)}
