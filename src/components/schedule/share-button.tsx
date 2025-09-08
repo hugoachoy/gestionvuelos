@@ -349,7 +349,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
           
           let flightTypeString = formatted.flightType;
           if (formatted.shouldFlightTypeBeBoldForInstructorOrTow || formatted.isSportFlight) {
-            flightTypeString = `*${formatted.flightType}*`;
+            flightTypeString = `*${formatted.flightType}*`; 
           }
 
           let pilotCategoryString = formatted.category; 
@@ -403,7 +403,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     if (!data || !exportStartDate || !exportEndDate) return;
 
     let csvContent = `Agenda de Vuelo del ${format(exportStartDate, "yyyy-MM-dd", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' al ' + format(exportEndDate, "yyyy-MM-dd", { locale: es }) : ''}\n`;
-    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría (Turno)", "Disponible", "Tipo de Vuelo", "Aeronave"];
+    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría (Turno)", "Disponible", "Tipo de Vuelo", "Aeronave", "Advertencia V.D."];
     
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
     let contentAddedForPreviousDay = false;
@@ -499,6 +499,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 formatted.availableStatus,
                 `"${flightTypeCellContent.replace(/"/g, '""')}"`,
                 `"${formatted.aircraft.replace(/"/g, '""')}"`,
+                `"${formatted.sportConflictMessage.replace(/"/g, '""')}"`
               ];
               csvContent += row.join(",") + "\n";
             });
