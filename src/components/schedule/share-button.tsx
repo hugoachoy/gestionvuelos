@@ -403,7 +403,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
     if (!data || !exportStartDate || !exportEndDate) return;
 
     let csvContent = `Agenda de Vuelo del ${format(exportStartDate, "yyyy-MM-dd", { locale: es })}${exportStartDate.getTime() !== exportEndDate.getTime() ? ' al ' + format(exportEndDate, "yyyy-MM-dd", { locale: es }) : ''}\n`;
-    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría (Turno)", "Disponible", "Tipo de Vuelo", "Aeronave", "Advertencia V.D."];
+    const headers = ["Hora", "Piloto", "Advertencia Psicofísico", "Categoría (Turno)", "Disponible", "Tipo de Vuelo", "Aeronave"];
     
     const dateInterval = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
     let contentAddedForPreviousDay = false;
@@ -499,7 +499,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 formatted.availableStatus,
                 `"${flightTypeCellContent.replace(/"/g, '""')}"`,
                 `"${formatted.aircraft.replace(/"/g, '""')}"`,
-                `"${formatted.sportConflictMessage.replace(/"/g, '""')}"`
               ];
               csvContent += row.join(",") + "\n";
             });
@@ -676,7 +675,7 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
             doc.text("No hay turnos programados para esta fecha.", 14, currentY);
             currentY += 10;
         } else if (entriesForDay.length > 0) {
-            const tableColumn = ["Hora", "Piloto", "Adv. Psicof.", "Categoría (Turno)", "Disponible", "Tipo Vuelo", "Aeronave", "Adv. V.D."];
+            const tableColumn = ["Hora", "Piloto", "Adv. Psicof.", "Categoría (Turno)", "Disponible", "Tipo Vuelo", "Aeronave"];
             const tableRows: (string | { content: string; colSpan?: number; styles?: any } | null)[][] = [];
             
             let previousGroupIdentifier: string | null = null;
@@ -711,8 +710,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
               }
               const medicalCell = { content: formatted.medicalWarningText, styles: medicalCellStyles };
 
-              const sportConflictCell = { content: formatted.sportConflictMessage, styles: { textColor: [230, 126, 34], fontSize: 7 } };
-
               tableRows.push([
                   formatted.time,
                   formatted.pilot,
@@ -721,7 +718,6 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                   formatted.availableStatus,
                   flightTypeCell,
                   formatted.aircraft,
-                  sportConflictCell
               ]);
             });
             
@@ -735,12 +731,11 @@ export function ShareButton({ scheduleDate }: ShareButtonProps) {
                 columnStyles: {
                     0: { cellWidth: 15 }, 
                     1: { cellWidth: 'auto' }, 
-                    2: { cellWidth: 30 }, 
-                    3: { cellWidth: 28 }, 
+                    2: { cellWidth: 35 }, 
+                    3: { cellWidth: 35 }, 
                     4: { cellWidth: 20 }, 
-                    5: { cellWidth: 25 }, 
+                    5: { cellWidth: 30 }, 
                     6: { cellWidth: 'auto' },
-                    7: { cellWidth: 35 }, 
                 },
                 didDrawPage: (hookData) => { 
                     currentY = hookData.cursor?.y ?? currentY;
