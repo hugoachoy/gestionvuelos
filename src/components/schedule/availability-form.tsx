@@ -205,14 +205,15 @@ export function AvailabilityForm({
   }, [watchedCategorySelections, categories, aircraft]);
 
   const handleSubmit = (data: AvailabilityFormData) => {
+    const isFormInEditMode = !!entry;
     const selectedCategoryIds = data.category_selections ? Object.keys(data.category_selections).filter(id => data.category_selections![id]) : [];
     const selectedAircraftIds = data.aircraft_selections ? Object.keys(data.aircraft_selections).filter(id => data.aircraft_selections![id]) : [];
 
-    const entriesToCreate: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
     let authUserIdToSet: string | null = (entry?.auth_user_id) ?? (currentUser?.id ?? null);
     
-    if (entry) { // Editing mode
+    if (isFormInEditMode) { // Editing mode
         const dataToSubmit = {
+          ...entry,
           ...data,
           date: format(data.date, 'yyyy-MM-dd'),
           pilot_category_id: selectedCategoryIds[0], // In edit mode, we only allow one category
@@ -223,6 +224,7 @@ export function AvailabilityForm({
         onSubmit([dataToSubmit], entry.id);
 
     } else { // Creating mode
+        const entriesToCreate: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
         selectedCategoryIds.forEach(catId => {
             const flightTypeId = FLIGHT_TYPES.find(ft => ft.id === 'local')?.id ?? 'local';
             if (selectedAircraftIds.length > 0) {
