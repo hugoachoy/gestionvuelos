@@ -17,6 +17,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -154,7 +155,7 @@ export function AvailabilityForm({
       const hours = value.substring(0, 2);
       const minutes = value.substring(2, 4);
       if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
-        const formattedTime = `${hours}:${minutes}`;
+        const formattedTime = `\${hours}:\${minutes}`;
         form.setValue('start_time', formattedTime, { shouldValidate: true });
       }
     } else {
@@ -264,7 +265,7 @@ export function AvailabilityForm({
       .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
   }, [pilots, pilotSearchTerm]);
 
-  const disablePilotSelection = !entry && !!currentUserLinkedPilotId && !currentUser?.is_admin;
+  const disablePilotSelection = !currentUser?.is_admin && !!currentUserLinkedPilotId && !entry;
   const isFormInEditMode = !!entry;
 
   return (
@@ -298,7 +299,7 @@ export function AvailabilityForm({
                   <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
                     <PopoverTrigger asChild><FormControl>
                         <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")} disabled={disablePilotSelection}>
-                          {field.value && pilots.find(p => p.id === field.value) ? `${pilots.find(p => p.id === field.value)?.last_name}, ${pilots.find(p => p.id === field.value)?.first_name}` : "Seleccionar piloto"}
+                          {field.value && pilots.find(p => p.id === field.value) ? `\${pilots.find(p => p.id === field.value)?.last_name}, \${pilots.find(p => p.id === field.value)?.first_name}` : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                     </FormControl></PopoverTrigger>
@@ -307,7 +308,7 @@ export function AvailabilityForm({
                         <Command><CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} /><CommandList>
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                             <CommandGroup>{sortedAndFilteredPilots.map((pilot) => (
-                                <CommandItem value={`${pilot.last_name}, ${pilot.first_name}`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id); setPilotPopoverOpen(false); }}>
+                                <CommandItem value={`\${pilot.last_name}, \${pilot.first_name}`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id); setPilotPopoverOpen(false); }}>
                                   <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
                                   {pilot.last_name}, {pilot.first_name}
                                 </CommandItem>
@@ -345,7 +346,7 @@ export function AvailabilityForm({
                 <FormLabel>Categorías del Piloto</FormLabel>
                 <div className="rounded-md border p-2 space-y-1">
                   {pilotCategoriesForSelectedPilot.length > 0 ? pilotCategoriesForSelectedPilot.map(cat => (
-                    <FormField key={cat.id} control={form.control} name={`category_selections.${cat.id}`} render={({ field }) => (
+                    <FormField key={cat.id} control={form.control} name={`category_selections.\${cat.id}`} render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-1 rounded-md hover:bg-accent">
                           <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isFormInEditMode && !form.getValues('category_selections')?.[cat.id]} /></FormControl>
                           <FormLabel className="font-normal">{cat.name}</FormLabel>
@@ -376,7 +377,7 @@ export function AvailabilityForm({
                         const isOutOfService = ac.is_out_of_service || isExpiredOnFlightDate;
 
                         return (
-                            <FormField key={ac.id} control={form.control} name={`aircraft_selections.${ac.id}`} render={({ field }) => (
+                            <FormField key={ac.id} control={form.control} name={`aircraft_selections.\${ac.id}`} render={({ field }) => (
                                 <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-1 rounded-md hover:bg-accent">
                                     <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isOutOfService || (isFormInEditMode && !form.getValues('aircraft_selections')?.[ac.id])} /></FormControl>
                                     <FormLabel className={cn("font-normal", isOutOfService && "text-muted-foreground line-through")}>
