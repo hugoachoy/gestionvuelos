@@ -22,6 +22,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -140,6 +141,26 @@ export function AvailabilityForm({
       setPilotSearchTerm('');
     }
   }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
+
+  const handleTimeInputBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    let value = event.target.value.replace(/[^0-9]/g, '');
+    if (value.length > 4) {
+      value = value.substring(0, 4);
+    }
+    if (value.length === 3) {
+      value = '0' + value;
+    }
+    if (value.length === 4) {
+      const hours = value.substring(0, 2);
+      const minutes = value.substring(2, 4);
+      if (parseInt(hours, 10) < 24 && parseInt(minutes, 10) < 60) {
+        const formattedTime = `${hours}:${minutes}`;
+        form.setValue('start_time', formattedTime, { shouldValidate: true });
+      }
+    } else {
+        form.setValue('start_time', '00:00', { shouldValidate: true });
+    }
+  };
 
   const watchedPilotId = form.watch('pilot_id');
   const watchedCategorySelections = form.watch('category_selections');
@@ -298,6 +319,27 @@ export function AvailabilityForm({
                 </FormItem>
             )}/>
             
+            <FormField
+              control={form.control}
+              name="start_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Hora de Inicio (HHMM)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="0900" 
+                      {...field}
+                      onBlur={handleTimeInputBlur}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Formato 24hs. Ej: 0900 para 9:00 AM, 1430 para 2:30 PM.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {pilotDetails && (
               <div>
                 <FormLabel>Categorías del Piloto</FormLabel>
