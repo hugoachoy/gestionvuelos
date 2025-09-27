@@ -112,6 +112,8 @@ export function AvailabilityForm({
     }
   }, [currentUser, pilots]);
 
+  const isFormInEditMode = !!entry;
+
   useEffect(() => {
     if (open) {
       let initialPilotId = '';
@@ -189,6 +191,7 @@ export function AvailabilityForm({
   }, [showTowAvailabilityCheckbox, form]);
 
   const availableAircraftForSelection = useMemo(() => {
+    if (!categories.length || !aircraft.length) return []; // Ensure data is loaded
     const selectedCatIds = watchedCategorySelections ? Object.keys(watchedCategorySelections).filter(id => watchedCategorySelections[id]) : [];
     if (selectedCatIds.length === 0) return [];
 
@@ -205,13 +208,12 @@ export function AvailabilityForm({
   }, [watchedCategorySelections, categories, aircraft]);
 
   const handleSubmit = (data: AvailabilityFormData) => {
-    const isFormInEditMode = !!entry;
     const selectedCategoryIds = data.category_selections ? Object.keys(data.category_selections).filter(id => data.category_selections![id]) : [];
     const selectedAircraftIds = data.aircraft_selections ? Object.keys(data.aircraft_selections).filter(id => data.aircraft_selections![id]) : [];
 
     let authUserIdToSet: string | null = (entry?.auth_user_id) ?? (currentUser?.id ?? null);
     
-    if (isFormInEditMode) { // Editing mode
+    if (isFormInEditMode && entry) { // Editing mode
         const dataToSubmit = {
           date: format(data.date, 'yyyy-MM-dd'),
           start_time: data.start_time,
@@ -269,7 +271,6 @@ export function AvailabilityForm({
   }, [pilots, pilotSearchTerm]);
 
   const disablePilotSelection = !currentUser?.is_admin && !!currentUserLinkedPilotId && !entry;
-  const isFormInEditMode = !!entry;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -404,5 +405,3 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
-
-    
