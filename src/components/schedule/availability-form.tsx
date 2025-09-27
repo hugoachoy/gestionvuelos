@@ -22,13 +22,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -43,26 +36,22 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, AlertTriangle, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePilotsStore } from '@/store/data-hooks';
+import { FLIGHT_TYPES } from '@/types';
 
-// Simplified schema as requested
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   pilot_id: z.string().min(1, "Seleccione un piloto."),
-  pilot_category_id: z.string().min(1, "Seleccione una categoría para este turno."),
-  is_tow_pilot_available: z.boolean().optional(),
-  // Fields to be hardcoded or derived, not shown in UI
-  start_time: z.string().default('00:00'), 
-  flight_type_id: z.string().default('local'), 
-  aircraft_id: z.string().optional().nullable(),
+  category_selections: z.record(z.boolean()).optional(),
+  aircraft_selections: z.record(z.boolean()).optional(),
+  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato inválido (HH:MM).").default('00:00'),
+  is_tow_pilot_available: z.boolean().default(false),
 });
 
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
@@ -70,7 +59,7 @@ export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
 interface AvailabilityFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<ScheduleEntry, 'id' | 'created_at'>, entryId?: string) => void;
+  onSubmit: (data: Omit<ScheduleEntry, 'id' | 'created_at'>[], entryId?: string) => void;
   entry?: ScheduleEntry;
   pilots: Pilot[];
   categories: PilotCategory[];
@@ -92,23 +81,21 @@ export function AvailabilityForm({
   entry,
   pilots,
   categories,
-  aircraft, // Kept for future use
+  aircraft,
   selectedDate,
-  existingEntries // Kept for future use
+  existingEntries
 }: AvailabilityFormProps) {
   const { user: currentUser } = useAuth();
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: {
-        date: selectedDate || new Date(),
-        pilot_id: '',
-        pilot_category_id: '',
-        is_tow_pilot_available: false,
-        // Default hidden fields
-        start_time: '00:00',
-        flight_type_id: 'local',
-        aircraft_id: null,
-      },
+      date: selectedDate || new Date(),
+      pilot_id: '',
+      category_selections: {},
+      aircraft_selections: {},
+      start_time: '00:00',
+      is_tow_pilot_available: false,
+    },
   });
 
   const [pilotSearchTerm, setPilotSearchTerm] = useState('');
@@ -132,34 +119,31 @@ export function AvailabilityForm({
         initialPilotId = entry.pilot_id;
       }
 
-      const initialFormValues = entry
+      const initialFormValues: Partial<AvailabilityFormData> = entry
         ? {
-            ...entry,
             date: entry.date ? parseISO(entry.date) : (selectedDate || new Date()),
             pilot_id: initialPilotId,
-            is_tow_pilot_available: entry.is_tow_pilot_available,
-            // Default hidden fields
+            category_selections: { [entry.pilot_category_id]: true },
+            aircraft_selections: entry.aircraft_id ? { [entry.aircraft_id]: true } : {},
             start_time: entry.start_time || '00:00',
-            flight_type_id: entry.flight_type_id || 'local',
-            aircraft_id: entry.aircraft_id || null,
+            is_tow_pilot_available: entry.is_tow_pilot_available,
           }
         : {
             date: selectedDate || new Date(),
             pilot_id: initialPilotId,
-            pilot_category_id: '',
-            is_tow_pilot_available: false,
-            // Default hidden fields
+            category_selections: {},
+            aircraft_selections: {},
             start_time: '00:00',
-            flight_type_id: 'local',
-            aircraft_id: null,
+            is_tow_pilot_available: false,
           };
-      form.reset(initialFormValues as AvailabilityFormData);
+      form.reset(initialFormValues);
       setPilotSearchTerm('');
     }
-  }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin]);
+  }, [open, entry, selectedDate, form, currentUserLinkedPilotId, currentUser?.is_admin, categories]);
 
   const watchedPilotId = form.watch('pilot_id');
-  const watchedPilotCategoryId = form.watch('pilot_category_id');
+  const watchedCategorySelections = form.watch('category_selections');
+
   const pilotDetails = useMemo(() => pilots.find(p => p.id === watchedPilotId), [pilots, watchedPilotId]);
   
   const pilotCategoriesForSelectedPilot = useMemo(() => {
@@ -167,44 +151,86 @@ export function AvailabilityForm({
     return pilotDetails.category_ids.map(id => categories.find(c => c.id === id)).filter(Boolean) as PilotCategory[];
   }, [pilotDetails, categories]);
 
-  const isRemolcadorCategorySelectedForTurn = useMemo(() => {
-    const cat = categories.find(c => c.id === watchedPilotCategoryId);
-    return normalizeCategoryName(cat?.name) === NORMALIZED_REMOLCADOR;
-  }, [watchedPilotCategoryId, categories]);
+  const showTowAvailabilityCheckbox = useMemo(() => {
+    if (!watchedCategorySelections) return false;
+    const selectedCatIds = Object.keys(watchedCategorySelections).filter(id => watchedCategorySelections[id]);
+    return selectedCatIds.some(id => {
+      const cat = categories.find(c => c.id === id);
+      return normalizeCategoryName(cat?.name) === NORMALIZED_REMOLCADOR;
+    });
+  }, [watchedCategorySelections, categories]);
 
   useEffect(() => {
-    if (watchedPilotId && pilotDetails && form.getValues('pilot_category_id') && !pilotDetails.category_ids.includes(form.getValues('pilot_category_id'))) {
-      form.setValue('pilot_category_id', '');
+    if (!showTowAvailabilityCheckbox && form.getValues('is_tow_pilot_available')) {
+      form.setValue('is_tow_pilot_available', false);
     }
-    if (!watchedPilotId) {
-        form.setValue('pilot_category_id', '');
-    }
-  }, [watchedPilotId, pilotDetails, form]);
+  }, [showTowAvailabilityCheckbox, form]);
 
-  useEffect(() => {
-    if (!isRemolcadorCategorySelectedForTurn) {
-      if (form.getValues('is_tow_pilot_available') === true) {
-        form.setValue('is_tow_pilot_available', false, { shouldValidate: true });
-      }
-    }
-  }, [isRemolcadorCategorySelectedForTurn, form]);
+  const availableAircraftForSelection = useMemo(() => {
+    const selectedCatIds = watchedCategorySelections ? Object.keys(watchedCategorySelections).filter(id => watchedCategorySelections[id]) : [];
+    if (selectedCatIds.length === 0) return [];
+
+    const relevantAircraftTypes = new Set<string>();
+    selectedCatIds.forEach(catId => {
+      const cat = categories.find(c => c.id === catId);
+      const normalizedName = normalizeCategoryName(cat?.name);
+      if (normalizedName.includes('planeador')) relevantAircraftTypes.add('Glider');
+      if (normalizedName.includes('avion')) relevantAircraftTypes.add('Avión');
+      if (normalizedName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
+    });
+
+    return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
+  }, [watchedCategorySelections, categories, aircraft]);
 
   const handleSubmit = (data: AvailabilityFormData) => {
-    let authUserIdToSet: string | null = null;
-    if (!entry && currentUser) {
-        authUserIdToSet = currentUser.id;
-    } else if (entry && entry.auth_user_id) {
-        authUserIdToSet = entry.auth_user_id;
-    }
+    const selectedCategoryIds = data.category_selections ? Object.keys(data.category_selections).filter(id => data.category_selections![id]) : [];
+    const selectedAircraftIds = data.aircraft_selections ? Object.keys(data.aircraft_selections).filter(id => data.aircraft_selections![id]) : [];
 
-    const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
-        ...data,
-        date: format(data.date, 'yyyy-MM-dd'),
-        is_tow_pilot_available: data.is_tow_pilot_available,
-        auth_user_id: authUserIdToSet,
-    };
-    onSubmit(dataToSubmit, entry?.id);
-    onOpenChange(false);
+    const entriesToCreate: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
+    let authUserIdToSet: string | null = (entry?.auth_user_id) ?? (currentUser?.id ?? null);
+    
+    if (entry) { // Editing mode
+        const dataToSubmit = {
+          ...data,
+          date: format(data.date, 'yyyy-MM-dd'),
+          pilot_category_id: selectedCategoryIds[0], // In edit mode, we only allow one category
+          aircraft_id: selectedAircraftIds.length > 0 ? selectedAircraftIds[0] : null,
+          flight_type_id: entry.flight_type_id,
+          auth_user_id: authUserIdToSet,
+        };
+        onSubmit([dataToSubmit], entry.id);
+
+    } else { // Creating mode
+        selectedCategoryIds.forEach(catId => {
+            const flightTypeId = FLIGHT_TYPES.find(ft => ft.id === 'local')?.id ?? 'local';
+            if (selectedAircraftIds.length > 0) {
+                selectedAircraftIds.forEach(acId => {
+                    entriesToCreate.push({
+                        date: format(data.date, 'yyyy-MM-dd'),
+                        pilot_id: data.pilot_id,
+                        pilot_category_id: catId,
+                        is_tow_pilot_available: data.is_tow_pilot_available,
+                        start_time: data.start_time,
+                        flight_type_id: flightTypeId,
+                        aircraft_id: acId,
+                        auth_user_id: authUserIdToSet,
+                    });
+                });
+            } else {
+                entriesToCreate.push({
+                    date: format(data.date, 'yyyy-MM-dd'),
+                    pilot_id: data.pilot_id,
+                    pilot_category_id: catId,
+                    is_tow_pilot_available: data.is_tow_pilot_available,
+                    start_time: data.start_time,
+                    flight_type_id: flightTypeId,
+                    aircraft_id: null,
+                    auth_user_id: authUserIdToSet,
+                });
+            }
+        });
+        onSubmit(entriesToCreate);
+    }
   };
 
   const sortedAndFilteredPilots = useMemo(() => {
@@ -218,6 +244,7 @@ export function AvailabilityForm({
   }, [pilots, pilotSearchTerm]);
 
   const disablePilotSelection = !entry && !!currentUserLinkedPilotId && !currentUser?.is_admin;
+  const isFormInEditMode = !!entry;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,115 +252,105 @@ export function AvailabilityForm({
         <DialogHeader>
           <DialogTitle>{entry ? 'Editar Turno' : 'Agregar Disponibilidad'}</DialogTitle>
           <DialogDescription>
-            {entry ? 'Modifica los detalles del turno.' : 'Ingresa los detalles del nuevo turno.'}
+            {entry ? 'Modifica los detalles del turno.' : 'Ingresa los detalles para los nuevos turnos.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Fecha</FormLabel>
+            <FormField control={form.control} name="date" render={({ field }) => (
+                <FormItem className="flex flex-col"><FormLabel>Fecha</FormLabel>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
+                    <PopoverTrigger asChild><FormControl>
                         <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
                           {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
-                      </FormControl>
-                    </PopoverTrigger>
+                    </FormControl></PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar mode="single" selected={field.value} onSelect={(date) => { if(date) field.onChange(date); setIsCalendarOpen(false); }} initialFocus locale={es} />
                     </PopoverContent>
-                  </Popover>
-                  <FormMessage />
+                  </Popover><FormMessage />
                 </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="pilot_id"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Piloto</FormLabel>
+            )}/>
+            <FormField control={form.control} name="pilot_id" render={({ field }) => (
+                <FormItem className="flex flex-col"><FormLabel>Piloto</FormLabel>
                   <Popover open={pilotPopoverOpen} onOpenChange={setPilotPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
+                    <PopoverTrigger asChild><FormControl>
                         <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")} disabled={disablePilotSelection}>
                           {field.value && pilots.find(p => p.id === field.value) ? `${pilots.find(p => p.id === field.value)?.last_name}, ${pilots.find(p => p.id === field.value)?.first_name}` : "Seleccionar piloto"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
-                      </FormControl>
-                    </PopoverTrigger>
+                    </FormControl></PopoverTrigger>
                     {!disablePilotSelection && (
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                        <Command>
-                          <CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} />
-                          <CommandList>
+                        <Command><CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} /><CommandList>
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
-                            <CommandGroup>
-                              {sortedAndFilteredPilots.map((pilot) => (
+                            <CommandGroup>{sortedAndFilteredPilots.map((pilot) => (
                                 <CommandItem value={`${pilot.last_name}, ${pilot.first_name}`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id); setPilotPopoverOpen(false); }}>
                                   <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
                                   {pilot.last_name}, {pilot.first_name}
                                 </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
+                            ))}</CommandGroup>
+                        </CommandList></Command>
                       </PopoverContent>
                     )}
-                  </Popover>
-                  <FormMessage />
+                  </Popover><FormMessage />
                 </FormItem>
-              )}
-            />
-            {watchedPilotId && (
-              <FormField
-                control={form.control}
-                name="pilot_category_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Categoría del Piloto para este Turno</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
-                      <FormControl>
-                        <SelectTrigger disabled={!pilotDetails || pilotCategoriesForSelectedPilot.length === 0}>
-                          <SelectValue placeholder={pilotCategoriesForSelectedPilot.length > 0 ? "Seleccionar categoría" : "Piloto no tiene categorías"} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {pilotCategoriesForSelectedPilot.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            )}/>
+            
+            {pilotDetails && (
+              <div>
+                <FormLabel>Categorías del Piloto</FormLabel>
+                <div className="rounded-md border p-2 space-y-1">
+                  {pilotCategoriesForSelectedPilot.length > 0 ? pilotCategoriesForSelectedPilot.map(cat => (
+                    <FormField key={cat.id} control={form.control} name={`category_selections.${cat.id}`} render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-1 rounded-md hover:bg-accent">
+                          <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isFormInEditMode && !form.getValues('category_selections')?.[cat.id]} /></FormControl>
+                          <FormLabel className="font-normal">{cat.name}</FormLabel>
+                        </FormItem>
+                    )}/>
+                  )) : <p className="text-sm text-muted-foreground p-1">Este piloto no tiene categorías asignadas.</p>}
+                </div>
+              </div>
             )}
-            {isRemolcadorCategorySelectedForTurn && (
-              <FormField
-                control={form.control}
-                name="is_tow_pilot_available"
-                render={({ field }) => (
+
+            {showTowAvailabilityCheckbox && (
+              <FormField control={form.control} name="is_tow_pilot_available" render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm mt-2">
-                    <div className="space-y-0.5">
-                      <FormLabel>¿Disponible como Remolcador?</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
+                    <div className="space-y-0.5"><FormLabel>¿Disponible como Remolcador?</FormLabel></div>
+                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                   </FormItem>
-                )}
-              />
+              )}/>
             )}
+
+            {availableAircraftForSelection.length > 0 && (
+                 <div>
+                    <FormLabel>Asignación de Aeronaves (Opcional)</FormLabel>
+                    <div className="rounded-md border p-2 space-y-1">
+                    {availableAircraftForSelection.map(ac => {
+                        const flightDate = form.getValues('date') || new Date();
+                        const isExpiredOnFlightDate = (ac.annual_review_date && isBefore(parseISO(ac.annual_review_date), startOfDay(flightDate))) || 
+                                                     (ac.insurance_expiry_date && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(flightDate)));
+                        const isOutOfService = ac.is_out_of_service || isExpiredOnFlightDate;
+
+                        return (
+                            <FormField key={ac.id} control={form.control} name={`aircraft_selections.${ac.id}`} render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-1 rounded-md hover:bg-accent">
+                                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isOutOfService || (isFormInEditMode && !form.getValues('aircraft_selections')?.[ac.id])} /></FormControl>
+                                    <FormLabel className={cn("font-normal", isOutOfService && "text-muted-foreground line-through")}>
+                                        {ac.name} {isOutOfService && "(Fuera de servicio)"}
+                                    </FormLabel>
+                                </FormItem>
+                            )}/>
+                        )
+                    })}
+                    </div>
+                </div>
+            )}
+            
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button type="submit">{entry ? 'Guardar Cambios' : 'Agregar Turno'}</Button>
+              <Button type="submit">{entry ? 'Guardar Cambios' : 'Agregar Turno(s)'}</Button>
             </DialogFooter>
           </form>
         </Form>
