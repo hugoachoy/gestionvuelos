@@ -213,12 +213,13 @@ export function AvailabilityForm({
     
     if (isFormInEditMode) { // Editing mode
         const dataToSubmit = {
-          ...entry,
-          ...data,
           date: format(data.date, 'yyyy-MM-dd'),
-          pilot_category_id: selectedCategoryIds[0], // In edit mode, we only allow one category
-          aircraft_id: selectedAircraftIds.length > 0 ? selectedAircraftIds[0] : null,
+          start_time: data.start_time,
+          pilot_id: data.pilot_id,
+          pilot_category_id: selectedCategoryIds[0] || entry.pilot_category_id,
+          is_tow_pilot_available: data.is_tow_pilot_available,
           flight_type_id: entry.flight_type_id,
+          aircraft_id: selectedAircraftIds.length > 0 ? selectedAircraftIds[0] : null,
           auth_user_id: authUserIdToSet,
         };
         onSubmit([dataToSubmit], entry.id);
@@ -310,7 +311,7 @@ export function AvailabilityForm({
                         <Command><CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} /><CommandList>
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                             <CommandGroup>{sortedAndFilteredPilots.map((pilot) => (
-                                <CommandItem value={`${pilot.last_name}, ${pilot.first_name}`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id); setPilotPopoverOpen(false); }}>
+                                <CommandItem value={`${pilot.last_name}, ${pilot.first_name}`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id, { shouldValidate: true }); setPilotPopoverOpen(false); }}>
                                   <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
                                   {pilot.last_name}, {pilot.first_name}
                                 </CommandItem>
@@ -403,3 +404,5 @@ export function AvailabilityForm({
     </Dialog>
   );
 }
+
+    
