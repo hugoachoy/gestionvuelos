@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -302,22 +303,27 @@ export function useAircraftStore() {
         setLoading(true);
         setError(null);
         try {
-            // Fetch flights from the last year for performance
-            const oneYearAgo = format(subYears(new Date(), 1), 'yyyy-MM-dd');
-            
-            const { data: flightsData, error: flightsError } = await supabase
-                .from('completed_engine_flights')
-                .select('engine_aircraft_id, date, flight_duration_decimal, oil_added_liters')
-                .gte('date', oneYearAgo);
-            
-            if (flightsError) throw flightsError;
-
             const { data: aircraftData, error: aircraftError } = await supabase
                 .from('aircraft')
                 .select('*')
                 .order('name');
             
             if (aircraftError) throw aircraftError;
+            
+            const engineAircraftIds = (aircraftData || []).filter(ac => ac.type !== 'Glider').map(ac => ac.id);
+            const oneYearAgo = format(subYears(new Date(), 1), 'yyyy-MM-dd');
+            
+            let flightsData: any[] = [];
+            if (engineAircraftIds.length > 0) {
+                 const { data: fetchedFlightsData, error: flightsError } = await supabase
+                    .from('completed_engine_flights')
+                    .select('engine_aircraft_id, date, flight_duration_decimal, oil_added_liters')
+                    .in('engine_aircraft_id', engineAircraftIds)
+                    .gte('date', oneYearAgo);
+
+                if (flightsError) throw flightsError;
+                flightsData = fetchedFlightsData || [];
+            }
             
             setAircraft(aircraftData || []); // Set the base aircraft data
 
@@ -332,7 +338,7 @@ export function useAircraftStore() {
                      return { ...ac, hours_since_oil_change: 0, total_oil_added_since_review: 0 };
                 }
                 
-                const relevantFlights = (flightsData || []).filter(flight => 
+                const relevantFlights = flightsData.filter(flight => 
                     flight.engine_aircraft_id === ac.id &&
                     isValidDate(parseISO(flight.date)) &&
                     !isBefore(startOfDay(parseISO(flight.date)), startOfDay(effectiveStartDate))
@@ -556,33 +562,38 @@ export function useScheduleStore() {
     }
   }, []);
 
-  const addScheduleEntry = useCallback(async (entryData: Omit<ScheduleEntry, 'id' | 'created_at'>[]) => {
+  const addScheduleEntry = useCallback(async (entryDataList: Omit<ScheduleEntry, 'id' | 'created_at'>[]) => {
     setError(null);
     setLoading(true);
+
     try {
-      const { data: newEntries, error: insertError } = await supabase
-        .from('schedule_entries')
-        .insert(entryData)
-        .select();
+        // Ensure auth_user_id is not null/undefined
+        const cleanedEntryDataList = entryDataList.map(e => ({...e, auth_user_id: e.auth_user_id ?? ''}));
 
-      if (insertError) {
-        logSupabaseError('Error adding schedule entry', insertError);
-        setError(insertError);
-        return null;
-      }
+        const { data: newEntries, error: insertError } = await supabase
+            .from('schedule_entries')
+            .insert(cleanedEntryDataList)
+            .select();
 
-      if (newEntries && newEntries.length > 0) {
-        await fetchScheduleEntries(newEntries[0].date);
-      }
-      return newEntries;
+        if (insertError) {
+            logSupabaseError('Error adding schedule entry', insertError);
+            setError(insertError);
+            return null;
+        }
+
+        if (newEntries && newEntries.length > 0) {
+            // After adding, refetch for the date of the first new entry to update the UI
+            await fetchScheduleEntries(newEntries[0].date);
+        }
+        return newEntries;
     } catch (e) {
-      logSupabaseError('Unexpected error adding schedule entry', e);
-      setError(e);
-      return null;
+        logSupabaseError('Unexpected error adding schedule entry', e);
+        setError(e);
+        return null;
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  }, [fetchScheduleEntries]);
+}, [fetchScheduleEntries]);
 
 
   const updateScheduleEntry = useCallback(async (updatedEntryData: ScheduleEntry) => {
