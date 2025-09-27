@@ -54,7 +54,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { FLIGHT_TYPES } from '@/types';
 
-// Simplified schema for creating ONE entry at a time. This avoids all the complexity.
+// Simplified schema for creating ONE entry at a time.
 const availabilitySchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato inválido (HH:MM).").default('00:00'),
@@ -227,14 +227,13 @@ export function AvailabilityForm({
   const handleSubmit = (data: AvailabilityFormData) => {
     const authUserIdToSet: string | null = (entry?.auth_user_id) ?? (currentUser?.id ?? null);
     
-    // In both edit and add mode, we are now only ever submitting ONE entry.
     const dataToSubmit: Omit<ScheduleEntry, 'id' | 'created_at'> = {
         date: format(data.date, 'yyyy-MM-dd'),
         start_time: data.start_time,
         pilot_id: data.pilot_id,
         pilot_category_id: data.pilot_category_id,
         is_tow_pilot_available: data.is_tow_pilot_available,
-        aircraft_id: data.aircraft_id || null,
+        aircraft_id: data.aircraft_id === 'none' ? null : data.aircraft_id, // Handle "none" value
         flight_type_id: entry?.flight_type_id || FLIGHT_TYPES.find(ft => ft.id === 'local')?.id || 'local',
         auth_user_id: authUserIdToSet,
     };
@@ -332,7 +331,7 @@ export function AvailabilityForm({
                         <SelectTrigger><SelectValue placeholder="Seleccionar aeronave" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Ninguna específica</SelectItem>
+                        <SelectItem value="none">Ninguna específica</SelectItem>
                         {availableAircraftForSelection.map(ac => {
                           const flightDate = form.getValues('date') || new Date();
                           const isOutOfService = ac.is_out_of_service || 
