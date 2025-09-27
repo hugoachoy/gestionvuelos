@@ -190,30 +190,13 @@ export function AvailabilityForm({
     }
   }, [showTowAvailabilityCheckbox, form]);
 
-  const availableAircraftForSelection = useMemo(() => {
-    if (!categories.length || !aircraft.length) return []; // Ensure data is loaded
-    const selectedCatIds = watchedCategorySelections ? Object.keys(watchedCategorySelections).filter(id => watchedCategorySelections[id]) : [];
-    if (selectedCatIds.length === 0) return [];
-
-    const relevantAircraftTypes = new Set<string>();
-    selectedCatIds.forEach(catId => {
-      const cat = categories.find(c => c.id === catId);
-      const normalizedName = normalizeCategoryName(cat?.name);
-      if (normalizedName.includes('planeador')) relevantAircraftTypes.add('Glider');
-      if (normalizedName.includes('avion')) relevantAircraftTypes.add('Avión');
-      if (normalizedName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
-    });
-
-    return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
-  }, [watchedCategorySelections, categories, aircraft]);
-
   const handleSubmit = (data: AvailabilityFormData) => {
     const selectedCategoryIds = data.category_selections ? Object.keys(data.category_selections).filter(id => data.category_selections![id]) : [];
     const selectedAircraftIds = data.aircraft_selections ? Object.keys(data.aircraft_selections).filter(id => data.aircraft_selections![id]) : [];
 
     let authUserIdToSet: string | null = (entry?.auth_user_id) ?? (currentUser?.id ?? null);
     
-    if (isFormInEditMode && entry) { // Editing mode
+    if (isFormInEditMode && entry) {
         const dataToSubmit = {
           date: format(data.date, 'yyyy-MM-dd'),
           start_time: data.start_time,
@@ -225,8 +208,7 @@ export function AvailabilityForm({
           auth_user_id: authUserIdToSet,
         };
         onSubmit([dataToSubmit], entry.id);
-
-    } else { // Creating mode
+    } else {
         const entriesToCreate: Omit<ScheduleEntry, 'id' | 'created_at'>[] = [];
         selectedCategoryIds.forEach(catId => {
             const flightTypeId = FLIGHT_TYPES.find(ft => ft.id === 'local')?.id ?? 'local';
@@ -272,6 +254,24 @@ export function AvailabilityForm({
 
   const disablePilotSelection = !currentUser?.is_admin && !!currentUserLinkedPilotId && !entry;
 
+  const relevantAircraftForSelection = useMemo(() => {
+    if (!watchedCategorySelections) return [];
+    
+    const selectedCatIds = Object.keys(watchedCategorySelections).filter(id => watchedCategorySelections[id]);
+    if (selectedCatIds.length === 0) return [];
+    
+    const relevantAircraftTypes = new Set<string>();
+    selectedCatIds.forEach(catId => {
+        const cat = categories.find(c => c.id === catId);
+        const normalizedName = normalizeCategoryName(cat?.name);
+        if (normalizedName.includes('planeador')) relevantAircraftTypes.add('Glider');
+        if (normalizedName.includes('avion')) relevantAircraftTypes.add('Avión');
+        if (normalizedName.includes('remolcador')) relevantAircraftTypes.add('Tow Plane');
+    });
+
+    return aircraft.filter(ac => relevantAircraftTypes.has(ac.type));
+  }, [watchedCategorySelections, categories, aircraft]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -312,7 +312,7 @@ export function AvailabilityForm({
                         <Command><CommandInput placeholder="Buscar piloto..." value={pilotSearchTerm} onValueChange={setPilotSearchTerm} /><CommandList>
                             <CommandEmpty>No se encontraron pilotos.</CommandEmpty>
                             <CommandGroup>{sortedAndFilteredPilots.map((pilot) => (
-                                <CommandItem value={`${pilot.last_name}, ${pilot.first_name}`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id, { shouldValidate: true }); setPilotPopoverOpen(false); }}>
+                                <CommandItem value={`${pilot.last_name}, ${pilot.first_name}`} key={pilot.id} onSelect={() => { form.setValue("pilot_id", pilot.id); setPilotPopoverOpen(false); }}>
                                   <Check className={cn("mr-2 h-4 w-4", pilot.id === field.value ? "opacity-100" : "opacity-0")} />
                                   {pilot.last_name}, {pilot.first_name}
                                 </CommandItem>
@@ -370,11 +370,11 @@ export function AvailabilityForm({
               )}/>
             )}
 
-            {availableAircraftForSelection.length > 0 && (
+            {relevantAircraftForSelection.length > 0 && (
                  <div>
                     <FormLabel>Asignación de Aeronaves (Opcional)</FormLabel>
                     <div className="rounded-md border p-2 space-y-1">
-                    {availableAircraftForSelection.map(ac => {
+                    {relevantAircraftForSelection.map(ac => {
                         const flightDate = form.getValues('date') || new Date();
                         const isExpiredOnFlightDate = (ac.annual_review_date && isBefore(parseISO(ac.annual_review_date), startOfDay(flightDate))) || 
                                                      (ac.insurance_expiry_date && isBefore(parseISO(ac.insurance_expiry_date), startOfDay(flightDate)));
