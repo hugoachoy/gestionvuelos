@@ -121,6 +121,7 @@ export function BillingReportClient() {
       let totalTowsCount = 0;
       
       const remolquePurposeName = "Remolque planeador";
+      const impartidaPurposeName = "Instrucción (Impartida)";
       
       engineFlights.forEach((flight) => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
@@ -150,8 +151,9 @@ export function BillingReportClient() {
       });
       
       gliderFlights.forEach((flight) => {
-          // Process if the selected pilot is the PIC/Student
-          if (flight.pilot_id === selectedPilotId) {
+          const purposeName = getPurposeName(flight.flight_purpose_id);
+          // Process if the selected pilot is the PIC/Student AND it's not an instruction flight for an instructor
+          if (flight.pilot_id === selectedPilotId && purposeName !== impartidaPurposeName) {
             billableItems.push({
               id: `gli-${flight.id}`,
               date: flight.date,
@@ -476,5 +478,7 @@ export function BillingReportClient() {
     </div>
   );
 }
+
+    
 
     
