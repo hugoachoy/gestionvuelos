@@ -125,8 +125,9 @@ export function BillingReportClient() {
       
       engineFlights.forEach((flight) => {
         const purposeName = getPurposeName(flight.flight_purpose_id);
-        
-        // Process if the selected pilot is the PIC/Student for the flight
+        const isInstructionGiven = purposeName === impartidaPurposeName;
+
+        // Process if the selected pilot is the main actor in the flight record (pilot_id)
         if (flight.pilot_id === selectedPilotId) {
             billableItems.push({
                 id: `eng-${flight.id}`,
@@ -135,11 +136,11 @@ export function BillingReportClient() {
                 aircraft: getAircraftName(flight.engine_aircraft_id),
                 duration_hs: flight.flight_duration_decimal,
                 billable_minutes: flight.billable_minutes ?? 0,
-                notes: `Propósito: ${purposeName}`,
-                is_non_billable_for_pilot: false
+                notes: isInstructionGiven ? `Instrucción a: ${getPilotName(flight.instructor_id)}` : `Propósito: ${purposeName}`,
+                is_non_billable_for_pilot: isInstructionGiven
             });
-            // Only add to billable minutes if it's not a tow flight
-            if (purposeName !== remolquePurposeName) {
+            // Only add to billable minutes if it's not a tow flight and not instruction given
+            if (purposeName !== remolquePurposeName && !isInstructionGiven) {
                 totalMins += flight.billable_minutes ?? 0;
                 const aircraftId = flight.engine_aircraft_id;
                 if (!minutesByAircraft[aircraftId]) {
@@ -229,7 +230,7 @@ export function BillingReportClient() {
           { content: item.type, styles },
           { content: item.aircraft, styles },
           { content: item.notes, styles },
-          { content: item.billable_minutes?.toString() ?? '-', styles },
+          { content: item.is_non_billable_for_pilot ? '-' : (item.billable_minutes?.toString() ?? '-'), styles },
           { content: item.is_non_billable_for_pilot ? '-' : (item.type.startsWith('Remolque') ? '1' : '-'), styles },
         ]);
       });
@@ -301,7 +302,7 @@ export function BillingReportClient() {
                 `"${item.type.replace(/"/g, '""')}"`,
                 `"${item.aircraft.replace(/"/g, '""')}"`,
                 `"${item.notes.replace(/"/g, '""')}"`,
-                item.billable_minutes ?? '',
+                item.is_non_billable_for_pilot ? '' : item.billable_minutes ?? '',
                 item.is_non_billable_for_pilot ? '' : (item.type.startsWith('Remolque') ? '1' : ''),
             ];
             csvContent += row.join(',') + "\n";
@@ -467,7 +468,7 @@ export function BillingReportClient() {
                   <TableCell>{item.type}</TableCell>
                   <TableCell>{item.aircraft}</TableCell>
                   <TableCell>{item.notes}</TableCell>
-                  <TableCell className="text-right">{item.billable_minutes ?? '-'}</TableCell>
+                  <TableCell className="text-right">{item.is_non_billable_for_pilot ? '-' : (item.billable_minutes ?? '-')}</TableCell>
                   <TableCell className="text-right">{item.is_non_billable_for_pilot ? '-' : (item.type.startsWith('Remolque') ? '1' : '-')}</TableCell>
                 </TableRow>
               ))}
