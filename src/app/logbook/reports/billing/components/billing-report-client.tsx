@@ -152,19 +152,26 @@ export function BillingReportClient() {
       
       gliderFlights.forEach((flight) => {
           const purposeName = getPurposeName(flight.flight_purpose_id);
-          // Process if the selected pilot is the PIC/Student AND it's not an instruction flight for an instructor
-          if (flight.pilot_id === selectedPilotId && purposeName !== impartidaPurposeName) {
+          // Process if the selected pilot is the main actor in the flight record.
+          if (flight.pilot_id === selectedPilotId) {
+            
+            const isInstructionGiven = purposeName === impartidaPurposeName;
+
             billableItems.push({
               id: `gli-${flight.id}`,
               date: flight.date,
-              type: 'Remolque de Planeador',
+              type: isInstructionGiven ? 'Instrucción Impartida' : 'Remolque de Planeador',
               aircraft: getAircraftName(flight.glider_aircraft_id),
               duration_hs: flight.flight_duration_decimal,
               billable_minutes: null,
-              notes: `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`,
-              is_non_billable_for_pilot: false
+              notes: isInstructionGiven ? `Instrucción a: ${getPilotName(flight.instructor_id)}` : `Remolcado por: ${getPilotName(flight.tow_pilot_id)} en ${getAircraftName(flight.tow_aircraft_id)}`,
+              is_non_billable_for_pilot: isInstructionGiven // Mark as non-billable for the instructor
             });
-            totalTowsCount += 1;
+            
+            // Only count the tow if it's NOT an instruction flight for the instructor
+            if (!isInstructionGiven) {
+              totalTowsCount += 1;
+            }
           }
         });
 
@@ -478,7 +485,3 @@ export function BillingReportClient() {
     </div>
   );
 }
-
-    
-
-    

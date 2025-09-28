@@ -89,22 +89,17 @@ export function UnifiedHistoryClient() {
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
 
-    const [engineFlightsResult, gliderFlightsResult] = await Promise.all([
+    const [engineFlights, gliderFlights] = await Promise.all([
         fetchCompletedEngineFlightsForRange(startDateStr, endDateStr, pilotIdToFetch),
         fetchCompletedGliderFlightsForRange(startDateStr, endDateStr, pilotIdToFetch)
     ]);
 
-    if (engineFlightsResult === null || gliderFlightsResult === null) {
+    if (engineFlights === null || gliderFlights === null) {
         toast({ title: "Error al generar informe", description: "No se pudieron obtener los datos de los vuelos.", variant: "destructive" });
         setIsGenerating(false);
         return;
     }
-
-    // If a specific pilot is selected, filter to show only flights where they are the main pilot.
-    const engineFlights = pilotIdToFetch ? engineFlightsResult.filter(flight => flight.pilot_id === pilotIdToFetch) : engineFlightsResult;
-    const gliderFlights = pilotIdToFetch ? gliderFlightsResult.filter(flight => flight.pilot_id === pilotIdToFetch) : gliderFlightsResult;
-
-
+    
     const combinedFlights: CompletedFlight[] = [...engineFlights, ...gliderFlights];
     const sortedFlights = combinedFlights.sort((a, b) => {
         const dateComp = b.date.localeCompare(a.date);
