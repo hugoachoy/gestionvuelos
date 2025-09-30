@@ -12,8 +12,6 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // --- Interfaces updated to match the actual combined API structure ---
-
-// Interface for a single NOTAM from ais.anac.gob.ar/notam/json
 interface Notam {
     id: number;
     numero: string;
@@ -21,7 +19,6 @@ interface Notam {
     valido_desde: string;
     valido_hasta: string;
     texto: string;
-    // Other fields from the NOTAM API can be added here if needed
 }
 
 interface Coordinates {
@@ -44,15 +41,16 @@ interface Metadata {
 }
 
 interface Datos {
-    rwy: string[];
+    rwy: (string | null)[];
 }
 
 interface AirportData {
     human_readable_identifier: string;
-    notam: Notam[]; // This will be populated from the second API call
+    notam: Notam[];
     metadata: Metadata;
     data: Datos;
 }
+
 
 const API_URL = "/api/notams/";
 
@@ -186,9 +184,9 @@ export function NotamClient() {
                                         </div>
                                     </AccordionTrigger>
                                     <AccordionContent className="whitespace-pre-wrap font-mono text-xs bg-muted/50 p-4 rounded-md">
-                                        <p><strong>Válido Desde:</strong> {format(parseISO(notam.valido_desde), "dd/MM/yyyy HH:mm", { locale: es })}</p>
-                                        <p><strong>Válido Hasta:</strong> {format(parseISO(notam.valido_hasta), "dd/MM/yyyy HH:mm", { locale: es })}</p>
-                                        <p><strong>Publicado:</strong> {format(parseISO(notam.fecha_publicacion), "dd/MM/yyyy HH:mm", { locale: es })}</p>
+                                        <p><strong>Válido Desde:</strong> {notam.valido_desde ? format(parseISO(notam.valido_desde), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
+                                        <p><strong>Válido Hasta:</strong> {notam.valido_hasta ? format(parseISO(notam.valido_hasta), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
+                                        <p><strong>Publicado:</strong> {notam.fecha_publicacion ? format(parseISO(notam.fecha_publicacion), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
                                         <hr className="my-2"/>
                                         {notam.texto}
                                     </AccordionContent>
