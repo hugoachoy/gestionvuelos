@@ -87,35 +87,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const login = async (credentials: SignInWithPasswordCredentials) => {
-    setLoading(true); 
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword(credentials);
-    if (error) {
-        const { data: { session: currentAuthSession } } = await supabase.auth.getSession();
-        if (!currentAuthSession) {
-            setLoading(false);
-        }
-    }
+    // onAuthStateChange will handle setting loading to false and updating user
+    if (error) setLoading(false);
     return { error };
   };
 
   const logout = async () => {
     setLoading(true);
     const { error } = await supabase.auth.signOut();
-     if (error) {
-        setLoading(false); 
-    }
+    // onAuthStateChange will handle setting loading to false and clearing user
+    if (error) setLoading(false);
     return { error };
   };
 
   const signUp = async (credentials: SignUpWithPasswordCredentials) => {
     setLoading(true);
     const { data, error } = await supabase.auth.signUp(credentials);
-     if (error) {
-        const { data: { session: currentAuthSession } } = await supabase.auth.getSession();
-        if (!currentAuthSession) {
-            setLoading(false);
-        }
-    }
+    // onAuthStateChange will handle the session update. If there's an error, we stop loading.
+    if (error) setLoading(false);
     return { data: { user: data.user, session: data.session }, error };
   };
 
