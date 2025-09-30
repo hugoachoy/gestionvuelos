@@ -131,14 +131,14 @@ export function NotamClient() {
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <InfoPill title="Latitud" value={airportData.metadatos.localizacion.latitud?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
-                    <InfoPill title="Longitud" value={airportData.metadatos.localizacion.lng?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
-                    <InfoPill title="Elevación" value={`${airportData.metadatos.localizacion.elevacion ?? 'N/A'} m`} icon={<Compass />} />
-                    {airportData.datos.rwy && airportData.datos.rwy.length > 0 && <InfoPill title="Pista Principal" value={airportData.datos.rwy[0].split(' ')[0]} icon={<PlaneTakeoff />} />}
+                    <InfoPill title="Latitud" value={airportData.metadatos?.localizacion?.latitud?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Longitud" value={airportData.metadatos?.localizacion?.lng?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Elevación" value={`${airportData.metadatos?.localizacion?.elevacion ?? 'N/A'} m`} icon={<Compass />} />
+                    {airportData.datos?.rwy?.[0] && <InfoPill title="Pista Principal" value={airportData.datos.rwy[0].split(' ')[0]} icon={<PlaneTakeoff />} />}
                 </CardContent>
             </Card>
 
-            {airportData.datos.rwy && airportData.datos.rwy.length > 0 && (
+            {airportData.datos?.rwy && airportData.datos.rwy.length > 0 && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Pistas</CardTitle>
