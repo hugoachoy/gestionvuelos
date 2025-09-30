@@ -9,25 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Compass, MapPin, PlaneTakeoff, Info } from 'lucide-react';
 
-interface AirportData {
-    fir: string;
-    iata: string;
-    icao: string;
-    name: string;
-    city: string;
-    state: string;
-    country: string;
-    elevation: number;
-    lat: number;
-    lon: number;
-    tz: string;
-    notams: Notam[];
-    runways: Runway[];
-    comms: Comm[];
-    vor: Vor[];
-    ndb: Ndb[];
-}
-
+// --- Interfaces actualizadas para coincidir con la estructura real de la API ---
 interface Notam {
     id: string;
     text: string;
@@ -37,45 +19,31 @@ interface Notam {
     source?: string;
 }
 
-interface Runway {
-    ident: string;
-    name: string;
-    sfc: string;
-    len: number;
-    wid: number;
-    hdg: number;
-    thr: Thr[];
+interface Metadata {
+    localizacion: {
+        latitud: number;
+        lng: number;
+        elevacion: number;
+    };
+    identificadores: {
+        icao: string;
+        local: string;
+        iata: string | null;
+    };
 }
 
-interface Thr {
-    ident: string;
-    lat: number;
-    lon: number;
+interface Datos {
+    rwy: string[];
 }
 
-interface Comm {
-    type: string;
-    freq: number;
-    name: string;
+interface AirportData {
+    human_readable_identifier: string;
+    notam: Notam[];
+    metadatos: Metadata;
+    datos: Datos;
 }
 
-interface Vor {
-    id: string;
-    name: string;
-    freq: number;
-    lat: number;
-    lon: number;
-}
-
-interface Ndb {
-    id: string;
-    name: string;
-    freq: number;
-    lat: number;
-    lon: number;
-}
-
-const API_URL = "/api/notams/"; // Use the local API route
+const API_URL = "/api/notams/";
 
 function InfoPill({ title, value, icon }: { title: string, value: string | number, icon: React.ReactNode }) {
     return (
@@ -101,7 +69,8 @@ export function NotamClient() {
             try {
                 const response = await fetch(API_URL);
                 if (!response.ok) {
-                    throw new Error(`Error de red: ${response.status} - ${response.statusText}`);
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `Error de red: ${response.status} - ${response.statusText}`);
                 }
                 const data: AirportData = await response.json();
                 setAirportData(data);
@@ -158,32 +127,27 @@ export function NotamClient() {
         <div className="space-y-6">
             <Card>
                  <CardHeader>
-                    <CardTitle>{airportData.name ?? 'Aeródromo sin nombre'} ({airportData.city ?? 'N/A'})</CardTitle>
+                    <CardTitle>{airportData.human_readable_identifier ?? 'Aeródromo sin nombre'}</CardTitle>
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <InfoPill title="Latitud" value={airportData.lat?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
-                    <InfoPill title="Longitud" value={airportData.lon?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
-                    <InfoPill title="Elevación" value={`${airportData.elevation ?? 'N/A'} m`} icon={<Compass />} />
-                    {airportData.runways && airportData.runways.length > 0 && <InfoPill title="Pista Principal" value={airportData.runways[0].ident} icon={<PlaneTakeoff />} />}
+                    <InfoPill title="Latitud" value={airportData.metadatos.localizacion.latitud?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Longitud" value={airportData.metadatos.localizacion.lng?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Elevación" value={`${airportData.metadatos.localizacion.elevacion ?? 'N/A'} m`} icon={<Compass />} />
+                    {airportData.datos.rwy && airportData.datos.rwy.length > 0 && <InfoPill title="Pista Principal" value={airportData.datos.rwy[0].split(' ')[0]} icon={<PlaneTakeoff />} />}
                 </CardContent>
             </Card>
 
-            {airportData.runways && airportData.runways.length > 0 && (
+            {airportData.datos.rwy && airportData.datos.rwy.length > 0 && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Pistas</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {airportData.runways.map(runway => (
-                             <div key={runway.ident} className="p-3 border rounded-md">
-                                <h3 className="font-bold text-lg mb-2">Pista {runway.ident}</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                                    <p><strong className="font-semibold text-muted-foreground">Superficie:</strong> {runway.sfc}</p>
-                                    <p><strong className="font-semibold text-muted-foreground">Longitud:</strong> {runway.len} m</p>
-                                    <p><strong className="font-semibold text-muted-foreground">Ancho:</strong> {runway.wid} m</p>
-                                    <p><strong className="font-semibold text-muted-foreground">Orientación:</strong> {runway.hdg}°</p>
-                                </div>
+                        {airportData.datos.rwy.map((runwayString, index) => (
+                             <div key={index} className="p-3 border rounded-md mb-2 last:mb-0">
+                                <h3 className="font-bold text-lg mb-2">Pista {runwayString.split(' ')[0]}</h3>
+                                <p className="text-sm">{runwayString}</p>
                             </div>
                         ))}
                     </CardContent>
@@ -194,13 +158,13 @@ export function NotamClient() {
                 <CardHeader>
                     <CardTitle>NOTAMs Vigentes</CardTitle>
                     <CardDescription>
-                        {airportData.notams && airportData.notams.length > 0 ? `Se encontraron ${airportData.notams.length} NOTAMs activos.` : "No hay NOTAMs activos para este aeródromo."}
+                        {airportData.notam && airportData.notam.length > 0 ? `Se encontraron ${airportData.notam.length} NOTAMs activos.` : "No hay NOTAMs activos para este aeródromo."}
                     </CardDescription>
                 </CardHeader>
-                {airportData.notams && airportData.notams.length > 0 && (
+                {airportData.notam && airportData.notam.length > 0 && (
                     <CardContent>
                         <Accordion type="single" collapsible className="w-full">
-                            {airportData.notams.map((notam, index) => (
+                            {airportData.notam.map((notam, index) => (
                                 <AccordionItem value={`item-${index}`} key={notam.id}>
                                     <AccordionTrigger>
                                         <div className="flex flex-col md:flex-row md:items-center gap-x-4 gap-y-1 text-left">
