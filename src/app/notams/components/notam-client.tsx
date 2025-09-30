@@ -145,7 +145,7 @@ export function NotamClient() {
         infoPills.push(<InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Compass />} />);
     }
     if (airportData.data?.rwy?.[0]) {
-        infoPills.push(<InfoPill key="rwy" title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />);
+       infoPills.push(<InfoPill key="rwy" title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />);
     }
 
     return (
