@@ -154,30 +154,28 @@ export function NotamClient() {
         );
     }
     
-    const { name, city, elevation, lat, lon, runways, notams } = airportData;
-
     return (
         <div className="space-y-6">
             <Card>
                  <CardHeader>
-                    <CardTitle>{name} ({city})</CardTitle>
+                    <CardTitle>{airportData.name} ({airportData.city})</CardTitle>
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <InfoPill title="Latitud" value={lat.toFixed(4)} icon={<MapPin />} />
-                    <InfoPill title="Longitud" value={lon.toFixed(4)} icon={<MapPin />} />
-                    <InfoPill title="Elevación" value={`${elevation} m`} icon={<Compass />} />
-                    {runways && runways.length > 0 && <InfoPill title="Pista Principal" value={runways[0].ident} icon={<PlaneTakeoff />} />}
+                    <InfoPill title="Latitud" value={airportData.lat?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Longitud" value={airportData.lon?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Elevación" value={`${airportData.elevation ?? 'N/A'} m`} icon={<Compass />} />
+                    {airportData.runways && airportData.runways.length > 0 && <InfoPill title="Pista Principal" value={airportData.runways[0].ident} icon={<PlaneTakeoff />} />}
                 </CardContent>
             </Card>
 
-            {runways && runways.length > 0 && (
+            {airportData.runways && airportData.runways.length > 0 && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Pistas</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {runways.map(runway => (
+                        {airportData.runways.map(runway => (
                              <div key={runway.ident} className="p-3 border rounded-md">
                                 <h3 className="font-bold text-lg mb-2">Pista {runway.ident}</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
@@ -196,13 +194,13 @@ export function NotamClient() {
                 <CardHeader>
                     <CardTitle>NOTAMs Vigentes</CardTitle>
                     <CardDescription>
-                        {notams && notams.length > 0 ? `Se encontraron ${notams.length} NOTAMs activos.` : "No hay NOTAMs activos para este aeródromo."}
+                        {airportData.notams && airportData.notams.length > 0 ? `Se encontraron ${airportData.notams.length} NOTAMs activos.` : "No hay NOTAMs activos para este aeródromo."}
                     </CardDescription>
                 </CardHeader>
-                {notams && notams.length > 0 && (
+                {airportData.notams && airportData.notams.length > 0 && (
                     <CardContent>
                         <Accordion type="single" collapsible className="w-full">
-                            {notams.map((notam, index) => (
+                            {airportData.notams.map((notam, index) => (
                                 <AccordionItem value={`item-${index}`} key={notam.id}>
                                     <AccordionTrigger>
                                         <div className="flex flex-col md:flex-row md:items-center gap-x-4 gap-y-1 text-left">
