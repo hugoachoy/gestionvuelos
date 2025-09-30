@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 
 const MADHEL_API_URL = "https://datos.anac.gob.ar/madhel/api/v2/airports/LIO/";
