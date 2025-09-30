@@ -153,7 +153,8 @@ export function NotamClient() {
             </Alert>
         );
     }
-    
+
+    // Only destructure and render if airportData is guaranteed to exist.
     const { name, city, elevation, lat, lon, runways, notams } = airportData;
 
     return (
@@ -167,11 +168,11 @@ export function NotamClient() {
                     <InfoPill title="Latitud" value={lat.toFixed(4)} icon={<MapPin />} />
                     <InfoPill title="Longitud" value={lon.toFixed(4)} icon={<MapPin />} />
                     <InfoPill title="Elevación" value={`${elevation} m`} icon={<Compass />} />
-                    {runways.length > 0 && <InfoPill title="Pista Principal" value={runways[0].ident} icon={<PlaneTakeoff />} />}
+                    {runways && runways.length > 0 && <InfoPill title="Pista Principal" value={runways[0].ident} icon={<PlaneTakeoff />} />}
                 </CardContent>
             </Card>
 
-            {runways.length > 0 && (
+            {runways && runways.length > 0 && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Pistas</CardTitle>
@@ -196,10 +197,10 @@ export function NotamClient() {
                 <CardHeader>
                     <CardTitle>NOTAMs Vigentes</CardTitle>
                     <CardDescription>
-                        {notams.length > 0 ? `Se encontraron ${notams.length} NOTAMs activos.` : "No hay NOTAMs activos para este aeródromo."}
+                        {notams && notams.length > 0 ? `Se encontraron ${notams.length} NOTAMs activos.` : "No hay NOTAMs activos para este aeródromo."}
                     </CardDescription>
                 </CardHeader>
-                {notams.length > 0 && (
+                {notams && notams.length > 0 && (
                     <CardContent>
                         <Accordion type="single" collapsible className="w-full">
                             {notams.map((notam, index) => (
