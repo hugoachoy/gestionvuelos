@@ -24,7 +24,6 @@ interface Notam {
     // Other fields from the NOTAM API can be added here if needed
 }
 
-// Interfaces for data from datos.anac.gob.ar
 interface Coordinates {
     lat: number;
     lng: number;
@@ -44,7 +43,7 @@ interface Metadata {
     };
 }
 
-interface Data {
+interface Datos {
     rwy: string[];
 }
 
@@ -52,7 +51,7 @@ interface AirportData {
     human_readable_identifier: string;
     notam: Notam[]; // This will be populated from the second API call
     metadata: Metadata;
-    data: Data;
+    data: Datos;
 }
 
 const API_URL = "/api/notams/";
@@ -146,7 +145,7 @@ export function NotamClient() {
                     <InfoPill title="Latitud" value={airportData.metadata?.localization?.coordinates?.lat?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
                     <InfoPill title="Longitud" value={airportData.metadata?.localization?.coordinates?.lng?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
                     <InfoPill title="Elevación" value={`${airportData.metadata?.localization?.elevation ?? 'N/A'} m`} icon={<Compass />} />
-                    {airportData.data?.rwy?.[0] && <InfoPill title="Pista Principal" value={airportData.data.rwy[0].split(' ')[0]} icon={<PlaneTakeoff />} />}
+                    {airportData.data?.rwy?.[0] && <InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />}
                 </CardContent>
             </Card>
 
@@ -158,7 +157,7 @@ export function NotamClient() {
                     <CardContent>
                         {airportData.data.rwy.map((runwayString, index) => (
                              <div key={index} className="p-3 border rounded-md mb-2 last:mb-0">
-                                <h3 className="font-bold text-lg mb-2">Pista {runwayString.split(' ')[0]}</h3>
+                                <h3 className="font-bold text-lg mb-2">Pista {(runwayString || '').split(' ')[0]}</h3>
                                 <p className="text-sm">{runwayString}</p>
                             </div>
                         ))}
@@ -182,7 +181,7 @@ export function NotamClient() {
                                         <div className="flex flex-col md:flex-row md:items-center gap-x-4 gap-y-1 text-left">
                                             <Badge variant="outline">{notam.numero}</Badge>
                                             <span className="text-sm truncate">
-                                                {notam.texto.split('\n')[0]}...
+                                                {(notam.texto || '').split('\n')[0]}...
                                             </span>
                                         </div>
                                     </AccordionTrigger>
