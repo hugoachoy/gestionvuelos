@@ -75,7 +75,7 @@ interface Ndb {
     lon: number;
 }
 
-const API_URL = "https://datos.anac.gob.ar/madhel/api/v2/airports/LIO/";
+const API_URL = "/api/notams/"; // Use the local API route
 
 function InfoPill({ title, value, icon }: { title: string, value: string | number, icon: React.ReactNode }) {
     return (
@@ -158,7 +158,7 @@ export function NotamClient() {
         <div className="space-y-6">
             <Card>
                  <CardHeader>
-                    <CardTitle>{airportData.name} ({airportData.city})</CardTitle>
+                    <CardTitle>{airportData.name ?? 'Aeródromo sin nombre'} ({airportData.city ?? 'N/A'})</CardTitle>
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
