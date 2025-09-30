@@ -145,7 +145,9 @@ export function NotamClient() {
                     <InfoPill title="Latitud" value={airportData.metadata?.localization?.coordinates?.lat?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
                     <InfoPill title="Longitud" value={airportData.metadata?.localization?.coordinates?.lng?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
                     <InfoPill title="Elevación" value={`${airportData.metadata?.localization?.elevation ?? 'N/A'} m`} icon={<Compass />} />
-                    {airportData.data?.rwy?.[0] && <InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />}
+                    <React.Fragment key="rwy-principal">
+                        {airportData.data?.rwy?.[0] && <InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />}
+                    </React.Fragment>
                 </CardContent>
             </Card>
 
