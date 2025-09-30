@@ -15,9 +15,9 @@ import { es } from 'date-fns/locale';
 interface Notam {
     id: number;
     numero: string;
-    fecha_publicacion: string;
-    valido_desde: string;
-    valido_hasta: string;
+    fecha_publicacion: string | null;
+    valido_desde: string | null;
+    valido_hasta: string | null;
     texto: string;
 }
 
@@ -31,13 +31,15 @@ interface Localization {
     coordinates: Coordinates;
 }
 
+interface Identifiers {
+    icao: string;
+    local: string;
+    iata: string | null;
+}
+
 interface Metadata {
     localization: Localization;
-    identifiers: {
-        icao: string;
-        local: string;
-        iata: string | null;
-    };
+    identifiers: Identifiers;
 }
 
 interface Datos {
