@@ -19,28 +19,34 @@ interface Notam {
     source?: string;
 }
 
+interface Coordinates {
+    lat: number;
+    lng: number;
+}
+
+interface Localization {
+    elevation: number;
+    coordinates: Coordinates;
+}
+
 interface Metadata {
-    localizacion: {
-        latitud: number;
-        lng: number;
-        elevacion: number;
-    };
-    identificadores: {
+    localization: Localization;
+    identifiers: {
         icao: string;
         local: string;
         iata: string | null;
     };
 }
 
-interface Datos {
+interface Data {
     rwy: string[];
 }
 
 interface AirportData {
     human_readable_identifier: string;
     notam: Notam[];
-    metadatos: Metadata;
-    datos: Datos;
+    metadata: Metadata;
+    data: Data;
 }
 
 const API_URL = "/api/notams/";
@@ -131,20 +137,20 @@ export function NotamClient() {
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <InfoPill title="Latitud" value={airportData.metadatos?.localizacion?.latitud?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
-                    <InfoPill title="Longitud" value={airportData.metadatos?.localizacion?.lng?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
-                    <InfoPill title="Elevación" value={`${airportData.metadatos?.localizacion?.elevacion ?? 'N/A'} m`} icon={<Compass />} />
-                    {airportData.datos?.rwy?.[0] && <InfoPill title="Pista Principal" value={airportData.datos.rwy[0].split(' ')[0]} icon={<PlaneTakeoff />} />}
+                    <InfoPill title="Latitud" value={airportData.metadata?.localization?.coordinates?.lat?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Longitud" value={airportData.metadata?.localization?.coordinates?.lng?.toFixed(4) ?? 'N/A'} icon={<MapPin />} />
+                    <InfoPill title="Elevación" value={`${airportData.metadata?.localization?.elevation ?? 'N/A'} m`} icon={<Compass />} />
+                    {airportData.data?.rwy?.[0] && <InfoPill title="Pista Principal" value={airportData.data.rwy[0].split(' ')[0]} icon={<PlaneTakeoff />} />}
                 </CardContent>
             </Card>
 
-            {airportData.datos?.rwy && airportData.datos.rwy.length > 0 && (
+            {airportData.data?.rwy && airportData.data.rwy.length > 0 && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Pistas</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {airportData.datos.rwy.map((runwayString, index) => (
+                        {airportData.data.rwy.map((runwayString, index) => (
                              <div key={index} className="p-3 border rounded-md mb-2 last:mb-0">
                                 <h3 className="font-bold text-lg mb-2">Pista {runwayString.split(' ')[0]}</h3>
                                 <p className="text-sm">{runwayString}</p>
