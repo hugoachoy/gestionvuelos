@@ -134,7 +134,7 @@ export function NotamClient() {
         );
     }
     
-    const infoPills = [];
+    const infoPills: React.ReactNode[] = [];
     if (airportData.metadata?.localization?.coordinates?.lat) {
         infoPills.push(<InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<MapPin />} />);
     }
@@ -212,5 +212,3 @@ export function NotamClient() {
         </div>
     );
 }
-
-    
