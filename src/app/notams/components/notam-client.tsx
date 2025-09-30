@@ -8,17 +8,23 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Compass, MapPin, PlaneTakeoff, Info } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
-// --- Interfaces actualizadas para coincidir con la estructura real de la API ---
+// --- Interfaces updated to match the actual combined API structure ---
+
+// Interface for a single NOTAM from ais.anac.gob.ar/notam/json
 interface Notam {
-    id: string;
-    text: string;
-    end?: string;
-    start?: string;
-    created?: string;
-    source?: string;
+    id: number;
+    numero: string;
+    fecha_publicacion: string;
+    valido_desde: string;
+    valido_hasta: string;
+    texto: string;
+    // Other fields from the NOTAM API can be added here if needed
 }
 
+// Interfaces for data from datos.anac.gob.ar
 interface Coordinates {
     lat: number;
     lng: number;
@@ -44,7 +50,7 @@ interface Data {
 
 interface AirportData {
     human_readable_identifier: string;
-    notam: Notam[];
+    notam: Notam[]; // This will be populated from the second API call
     metadata: Metadata;
     data: Data;
 }
@@ -170,18 +176,22 @@ export function NotamClient() {
                 {airportData.notam && airportData.notam.length > 0 && (
                     <CardContent>
                         <Accordion type="single" collapsible className="w-full">
-                            {airportData.notam.map((notam, index) => (
-                                <AccordionItem value={`item-${index}`} key={notam.id}>
+                            {airportData.notam.map((notam) => (
+                                <AccordionItem value={`item-${notam.id}`} key={notam.id}>
                                     <AccordionTrigger>
                                         <div className="flex flex-col md:flex-row md:items-center gap-x-4 gap-y-1 text-left">
-                                            <Badge variant="outline" className="shrink-0">{notam.id}</Badge>
+                                            <Badge variant="outline">{notam.numero}</Badge>
                                             <span className="text-sm truncate">
-                                                {notam.text.split('\n')[0]}...
+                                                {notam.texto.split('\n')[0]}...
                                             </span>
                                         </div>
                                     </AccordionTrigger>
                                     <AccordionContent className="whitespace-pre-wrap font-mono text-xs bg-muted/50 p-4 rounded-md">
-                                        {notam.text}
+                                        <p><strong>Válido Desde:</strong> {format(parseISO(notam.valido_desde), "dd/MM/yyyy HH:mm", { locale: es })}</p>
+                                        <p><strong>Válido Hasta:</strong> {format(parseISO(notam.valido_hasta), "dd/MM/yyyy HH:mm", { locale: es })}</p>
+                                        <p><strong>Publicado:</strong> {format(parseISO(notam.fecha_publicacion), "dd/MM/yyyy HH:mm", { locale: es })}</p>
+                                        <hr className="my-2"/>
+                                        {notam.texto}
                                     </AccordionContent>
                                 </AccordionItem>
                             ))}
