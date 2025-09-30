@@ -134,20 +134,6 @@ export function NotamClient() {
         );
     }
 
-    const infoPills = [];
-    if (airportData.metadata?.localization?.coordinates?.lat) {
-        infoPills.push(<InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<MapPin />} />);
-    }
-    if (airportData.metadata?.localization?.coordinates?.lng) {
-        infoPills.push(<InfoPill key="lng" title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<MapPin />} />);
-    }
-    if (airportData.metadata?.localization?.elevation) {
-        infoPills.push(<InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Compass />} />);
-    }
-    if (airportData.data?.rwy?.[0]) {
-       infoPills.push(<InfoPill key="rwy" title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />);
-    }
-
     return (
         <div className="space-y-6">
             <Card>
@@ -156,7 +142,14 @@ export function NotamClient() {
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    {infoPills}
+                    {airportData.metadata?.localization?.coordinates?.lat && <InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<MapPin />} />}
+                    {airportData.metadata?.localization?.coordinates?.lng && <InfoPill key="lng" title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<MapPin />} />}
+                    {airportData.metadata?.localization?.elevation && <InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Compass />} />}
+                    {airportData.data?.rwy?.[0] && (
+                        <React.Fragment key="rwy">
+                            <InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />
+                        </React.Fragment>
+                    )}
                 </CardContent>
             </Card>
 
