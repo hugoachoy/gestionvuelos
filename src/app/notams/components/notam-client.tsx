@@ -153,8 +153,7 @@ export function NotamClient() {
             </Alert>
         );
     }
-
-    // Only destructure and render if airportData is guaranteed to exist.
+    
     const { name, city, elevation, lat, lon, runways, notams } = airportData;
 
     return (
