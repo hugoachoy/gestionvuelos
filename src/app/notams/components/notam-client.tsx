@@ -4,7 +4,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Sunrise, Sunset, Info } from 'lucide-react';
@@ -150,7 +149,7 @@ export function NotamClient() {
                    {airportData.metadata?.localization?.coordinates?.lat && <InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<Sunrise />} />}
                    {airportData.metadata?.localization?.coordinates?.lng && <InfoPill key="lng" title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<Sunset />} />}
                    {airportData.metadata?.localization?.elevation && <InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Sunrise />} />}
-                   {airportData.data?.rwy?.[0] && <InfoPill key="rwy" title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<Sunset />} />}
+                   {airportData.data?.rwy?.[0] && <React.Fragment key="rwy"><InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<Sunset />} /></React.Fragment>}
                 </CardContent>
             </Card>
 
@@ -178,27 +177,22 @@ export function NotamClient() {
                     </CardDescription>
                 </CardHeader>
                 {airportData.notam && airportData.notam.length > 0 && (
-                    <CardContent>
-                        <Accordion type="single" collapsible className="w-full">
-                            {airportData.notam.map((notam) => (
-                                <AccordionItem value={notam.notam} key={notam.notam}>
-                                    <AccordionTrigger>
-                                        <div className="flex flex-col md:flex-row md:items-center gap-x-4 gap-y-1 text-left">
-                                            <Badge variant="outline">{notam.notam}</Badge>
-                                            <span className="text-sm truncate">
-                                                {(notam.novedad || '').split('\n')[0]}...
-                                            </span>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent className="whitespace-pre-wrap font-mono text-xs bg-muted/50 p-4 rounded-md">
-                                        <p><strong>Válido Desde:</strong> {notam.desde ? format(parseCustomDate(notam.desde), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
-                                        <p><strong>Válido Hasta:</strong> {notam.hasta ? format(parseCustomDate(notam.hasta), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
-                                        <hr className="my-2"/>
-                                        {notam.novedad}
-                                    </AccordionContent>
-                                </AccordionItem>
-                            ))}
-                        </Accordion>
+                    <CardContent className="space-y-4">
+                        {airportData.notam.map((notam) => (
+                            <div key={notam.notam} className="p-4 border rounded-lg bg-muted/50">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
+                                    <Badge variant="outline" className="text-base font-semibold mb-2 sm:mb-0">{notam.notam}</Badge>
+                                    <div className="text-xs text-muted-foreground space-y-1 sm:space-y-0 sm:space-x-4 sm:flex">
+                                        <span><strong>Desde:</strong> {notam.desde ? format(parseCustomDate(notam.desde), "dd/MM/yy HH:mm", { locale: es }) : 'N/A'}</span>
+                                        <span><strong>Hasta:</strong> {notam.hasta ? format(parseCustomDate(notam.hasta), "dd/MM/yy HH:mm", { locale: es }) : 'N/A'}</span>
+                                    </div>
+                                </div>
+                                <hr className="my-2"/>
+                                <p className="whitespace-pre-wrap font-mono text-sm">
+                                    {notam.novedad}
+                                </p>
+                            </div>
+                        ))}
                     </CardContent>
                 )}
             </Card>
