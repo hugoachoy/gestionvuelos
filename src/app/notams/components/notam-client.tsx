@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, Compass, MapPin, PlaneTakeoff, Info } from 'lucide-react';
+import { AlertTriangle, Sunrise, Sunset, Info } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -142,12 +142,10 @@ export function NotamClient() {
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    {airportData.metadata?.localization?.coordinates?.lat && <InfoPill title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<MapPin />} />}
-                    {airportData.metadata?.localization?.coordinates?.lng && <InfoPill title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<MapPin />} />}
-                    {airportData.metadata?.localization?.elevation && <InfoPill title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Compass />} />}
-                    {airportData.data?.rwy?.[0] && (
-                        <InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<PlaneTakeoff />} />
-                    )}
+                    {airportData.metadata?.localization?.coordinates?.lat && <InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<Sunrise />} />}
+                    {airportData.metadata?.localization?.coordinates?.lng && <InfoPill key="lng" title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<Sunset />} />}
+                    {airportData.metadata?.localization?.elevation && <InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Sunrise />} />}
+                    {airportData.data?.rwy?.[0] && <InfoPill key="rwy" title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<Sunset />} />}
                 </CardContent>
             </Card>
 
