@@ -8,17 +8,17 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Sunrise, Sunset, Info } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // --- Interfaces updated to match the actual combined API structure ---
 interface Notam {
-    id: number;
-    numero: string;
-    fecha_publicacion: string | null;
-    valido_desde: string | null;
-    valido_hasta: string | null;
-    texto: string;
+  ad: string;
+  indicador: string;
+  notam: string; // The unique identifier "C1135/2025"
+  desde: string; // "2025-07-11 12:03:00"
+  hasta: string; // "2025-10-03 23:59:00"
+  novedad: string; // The NOTAM text
 }
 
 interface Coordinates {
@@ -67,6 +67,11 @@ function InfoPill({ title, value, icon }: { title: string, value: string | numbe
         </div>
     );
 }
+
+const parseCustomDate = (dateString: string) => {
+    // Tries to parse "YYYY-MM-DD HH:mm:ss"
+    return parse(dateString, "yyyy-MM-dd HH:mm:ss", new Date());
+};
 
 export function NotamClient() {
     const [airportData, setAirportData] = useState<AirportData | null>(null);
@@ -142,10 +147,10 @@ export function NotamClient() {
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    {airportData.metadata?.localization?.coordinates?.lat && <InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<Sunrise />} />}
-                    {airportData.metadata?.localization?.coordinates?.lng && <InfoPill key="lng" title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<Sunset />} />}
-                    {airportData.metadata?.localization?.elevation && <InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Sunrise />} />}
-                    {airportData.data?.rwy?.[0] && <InfoPill key="rwy" title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<Sunset />} />}
+                   {airportData.metadata?.localization?.coordinates?.lat && <InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<Sunrise />} />}
+                   {airportData.metadata?.localization?.coordinates?.lng && <InfoPill key="lng" title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<Sunset />} />}
+                   {airportData.metadata?.localization?.elevation && <InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Sunrise />} />}
+                   {airportData.data?.rwy?.[0] && <InfoPill key="rwy" title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<Sunset />} />}
                 </CardContent>
             </Card>
 
@@ -176,21 +181,20 @@ export function NotamClient() {
                     <CardContent>
                         <Accordion type="single" collapsible className="w-full">
                             {airportData.notam.map((notam) => (
-                                <AccordionItem value={`item-${notam.id}`} key={notam.id}>
+                                <AccordionItem value={notam.notam} key={notam.notam}>
                                     <AccordionTrigger>
                                         <div className="flex flex-col md:flex-row md:items-center gap-x-4 gap-y-1 text-left">
-                                            <Badge variant="outline">{notam.numero}</Badge>
+                                            <Badge variant="outline">{notam.notam}</Badge>
                                             <span className="text-sm truncate">
-                                                {(notam.texto || '').split('\n')[0]}...
+                                                {(notam.novedad || '').split('\n')[0]}...
                                             </span>
                                         </div>
                                     </AccordionTrigger>
                                     <AccordionContent className="whitespace-pre-wrap font-mono text-xs bg-muted/50 p-4 rounded-md">
-                                        <p><strong>Válido Desde:</strong> {notam.valido_desde ? format(parseISO(notam.valido_desde), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
-                                        <p><strong>Válido Hasta:</strong> {notam.valido_hasta ? format(parseISO(notam.valido_hasta), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
-                                        <p><strong>Publicado:</strong> {notam.fecha_publicacion ? format(parseISO(notam.fecha_publicacion), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
+                                        <p><strong>Válido Desde:</strong> {notam.desde ? format(parseCustomDate(notam.desde), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
+                                        <p><strong>Válido Hasta:</strong> {notam.hasta ? format(parseCustomDate(notam.hasta), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/A'}</p>
                                         <hr className="my-2"/>
-                                        {notam.texto}
+                                        {notam.novedad}
                                     </AccordionContent>
                                 </AccordionItem>
                             ))}

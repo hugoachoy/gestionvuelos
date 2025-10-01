@@ -53,9 +53,11 @@ export async function GET() {
       } else {
         console.warn(`Failed to fetch NOTAM data, continuing without it. Status: ${notamResponse.status}`);
         // If this call fails, we still return the airport data, just with empty notams.
+        airportData.notam = [];
       }
     } catch(notamError) {
         console.warn('An unexpected error occurred while fetching NOTAM data. Continuing without it.', notamError);
+        airportData.notam = [];
     }
 
     return NextResponse.json(airportData);
