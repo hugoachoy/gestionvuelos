@@ -2,111 +2,87 @@
 
 Esta es una aplicación Next.js para la gestión de turnos de vuelo, pilotos, aeronaves y más para el Aeroclub 9 de Julio.
 
-## 🚀 Primeros Pasos
+## 🚀 Despliegue y Puesta en Marcha
 
-Sigue estos pasos para poner en marcha el proyecto en tu entorno local.
+Estas instrucciones se centran en cómo subir tu proyecto a internet usando GitHub y Vercel.
 
-### 1. Requisitos Previos
+### 1. Prerrequisitos
 
-- Node.js (versión 18 o superior)
-- npm, pnpm, o yarn
+- Una cuenta en [GitHub](https://github.com/).
+- Una cuenta en [Vercel](https://vercel.com/) (puedes registrarte con tu cuenta de GitHub).
+- Tener las claves de los servicios listos (Supabase, Google, Telegram).
 
-### 2. Instalación
+### 2. Sube tu Código a un Repositorio de GitHub
 
-Clona el repositorio y luego instala las dependencias:
-
-```bash
-git clone <tu-repositorio-git>
-cd <nombre-del-directorio>
-npm install
-```
-
-### 3. Configuración de Variables de Entorno
-
-Crea un archivo llamado `.env.local` en la raíz del proyecto. Este archivo contendrá las claves secretas de los servicios que utiliza la aplicación.
-
-Copia y pega el siguiente contenido en tu archivo `.env.local` y reemplaza los valores de ejemplo con tus propias claves:
-
-```env
-# URL de tu proyecto en Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxxxxxxxxx.supabase.co
-
-# Clave anónima PÚBLICA de tu proyecto en Supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx.xxxxx
-
-# Clave de SERVICIO (secreta) de tu proyecto en Supabase (para operaciones de admin)
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx.xxxxx
-
-# Clave de API de Google para Genkit (Gemini AI)
-GOOGLE_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxx
-
-# Token de tu bot de Telegram (obtenido de @BotFather)
-NEXT_PUBLIC_TELEGRAM_BOT_TOKEN=1234567890:ABC-DEF1234567890abcdefg
-
-# Un token secreto que inventes para proteger la ruta del cron job
-CRON_SECRET=ESTO_ES_UN_SECRETO_MUY_SEGURO_12345
-```
-
-### 4. Ejecutar el Servidor de Desarrollo
-
-Una vez configuradas las variables de entorno, puedes iniciar el servidor de desarrollo:
+Si has estado trabajando localmente, este es el momento de subir tu código a un nuevo repositorio en tu cuenta de GitHub.
 
 ```bash
-npm run dev
+# Inicializa git si no lo has hecho
+git init
+git add .
+git commit -m "Versión inicial del proyecto"
+
+# Crea un nuevo repositorio en GitHub.com y luego ejecuta:
+git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
+git branch -M main
+git push -u origin main
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) en tu navegador para ver la aplicación.
+### 3. Despliegue en Vercel
 
----
+Vercel es la plataforma recomendada para desplegar esta aplicación.
 
-## ☁️ Despliegue en Vercel
+#### Paso 3.1: Conectar tu Repositorio
 
-Vercel es la forma recomendada de desplegar esta aplicación Next.js.
+1.  Ve a tu [Dashboard de Vercel](https://vercel.com/dashboard).
+2.  Haz clic en **"Add New..."** -> **"Project"**.
+3.  Importa el repositorio de GitHub que acabas de crear/subir.
+4.  Vercel detectará automáticamente que es un proyecto Next.js y pre-configurará los ajustes de build por ti. No necesitas cambiarlos.
 
-### 1. Conectar tu Repositorio de GitHub
+#### Paso 3.2: Configurar las Variables de Entorno
 
-- Sube tu código a un repositorio de GitHub (si aún no lo has hecho).
-- Ve a [Vercel](https://vercel.com/) y crea una cuenta o inicia sesión.
-- Desde tu dashboard de Vercel, haz clic en "Add New..." -> "Project".
-- Importa el repositorio de GitHub que acabas de crear/subir.
+Este es el paso más **crítico**.
 
-### 2. Configurar el Proyecto en Vercel
+1.  En la configuración del proyecto en Vercel, antes de desplegar, ve a la sección **"Environment Variables"**.
+2.  Añade cada una de las siguientes variables con sus respectivos valores. Asegúrate de que los nombres coincidan exactamente.
 
-Vercel detectará automáticamente que es un proyecto Next.js y configurará los ajustes de build por ti. Lo más importante es añadir las variables de entorno.
+| Variable                      | Descripción                                           |
+| ----------------------------- | ----------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`    | La URL de tu proyecto de Supabase.                    |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | La clave pública (anon key) de tu proyecto Supabase.  |
+| `SUPABASE_SERVICE_ROLE_KEY`   | La clave de servicio (secreta) de tu proyecto Supabase. |
+| `GOOGLE_API_KEY`              | Tu clave de API de Google para Genkit (Gemini AI).      |
+| `NEXT_PUBLIC_TELEGRAM_BOT_TOKEN` | El token de tu bot de Telegram, obtenido de @BotFather. |
+| `CRON_SECRET`                 | Un texto secreto que inventes para proteger el cron job. |
 
-- En la configuración de tu proyecto en Vercel, ve a la sección "Settings" -> "Environment Variables".
-- Añade cada una de las variables que definiste en tu archivo `.env.local`.
 
-**Variables a añadir en Vercel:**
+#### Paso 3.3: Desplegar
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GOOGLE_API_KEY`
-- `NEXT_PUBLIC_TELEGRAM_BOT_TOKEN`
-- `CRON_SECRET`
+1.  Una vez añadidas todas las variables de entorno, haz clic en el botón **"Deploy"**.
+2.  Vercel construirá y desplegará tu aplicación. Al finalizar, te proporcionará la URL pública de tu proyecto (ej: `https://tu-proyecto.vercel.app`).
 
-**¡Importante!** Asegúrate de que los nombres de las variables en Vercel coincidan exactamente con los del archivo `.env.local`.
+### 4. Configuración Post-Despliegue
 
-### 3. Desplegar
+Con tu aplicación ya online, necesitas realizar dos configuraciones finales desde la propia aplicación.
 
-Una vez que hayas añadido las variables de entorno, haz clic en el botón "Deploy". Vercel construirá y desplegará tu aplicación.
+#### Paso 4.1: Configurar el Webhook de Telegram
 
-### 4. Configurar el Webhook de Telegram
+Para que el bot de Telegram reciba mensajes y comandos, debes decirle a Telegram a qué URL enviar las actualizaciones.
 
-Después del primer despliegue, Vercel te dará la URL de tu aplicación (ej: `https://tu-proyecto.vercel.app`).
+1.  Navega a tu aplicación desplegada en Vercel.
+2.  Ve a la sección **Administración -> Configuración de Telegram**.
+3.  La "URL del Webhook" se mostrará automáticamente, basada en la URL de tu proyecto en Vercel.
+4.  Pega el `token` de tu bot de Telegram en el campo correspondiente.
+5.  Se generará un comando `curl`. **Cópialo**.
+6.  Abre una terminal en tu computadora (no importa la ubicación) y **pega y ejecuta** ese comando.
+7.  Si todo va bien, verás una respuesta como `{"ok":true,"result":true,"description":"Webhook was set"}`. ¡Listo! Tu bot ya está conectado.
 
-1.  Ve a la sección de **Administración -> Configuración de Telegram** en tu aplicación ya desplegada.
-2.  La URL del webhook se generará automáticamente.
-3.  Ingresa el token de tu bot de Telegram en el campo correspondiente.
-4.  Copia el comando `curl` que se genera y ejecútalo en una terminal en tu computadora. Esto le dirá a Telegram que envíe las actualizaciones a tu aplicación en Vercel.
+#### Paso 4.2: Configurar el Cron Job para Informes Semanales (Opcional)
 
-### 5. Configurar el Cron Job (Opcional)
+Para que los informes de actividad se envíen automáticamente a los pilotos cada semana, necesitas configurar una tarea programada (Cron Job) en Vercel.
 
-Para enviar los informes semanales automáticamente, necesitas configurar un Cron Job en Vercel.
-
-1.  En tu proyecto de Vercel, crea un archivo `vercel.json` en la raíz si no existe.
-2.  Añade la siguiente configuración:
+1.  En la raíz de tu proyecto (en tu computadora), crea un archivo llamado `vercel.json` si no existe.
+2.  Añade la siguiente configuración. **Recuerda reemplazar el token secreto** con el mismo que pusiste en las variables de entorno.
 
     ```json
     {
@@ -118,7 +94,16 @@ Para enviar los informes semanales automáticamente, necesitas configurar un Cro
       ]
     }
     ```
-    - **path**: Debe ser `/api/cron?token=` seguido del mismo valor que pusiste en la variable `CRON_SECRET`.
-    - **schedule**: Este ejemplo se ejecuta todos los lunes a las 11:00 AM UTC. Puedes ajustarlo usando la sintaxis de `cron`.
+    - **path**: `/api/cron?token=` seguido de tu `CRON_SECRET`.
+    - **schedule**: `0 11 * * 1` ejecuta la tarea todos los lunes a las 11:00 AM UTC. Puedes ajustar este valor usando la sintaxis de `cron`.
 
-3.  Vuelve a desplegar tu proyecto en Vercel para que los cambios surtan efecto.
+3.  Sube los cambios de este archivo `vercel.json` a tu repositorio de GitHub.
+
+    ```bash
+    git add vercel.json
+    git commit -m "Añadir configuración de cron job"
+    git push
+    ```
+4.  Vercel detectará el cambio y realizará un nuevo despliegue automáticamente, activando el cron job.
+
+¡Y eso es todo! Tu aplicación estará completamente configurada y funcionando en producción.
