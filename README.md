@@ -8,13 +8,19 @@ Estas instrucciones se centran en cómo subir tu proyecto a internet usando GitH
 
 ### 1. Prerrequisitos
 
-- Una cuenta en [GitHub](https://github.com/).
-- Una cuenta en [Vercel](https://vercel.com/) (puedes registrarte con tu cuenta de GitHub).
-- Tener las claves de los servicios listos (Supabase, Google, Telegram).
+Antes de empezar, asegúrate de tener lo siguiente:
+
+*   **Git Instalado**: `git` es la herramienta que te permite comunicarte con GitHub. Si al escribir `git` en tu terminal recibes un error como "comando no encontrado", necesitas instalarlo.
+    *   Puedes descargarlo desde su [página oficial](https://git-scm.com/downloads).
+*   **Cuentas Creadas**:
+    *   Una cuenta en [GitHub](https://github.com/).
+    *   Una cuenta en [Vercel](https://vercel.com/) (puedes registrarte con tu cuenta de GitHub).
+*   **Claves de Servicios**:
+    *   Tener a mano las claves de los servicios que usarás (Supabase, Google, Telegram).
 
 ### 2. Sube tu Código a un Repositorio de GitHub
 
-Si has estado trabajando localmente, este es el momento de subir tu código a un nuevo repositorio en tu cuenta de GitHub.
+Una vez que tengas `git` instalado y tu proyecto esté listo, es momento de subirlo a un nuevo repositorio en tu cuenta de GitHub.
 
 ```bash
 # Inicializa git si no lo has hecho
