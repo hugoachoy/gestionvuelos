@@ -230,7 +230,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        onSelect={(date) => { field.onChange(date); setAnnualPickerOpen(false); }}
+                        onSelect={(date) => { if(date) field.onChange(date); setAnnualPickerOpen(false); }}
                         initialFocus
                         locale={es}
                       />
@@ -262,7 +262,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        onSelect={(date) => { field.onChange(date); setInsurancePickerOpen(false); }}
+                        onSelect={(date) => { if(date) field.onChange(date); setInsurancePickerOpen(false); }}
                         initialFocus
                         locale={es}
                       />
@@ -296,7 +296,7 @@ export function AircraftForm({ open, onOpenChange, onSubmit, aircraft }: Aircraf
                           <Calendar
                             mode="single"
                             selected={field.value}
-                            onSelect={(date) => { field.onChange(date); setOilPickerOpen(false); }}
+                            onSelect={(date) => { if(date) field.onChange(date); setOilPickerOpen(false); }}
                             initialFocus
                             locale={es}
                           />

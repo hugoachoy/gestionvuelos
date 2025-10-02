@@ -1,7 +1,8 @@
 
 import type { Config } from "tailwindcss";
+// Removed defaultTheme import as it's not used if fontFamily is removed
 
-const config: Config = {
+export default {
     darkMode: ["class"],
     content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,6 +11,7 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+      // Removed fontFamily extension for Geist
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -92,6 +94,4 @@ const config: Config = {
   	}
   },
   plugins: [require("tailwindcss-animate")],
-} 
-
-export default config;
+} satisfies Config;

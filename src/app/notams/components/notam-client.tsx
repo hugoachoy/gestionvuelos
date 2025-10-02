@@ -146,10 +146,18 @@ export function NotamClient() {
                     <CardDescription>Información general del aeródromo.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                   {airportData.metadata?.localization?.coordinates?.lat && <InfoPill key="lat" title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<Sunrise />} />}
-                   {airportData.metadata?.localization?.coordinates?.lng && <InfoPill key="lng" title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<Sunset />} />}
-                   {airportData.metadata?.localization?.elevation && <InfoPill key="elev" title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Sunrise />} />}
-                   {airportData.data?.rwy?.[0] && <React.Fragment key="rwy"><InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<Sunset />} /></React.Fragment>}
+                   <React.Fragment key="lat">
+                       {airportData.metadata?.localization?.coordinates?.lat && <InfoPill title="Latitud" value={airportData.metadata.localization.coordinates.lat.toFixed(4)} icon={<Sunrise />} />}
+                    </React.Fragment>
+                    <React.Fragment key="lng">
+                        {airportData.metadata?.localization?.coordinates?.lng && <InfoPill title="Longitud" value={airportData.metadata.localization.coordinates.lng.toFixed(4)} icon={<Sunset />} />}
+                    </React.Fragment>
+                    <React.Fragment key="elev">
+                        {airportData.metadata?.localization?.elevation && <InfoPill title="Elevación" value={`${airportData.metadata.localization.elevation} m`} icon={<Sunrise />} />}
+                    </React.Fragment>
+                    <React.Fragment key="rwy">
+                        {airportData.data?.rwy?.[0] && <InfoPill title="Pista Principal" value={(airportData.data.rwy[0] || '').split(' ')[0]} icon={<Sunset />} />}
+                    </React.Fragment>
                 </CardContent>
             </Card>
 
