@@ -113,3 +113,37 @@ Para que los informes de actividad se envíen automáticamente a los pilotos cad
 4.  Vercel detectará el cambio y realizará un nuevo despliegue automáticamente, activando el cron job.
 
 ¡Y eso es todo! Tu aplicación estará completamente configurada y funcionando en producción.
+
+---
+
+### 🚨 Resolución de Problemas Comunes
+
+#### Error: `error: 'nombre-carpeta/' does not have a commit checked out`
+
+Este error ocurre cuando intentas ejecutar `git add .` y una de las subcarpetas de tu proyecto (por ejemplo, `turnosvuelo/`) es, a su vez, otro repositorio de Git (contiene su propia carpeta `.git`).
+
+**Solución:**
+
+Debes eliminar el repositorio de Git anidado. Abre tu terminal, navega hasta la raíz de tu proyecto y ejecuta el siguiente comando, **reemplazando `nombre-carpeta` por el nombre de la carpeta que te indica el error**:
+
+```bash
+# Para Windows (usando Command Prompt)
+rmdir /s /q nombre-carpeta\\.git
+
+# Para Windows (usando PowerShell)
+Remove-Item -Recurse -Force nombre-carpeta\\.git
+
+# Para macOS o Linux
+rm -rf nombre-carpeta/.git
+```
+
+Por ejemplo, si el error fue `error: 'turnosvuelo/' does not have a commit checked out`, el comando en Linux/macOS sería `rm -rf turnosvuelo/.git`.
+
+Una vez ejecutado, puedes volver a intentar el comando `git add .` desde la raíz de tu proyecto principal:
+
+```bash
+git add .
+# Ahora debería funcionar sin errores.
+git commit -m "Eliminar repositorio anidado y continuar con el commit"
+git push
+```
