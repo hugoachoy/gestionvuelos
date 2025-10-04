@@ -1,20 +1,66 @@
 
+"use client";
+
 import { Suspense } from 'react';
 import { PageHeader } from '@/components/common/page-header';
 import { MaintenanceWarnings } from '@/components/dashboard/maintenance-warnings';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CalendarDays, BookOpen, Plane, Sheet } from 'lucide-react';
+import { CalendarDays, BookOpen, Plane, Sheet, AlertTriangle, LogIn } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+
+function LoginPrompt() {
+  return (
+    <Alert className="mb-6 border-primary bg-primary/10 text-primary-foreground">
+      <AlertTriangle className="h-4 w-4 text-primary" />
+      <AlertTitle className="font-bold text-primary">¡Bienvenido!</AlertTitle>
+      <AlertDescription className="text-primary/90">
+        Para acceder a la agenda, registrar vuelos y ver toda la funcionalidad, por favor, inicia sesión.
+      </AlertDescription>
+      <div className="mt-4">
+        <Button asChild variant="default" className="bg-primary/90 hover:bg-primary/100 text-primary-foreground">
+          <Link href="/login">
+            <LogIn className="mr-2 h-4 w-4" />
+            Iniciar Sesión
+          </Link>
+        </Button>
+      </div>
+    </Alert>
+  );
+}
+
 
 export default function DashboardPage() {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+        <>
+            <PageHeader title="Tablero Principal" />
+            <Skeleton className="h-24 w-full mb-6" />
+            <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Skeleton className="h-48 w-full" />
+                <Skeleton className="h-48 w-full" />
+                <Skeleton className="h-48 w-full" />
+            </div>
+        </>
+    );
+  }
+
   return (
     <>
       <PageHeader title="Tablero Principal" />
-      <Suspense fallback={<MaintenanceWarningsSkeleton />}>
-        <MaintenanceWarnings />
-      </Suspense>
+
+      {!user && <LoginPrompt />}
+
+      {user && (
+        <Suspense fallback={<MaintenanceWarningsSkeleton />}>
+          <MaintenanceWarnings />
+        </Suspense>
+      )}
 
       <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -28,7 +74,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full">
+            <Button asChild className="w-full" disabled={!user}>
               <Link href="/schedule">Ir a la Agenda</Link>
             </Button>
           </CardContent>
@@ -45,7 +91,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full">
+            <Button asChild className="w-full" disabled={!user}>
               <Link href="/logbook">Ir al Libro de Vuelo</Link>
             </Button>
           </CardContent>
@@ -62,7 +108,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full">
+            <Button asChild className="w-full" disabled={!user}>
               <Link href="/aircraft">Ir a Aeronaves</Link>
             </Button>
           </CardContent>
@@ -79,7 +125,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full">
+            <Button asChild className="w-full" disabled={!user}>
               <Link href="/rates">Consultar Tarifas</Link>
             </Button>
           </CardContent>

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText, Shield, Sheet } from 'lucide-react';
+import { Skeleton } from './ui/skeleton';
 
 interface NavItemProps {
   href: string;
@@ -62,22 +63,24 @@ function AppShellLayout({ children }: { children: ReactNode }) {
   const { user, logout, loading: authLoading } = useAuth();
   const sidebar = useSidebar(); 
 
-  const navItems = [
+  const publicNavItems = [
     { href: '/', label: 'Dashboard', icon: <LayoutDashboard /> },
+    { href: '/twilight', label: 'Crepúsculo Civil', icon: <Sunrise /> },
+    { href: '/notams', label: 'NOTAMs', icon: <FileText /> },
+  ];
+
+  const privateNavItems = [
     { href: '/schedule', label: 'Agenda', icon: <CalendarDays /> },
     { href: '/logbook', label: 'Libro de Vuelo', icon: <BookOpen /> },
     { href: '/pilots', label: 'Pilotos', icon: <Users /> },
     { href: '/aircraft', label: 'Aeronaves', icon: <Plane /> },
     { href: '/rates', label: 'Tarifas', icon: <Sheet /> },
-    { href: '/twilight', label: 'Crepúsculo Civil', icon: <Sunrise /> },
-    { href: '/notams', label: 'NOTAMs', icon: <FileText /> },
   ];
 
   const adminNavItems = [
     { href: '/categories', label: 'Categorías Pilotos', icon: <Tags /> },
     { href: '/admin', label: 'Admin Panel', icon: <Shield /> },
-  ]
-
+  ];
 
   const handleLogout = async () => {
     await logout();
@@ -122,12 +125,25 @@ function AppShellLayout({ children }: { children: ReactNode }) {
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
-            {navItems.map((item) => (
-              <NavItem key={item.href} {...item} pathname={pathname} />
-            ))}
-             {user?.is_admin && adminNavItems.map((item) => (
-              <NavItem key={item.href} {...item} pathname={pathname} />
-            ))}
+            {authLoading ? (
+              <div className="flex flex-col gap-2 p-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ) : (
+              <>
+                {publicNavItems.map((item) => (
+                  <NavItem key={`public-${item.href}`} {...item} pathname={pathname} />
+                ))}
+                {user && privateNavItems.map((item) => (
+                  <NavItem key={`private-${item.href}`} {...item} pathname={pathname} />
+                ))}
+                {user?.is_admin && adminNavItems.map((item) => (
+                  <NavItem key={`admin-${item.href}`} {...item} pathname={pathname} />
+                ))}
+              </>
+            )}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">
