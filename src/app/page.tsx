@@ -115,25 +115,25 @@ export default function DashboardPage() {
                 </Button>
               </CardContent>
             </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Sheet className="mr-2 h-6 w-6 text-primary" />
+                  Tarifas Vigentes
+                </CardTitle>
+                <CardDescription>
+                  Consulta el listado de precios actual y exporta a PDF.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild className="w-full">
+                  <Link href="/rates">Consultar Tarifas</Link>
+                </Button>
+              </CardContent>
+            </Card>
           </>
         )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Sheet className="mr-2 h-6 w-6 text-primary" />
-              Tarifas Vigentes
-            </CardTitle>
-            <CardDescription>
-              Consulta el listado de precios actual y exporta a PDF.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full" disabled={!user}>
-              <Link href="/rates">Consultar Tarifas</Link>
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     </>
   );
