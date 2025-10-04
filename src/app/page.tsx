@@ -63,56 +63,60 @@ export default function DashboardPage() {
       )}
 
       <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <CalendarDays className="mr-2 h-6 w-6 text-primary" />
-              Agenda de Vuelos
-            </CardTitle>
-            <CardDescription>
-              Ver y gestionar los turnos de vuelo programados.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full" disabled={!user}>
-              <Link href="/schedule">Ir a la Agenda</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        {user && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <CalendarDays className="mr-2 h-6 w-6 text-primary" />
+                  Agenda de Vuelos
+                </CardTitle>
+                <CardDescription>
+                  Ver y gestionar los turnos de vuelo programados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild className="w-full">
+                  <Link href="/schedule">Ir a la Agenda</Link>
+                </Button>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <BookOpen className="mr-2 h-6 w-6 text-primary" />
-              Libro de Vuelo
-            </CardTitle>
-            <CardDescription>
-              Registrar y consultar vuelos realizados.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full" disabled={!user}>
-              <Link href="/logbook">Ir al Libro de Vuelo</Link>
-            </Button>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <BookOpen className="mr-2 h-6 w-6 text-primary" />
+                  Libro de Vuelo
+                </CardTitle>
+                <CardDescription>
+                  Registrar y consultar vuelos realizados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild className="w-full">
+                  <Link href="/logbook">Ir al Libro de Vuelo</Link>
+                </Button>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Plane className="mr-2 h-6 w-6 text-primary" />
-              Gestión de Flota
-            </CardTitle>
-            <CardDescription>
-              Ver el estado y los detalles de las aeronaves.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full" disabled={!user}>
-              <Link href="/aircraft">Ir a Aeronaves</Link>
-            </Button>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Plane className="mr-2 h-6 w-6 text-primary" />
+                  Gestión de Flota
+                </CardTitle>
+                <CardDescription>
+                  Ver el estado y los detalles de las aeronaves.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild className="w-full">
+                  <Link href="/aircraft">Ir a Aeronaves</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         <Card>
           <CardHeader>
