@@ -31,6 +31,33 @@ if (!supabaseAnonKey.startsWith('eyJ')) {
   );
 }
 
+// --- CRITICAL CORS WARNING ---
+console.warn(
+    `
+    ****************************************************************************************
+    ***     [IMPORTANTE] RECORDATORIO DE CONFIGURACIÓN DE CORS EN SUPABASE             ***
+    ****************************************************************************************
+    Si estás viendo errores de red como "TypeError: Failed to fetch" o errores de CORS
+    en la consola del navegador al intentar iniciar sesión, registrarte o interactuar con
+    la base de datos, es muy probable que necesites configurar los CORS en tu proyecto
+    de Supabase.
+
+    QUÉ HACER:
+    1. Ve a tu Dashboard de Supabase: https://supabase.com/dashboard
+    2. Selecciona tu proyecto.
+    3. Ve a "Project Settings" (icono de engranaje) -> "API".
+    4. En la sección "CORS configuration", añade la URL donde se ejecuta tu aplicación a
+       los "Allowed Origins".
+       - Para desarrollo local, añade: http://localhost:6000
+       - Para producción, añade la URL que te da Vercel (ej: https://tu-proyecto.vercel.app)
+
+    Puedes usar un asterisco (*) para permitir todos los orígenes, pero esto NO es
+    recomendado para producción.
+    ****************************************************************************************
+    `
+);
+
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 
