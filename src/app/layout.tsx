@@ -5,6 +5,7 @@ import './globals.css';
 import { AppShell } from '@/components/AppShell';
 import { AuthProvider } from '@/contexts/AuthContext'; 
 import { Toaster } from "@/components/ui/toaster"; 
+import { ThemeProvider } from '@/components/common/theme-provider';
 
 // Removed Geist font definitions
 
@@ -46,14 +47,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className="antialiased"> {/* Removed Geist font variables */}
-        <AuthProvider>
-          <AppShell>
-            {children}
-          </AppShell>
-          <Toaster /> 
-        </AuthProvider>
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+        >
+            <AuthProvider>
+            <AppShell>
+                {children}
+            </AppShell>
+            <Toaster /> 
+            </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

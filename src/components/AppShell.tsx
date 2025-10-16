@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, Tags, Plane, CalendarDays, LogIn, LogOut, BookOpen, Sunrise, FileText, Shield, Sheet } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
+import { ThemeToggle } from './common/theme-toggle';
 
 interface NavItemProps {
   href: string;
@@ -147,6 +148,9 @@ function AppShellLayout({ children }: { children: ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-2">
+           <div className="flex items-center justify-between p-2">
+              <ThemeToggle />
+           </div>
           {authLoading ? (
             <div className="p-2 text-sm text-sidebar-foreground/70">Cargando...</div>
           ) : user ? (
