@@ -64,8 +64,8 @@ Este es el paso más **crítico**.
 
 #### Paso 3.3: Desplegar
 
-1.  Una vez añadidas todas las variables de entorno, haz clic en el botón **"Deploy"**.
-2.  Vercel construirá y desplegará tu aplicación. Al finalizar, te proporcionará la URL pública de tu proyecto (ej: `https://tu-proyecto.vercel.app`).
+1.  Once all environment variables have been added, click the **"Deploy"** button.
+2.  Vercel will build and deploy your application. When finished, it will provide you with the public URL of your project (e.g., `https://your-project.vercel.app`).
 
 ### 4. Configuración Post-Despliegue
 
