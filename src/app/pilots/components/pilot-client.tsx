@@ -164,7 +164,6 @@ export function PilotClient() {
                 <TableHead>Apellido</TableHead>
                 <TableHead>Categorías</TableHead>
                 <TableHead>Venc. Psicofísico</TableHead>
-                <TableHead>Telegram ID</TableHead>
                 <TableHead>Admin</TableHead>
                 {(auth.user?.is_admin || sortedPilots.some(p => p.auth_user_id === auth.user?.id)) && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
@@ -172,7 +171,7 @@ export function PilotClient() {
             <TableBody>
               {sortedPilots.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={(auth.user?.is_admin || sortedPilots.some(p => p.auth_user_id === auth.user?.id)) ? 7 : 6} className="text-center h-24">
+                  <TableCell colSpan={(auth.user?.is_admin || sortedPilots.some(p => p.auth_user_id === auth.user?.id)) ? 6 : 5} className="text-center h-24">
                     No hay pilotos registrados.
                   </TableCell>
                 </TableRow>
@@ -248,7 +247,6 @@ export function PilotClient() {
                       <TableCell>
                         {medicalExpiryDisplay}
                       </TableCell>
-                      <TableCell>{pilot.telegram_chat_id || '-'}</TableCell>
                       <TableCell>
                         {pilot.is_admin ? <ShieldCheck className="h-5 w-5 text-primary" /> : '-'}
                       </TableCell>

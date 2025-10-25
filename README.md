@@ -60,7 +60,6 @@ Este es el paso más **crítico**. Todas las siguientes claves se encuentran en 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | La clave pública de tu proyecto (sección "Project API Keys", la que dice `anon`). |
 | `SUPABASE_SERVICE_ROLE_KEY`   | **(SECRETA)** La clave de servicio (sección "Project API Keys", la que dice `service_role`). |
 | `GOOGLE_API_KEY`              | Tu clave de API de Google para Genkit (Gemini AI).                                |
-| `NEXT_PUBLIC_TELEGRAM_BOT_TOKEN` | El token de tu bot de Telegram, obtenido de @BotFather.                              |
 | `CRON_SECRET`                 | Un texto secreto que inventes para proteger el cron job.                         |
 
 #### Paso 3.3: Desplegar
@@ -70,21 +69,7 @@ Este es el paso más **crítico**. Todas las siguientes claves se encuentran en 
 
 ### 4. Configuración Post-Despliegue
 
-Con tu aplicación ya online, necesitas realizar dos configuraciones finales desde la propia aplicación.
-
-#### Paso 4.1: Configurar el Webhook de Telegram
-
-Para que el bot de Telegram reciba mensajes y comandos, debes decirle a Telegram a qué URL enviar las actualizaciones.
-
-1.  Navega a tu aplicación desplegada en Vercel.
-2.  Ve a la sección **Administración -> Configuración de Telegram**.
-3.  La "URL del Webhook" se mostrará automáticamente, basada en la URL de tu proyecto en Vercel.
-4.  Pega el `token` de tu bot de Telegram en el campo correspondiente.
-5.  Se generará un comando `curl`. **Cópialo**.
-6.  Abre una terminal en tu computadora (no importa la ubicación) y **pega y ejecuta** ese comando.
-7.  Si todo va bien, verás una respuesta como `{"ok":true,"result":true,"description":"Webhook was set"}`. ¡Listo! Tu bot ya está conectado.
-
-#### Paso 4.2: Configurar el Cron Job para Informes Semanales (Opcional)
+#### Configurar el Cron Job para Informes Semanales (Opcional)
 
 Para que los informes de actividad se envíen automáticamente a los pilotos cada semana, necesitas configurar una tarea programada (Cron Job) en Vercel.
 

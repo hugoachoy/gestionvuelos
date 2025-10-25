@@ -80,7 +80,6 @@ const createPilotSchema = (originalMedicalExpiryDateString?: string | null) => {
     address: z.string().nullable().optional(),
     email: z.string().email({ message: "Correo electrónico inválido." }).nullable().optional(),
     phone: z.string().nullable().optional(),
-    telegram_chat_id: z.string().nullable().optional(),
   });
 };
 
@@ -112,7 +111,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
       address: null,
       email: null,
       phone: null,
-      telegram_chat_id: null,
     },
   });
 
@@ -135,7 +133,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             address: pilot.address,
             email: pilot.email,
             phone: pilot.phone,
-            telegram_chat_id: pilot.telegram_chat_id,
           }
         : {
             first_name: '',
@@ -148,7 +145,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             address: null,
             email: null,
             phone: null,
-            telegram_chat_id: null,
           };
       form.reset(initialFormValues);
     }
@@ -164,7 +160,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
         dni: data.dni || null,
         address: data.address || null,
         phone: data.phone || null,
-        telegram_chat_id: data.telegram_chat_id || null,
         is_admin: data.is_admin ?? false, 
         auth_user_id: pilot?.auth_user_id 
     };
@@ -292,15 +287,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             <FormField control={form.control} name="phone" render={({ field }) => (
                 <FormItem><FormLabel>Teléfono</FormLabel><FormControl><Input placeholder="2345678901" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
             )}/>
-             <FormField control={form.control} name="telegram_chat_id" render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Telegram Chat ID</FormLabel>
-                    <FormControl><Input placeholder="ID numérico del chat" {...field} value={field.value ?? ""} /></FormControl>
-                    <FormDescription>El ID del chat de Telegram para enviar notificaciones personales (opcional).</FormDescription>
-                    <FormMessage />
-                </FormItem>
-            )}/>
-
+            
              {pilot?.auth_user_id && allowIsAdminChange && (
               <>
                 <Separator className="my-6" />

@@ -18,7 +18,6 @@ export interface Pilot {
   address: string | null;
   email: string | null;
   phone: string | null;
-  telegram_chat_id: string | null; // AÑADIDO: Campo para el ID de chat de Telegram
   category_ids: string[]; // IDs of PilotCategory
   medical_expiry: string; // Store as ISO string YYYY-MM-DD
   auth_user_id?: string | null; // ID del usuario de Supabase Auth vinculado
