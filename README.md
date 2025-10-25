@@ -32,7 +32,7 @@ git commit -m "Versión inicial del proyecto"
 # Reemplaza la URL con la de tu repositorio.
 git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
 
-# Sube tu rama actual a GitHub (ya sea 'main' o 'master')
+# Sube tu rama actual a GitHub. HEAD se refiere a la rama en la que te encuentras.
 git push -u origin HEAD
 ```
 
@@ -147,3 +147,46 @@ git add .
 git commit -m "Eliminar repositorio anidado y continuar con el commit"
 git push
 ```
+
+#### Error: `src refspec main does not match any`
+
+Este error significa que Git no puede encontrar la rama `main` para subirla. Esto puede ocurrir si tu rama local tiene otro nombre (como `master`) o si el repositorio local está en un estado inconsistente. Si los comandos estándar no funcionan, la solución más segura es reiniciar la configuración de Git local.
+
+**Solución Definitiva (Plan de Reseteo Nuclear):**
+
+Este método **NO BORRARÁ TU CÓDIGO**. Solo reiniciará la configuración de Git.
+
+1.  **Elimina la configuración actual de Git**. Abre una terminal en la carpeta raíz de tu proyecto y ejecuta el siguiente comando. Esto eliminará la carpeta `.git` oculta.
+    ```bash
+    # Para Windows (usando Command Prompt)
+    rmdir /s /q .git
+
+    # Para Windows (usando PowerShell)
+    Remove-Item -Recurse -Force .git
+
+    # Para macOS o Linux
+    rm -rf .git
+    ```
+
+2.  **Ahora, inicializa un repositorio limpio desde cero** y sigue los pasos para subirlo como si fuera la primera vez.
+    ```bash
+    # 1. Iniciar un nuevo repositorio de Git
+    git init
+
+    # 2. (Opcional, pero recomendado) Crear y cambiarse a la rama 'main'
+    git checkout -b main
+    
+    # 3. Añadir todos tus archivos
+    git add .
+
+    # 4. Crear el primer commit (el guardado inicial)
+    git commit -m "Versión inicial del proyecto (reseteo)"
+
+    # 5. Conectar con tu repositorio en GitHub (reemplaza la URL)
+    git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
+
+    # 6. Subir tus archivos a GitHub
+    git push -u origin main
+    ```
+
+Este proceso de "borrón y cuenta nueva" para la configuración de Git debería resolver cualquier estado inconsistente y permitirte subir tu proyecto exitosamente.
