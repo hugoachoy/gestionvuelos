@@ -16,7 +16,7 @@ Antes de empezar, asegúrate de tener lo siguiente:
     *   Una cuenta en [GitHub](https://github.com/).
     *   Una cuenta en [Vercel](https://vercel.com/) (puedes registrarte con tu cuenta de GitHub).
 *   **Claves de Servicios**:
-    *   Tener a mano las claves de los servicios que usarás (Supabase, Google, Telegram).
+    *   Tener a mano las claves de los servicios que usarás (Supabase, Google).
 
 ### 2. Sube tu Código a un Repositorio de GitHub
 
@@ -49,20 +49,19 @@ Vercel es la plataforma recomendada para desplegar esta aplicación.
 
 #### Paso 3.2: Configurar las Variables de Entorno
 
-Este es el paso más **crítico**.
+Este es el paso más **crítico**. Todas las siguientes claves se encuentran en el dashboard de tu proyecto de Supabase, en la sección **Settings -> API**.
 
 1.  En la configuración del proyecto en Vercel, antes de desplegar, ve a la sección **"Environment Variables"**.
 2.  Añade cada una de las siguientes variables con sus respectivos valores. Asegúrate de que los nombres coincidan exactamente.
 
-| Variable                      | Descripción                                           |
-| ----------------------------- | ----------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`    | La URL de tu proyecto de Supabase.                    |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | La clave pública (anon key) de tu proyecto Supabase.  |
-| `SUPABASE_SERVICE_ROLE_KEY`   | La clave de servicio (secreta) de tu proyecto Supabase. |
-| `GOOGLE_API_KEY`              | Tu clave de API de Google para Genkit (Gemini AI).      |
-| `NEXT_PUBLIC_TELEGRAM_BOT_TOKEN` | El token de tu bot de Telegram, obtenido de @BotFather. |
-| `CRON_SECRET`                 | Un texto secreto que inventes para proteger el cron job. |
-
+| Variable                      | Descripción                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`    | La URL de tu proyecto de Supabase (sección "Project URL").                         |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | La clave pública de tu proyecto (sección "Project API Keys", la que dice `anon`). |
+| `SUPABASE_SERVICE_ROLE_KEY`   | **(SECRETA)** La clave de servicio (sección "Project API Keys", la que dice `service_role`). |
+| `GOOGLE_API_KEY`              | Tu clave de API de Google para Genkit (Gemini AI).                                |
+| `NEXT_PUBLIC_TELEGRAM_BOT_TOKEN` | El token de tu bot de Telegram, obtenido de @BotFather.                              |
+| `CRON_SECRET`                 | Un texto secreto que inventes para proteger el cron job.                         |
 
 #### Paso 3.3: Desplegar
 
@@ -186,7 +185,7 @@ Este método **NO BORRARÁ TU CÓDIGO**. Solo reiniciará la configuración de G
     git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
 
     # 6. Subir tus archivos a GitHub
-    git push -u origin main
+    git push -u origin HEAD
     ```
 
 Este proceso de "borrón y cuenta nueva" para la configuración de Git debería resolver cualquier estado inconsistente y permitirte subir tu proyecto exitosamente.
