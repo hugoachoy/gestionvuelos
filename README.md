@@ -30,7 +30,7 @@ git commit -m "Versión inicial del proyecto"
 
 # Crea un nuevo repositorio en GitHub.com y luego ejecuta:
 git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
-git branch -M main
+git checkout -b main
 git push -u origin main
 ```
 
@@ -118,7 +118,7 @@ Para que los informes de actividad se envíen automáticamente a los pilotos cad
 
 ### 🚨 Resolución de Problemas Comunes
 
-#### Error: `error: 'nombre-carpeta/' does not have a commit checked out`
+#### Error: `error: '...' does not have a commit checked out`
 
 Este error ocurre cuando intentas ejecutar `git add .` y una de las subcarpetas de tu proyecto (por ejemplo, `turnosvuelo/`) es, a su vez, otro repositorio de Git (contiene su propia carpeta `.git`).
 
@@ -136,8 +136,6 @@ Remove-Item -Recurse -Force nombre-carpeta\\.git
 # Para macOS o Linux
 rm -rf nombre-carpeta/.git
 ```
-
-Por ejemplo, si el error fue `error: 'turnosvuelo/' does not have a commit checked out`, el comando en Linux/macOS sería `rm -rf turnosvuelo/.git`.
 
 Una vez ejecutado, puedes volver a intentar el comando `git add .` desde la raíz de tu proyecto principal:
 
