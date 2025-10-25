@@ -28,10 +28,12 @@ git init
 git add .
 git commit -m "Versión inicial del proyecto"
 
-# Crea un nuevo repositorio en GitHub.com y luego ejecuta:
+# Crea un nuevo repositorio en GitHub.com y luego ejecuta los siguientes dos comandos:
+# Reemplaza la URL con la de tu repositorio.
 git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
-git checkout -b main
-git push -u origin main
+
+# Sube tu rama actual a GitHub (ya sea 'main' o 'master')
+git push -u origin HEAD
 ```
 
 ### 3. Despliegue en Vercel
@@ -64,8 +66,8 @@ Este es el paso más **crítico**.
 
 #### Paso 3.3: Desplegar
 
-1.  Once all environment variables have been added, click the **"Deploy"** button.
-2.  Vercel will build and deploy your application. When finished, it will provide you with the public URL of your project (e.g., `https://your-project.vercel.app`).
+1.  Una vez que todas las variables de entorno han sido añadidas, haz clic en el botón **"Deploy"**.
+2.  Vercel construirá y desplegará tu aplicación. Cuando termine, te proporcionará la URL pública de tu proyecto (ej: `https://tu-proyecto.vercel.app`).
 
 ### 4. Configuración Post-Despliegue
 
