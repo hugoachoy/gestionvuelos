@@ -1,3 +1,4 @@
+
 import { RatesClient } from './components/rates-client';
 import { PageHeader } from '@/components/common/page-header';
 import { Suspense } from 'react';
