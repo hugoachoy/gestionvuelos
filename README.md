@@ -1,176 +1,79 @@
-# Turnos de Vuelo - Aeroclub 9 de Julio
+# Manual de Usuario - App de Turnos de Vuelo Aeroclub 9 de Julio
 
-Esta es una aplicación Next.js para la gestión de turnos de vuelo, pilotos, aeronaves y más para el Aeroclub 9 de Julio.
-
-## 🚀 Despliegue y Puesta en Marcha
-
-Estas instrucciones se centran en cómo subir tu proyecto a internet usando GitHub y Vercel.
-
-### 1. Prerrequisitos
-
-Antes de empezar, asegúrate de tener lo siguiente:
-
-*   **Git Instalado**: `git` es la herramienta que te permite comunicarte con GitHub. Si al escribir `git` en tu terminal recibes un error como "comando no encontrado", necesitas instalarlo.
-    *   Puedes descargarlo desde su [página oficial](https://git-scm.com/downloads).
-*   **Cuentas Creadas**:
-    *   Una cuenta en [GitHub](https://github.com/).
-    *   Una cuenta en [Vercel](https://vercel.com/) (puedes registrarte con tu cuenta de GitHub).
-*   **Claves de Servicios**:
-    *   Tener a mano las claves de los servicios que usarás (Supabase, Google).
-
-### 2. Sube tu Código a un Repositorio de GitHub
-
-Una vez que tengas `git` instalado y tu proyecto esté listo, es momento de subirlo a un nuevo repositorio en tu cuenta de GitHub.
-
-```bash
-# Inicializa git si no lo has hecho
-git init
-git add .
-git commit -m "Versión inicial del proyecto"
-
-# Crea un nuevo repositorio en GitHub.com y luego ejecuta los siguientes dos comandos:
-# Reemplaza la URL con la de tu repositorio.
-git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
-
-# Sube tu rama actual a GitHub. HEAD se refiere a la rama en la que te encuentras.
-git push -u origin HEAD
-```
-
-### 3. Despliegue en Vercel
-
-Vercel es la plataforma recomendada para desplegar esta aplicación.
-
-#### Paso 3.1: Conectar tu Repositorio
-
-1.  Ve a tu [Dashboard de Vercel](https://vercel.com/dashboard).
-2.  Haz clic en **"Add New..."** -> **"Project"**.
-3.  Importa el repositorio de GitHub que acabas de crear/subir.
-4.  Vercel detectará automáticamente que es un proyecto Next.js y pre-configurará los ajustes de build por ti. No necesitas cambiarlos.
-
-#### Paso 3.2: Configurar las Variables de Entorno
-
-Este es el paso más **crítico**. Todas las siguientes claves se encuentran en el dashboard de tu proyecto de Supabase, en la sección **Settings -> API**.
-
-1.  En la configuración del proyecto en Vercel, antes de desplegar, ve a la sección **"Environment Variables"**.
-2.  Añade cada una de las siguientes variables con sus respectivos valores. Asegúrate de que los nombres coincidan exactamente.
-
-| Variable                      | Descripción                                                                      |
-| ----------------------------- | -------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`    | La URL de tu proyecto de Supabase (sección "Project URL").                         |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | La clave pública de tu proyecto (sección "Project API Keys", la que dice `anon`). |
-| `SUPABASE_SERVICE_ROLE_KEY`   | **(SECRETA)** La clave de servicio (sección "Project API Keys", la que dice `service_role`). |
-| `GOOGLE_API_KEY`              | Tu clave de API de Google para Genkit (Gemini AI).                                |
-| `CRON_SECRET`                 | Un texto secreto que inventes para proteger el cron job.                         |
-
-#### Paso 3.3: Desplegar
-
-1.  Una vez que todas las variables de entorno han sido añadidas, haz clic en el botón **"Deploy"**.
-2.  Vercel construirá y desplegará tu aplicación. Cuando termine, te proporcionará la URL pública de tu proyecto (ej: `https://tu-proyecto.vercel.app`).
-
-### 4. Configuración Post-Despliegue
-
-#### Configurar el Cron Job para Informes Semanales (Opcional)
-
-Para que los informes de actividad se envíen automáticamente a los pilotos cada semana, necesitas configurar una tarea programada (Cron Job) en Vercel.
-
-1.  En la raíz de tu proyecto (en tu computadora), crea un archivo llamado `vercel.json` si no existe.
-2.  Añade la siguiente configuración. **Recuerda reemplazar el token secreto** con el mismo que pusiste en las variables de entorno.
-
-    ```json
-    {
-      "crons": [
-        {
-          "path": "/api/cron?token=ESTO_ES_UN_SECRETO_MUY_SEGURO_12345",
-          "schedule": "0 11 * * 1"
-        }
-      ]
-    }
-    ```
-    - **path**: `/api/cron?token=` seguido de tu `CRON_SECRET`.
-    - **schedule**: `0 11 * * 1` ejecuta la tarea todos los lunes a las 11:00 AM UTC. Puedes ajustar este valor usando la sintaxis de `cron`.
-
-3.  Sube los cambios de este archivo `vercel.json` a tu repositorio de GitHub.
-
-    ```bash
-    git add vercel.json
-    git commit -m "Añadir configuración de cron job"
-    git push
-    ```
-4.  Vercel detectará el cambio y realizará un nuevo despliegue automáticamente, activando el cron job.
-
-¡Y eso es todo! Tu aplicación estará completamente configurada y funcionando en producción.
+¡Bienvenido a la aplicación de gestión de vuelos del Aeroclub 9 de Julio! Esta guía te ayudará a entender y utilizar todas las funcionalidades disponibles.
 
 ---
 
-### 🚨 Resolución de Problemas Comunes
+## 1. Funcionalidades para Todos los Usuarios
 
-#### Error: `error: '...' does not have a commit checked out`
+Estas secciones están disponibles para todos los usuarios registrados, tanto pilotos como administradores.
 
-Este error ocurre cuando intentas ejecutar `git add .` y una de las subcarpetas de tu proyecto (por ejemplo, `turnosvuelo/`) es, a su vez, otro repositorio de Git (contiene su propia carpeta `.git`).
+### ➤ Dashboard
+Es la pantalla principal. Aquí encontrarás accesos directos a las secciones más importantes de la aplicación y un resumen de los avisos de mantenimiento de las aeronaves.
 
-**Solución:**
+### ➤ Crepúsculo Civil
+Calcula automáticamente la hora de inicio y fin del crepúsculo civil, así como la salida y puesta del sol para cualquier fecha seleccionada. Es una herramienta esencial para la planificación de vuelos seguros.
 
-Debes eliminar el repositorio de Git anidado. Abre tu terminal, navega hasta la raíz de tu proyecto y ejecuta el siguiente comando, **reemplazando `nombre-carpeta` por el nombre de la carpeta que te indica el error**:
+### ➤ NOTAMs
+Consulta en tiempo real los NOTAMs (Notice to Airmen) vigentes para el aeródromo de 9 de Julio (LIO). Esta sección también muestra información general del aeródromo como coordenadas, elevación y detalles de las pistas.
 
-```bash
-# Para Windows (usando Command Prompt)
-rmdir /s /q nombre-carpeta\\.git
+### ➤ Agenda
+El corazón de la planificación. En esta sección puedes:
+- **Ver la agenda** para una fecha específica.
+- **Anotarte para un turno**: Haz clic en "Agregar Turno" para registrar tu disponibilidad para volar.
+- **Editar o eliminar tus turnos**: Si tus planes cambian, puedes modificar o borrar tus turnos fácilmente.
+- **Ver novedades y observaciones**: Los administradores pueden dejar notas importantes para el día.
 
-# Para Windows (usando PowerShell)
-Remove-Item -Recurse -Force nombre-carpeta\\.git
+### ➤ Libro de Vuelo
+Tu bitácora digital. Desde aquí puedes:
+- **Registrar nuevos vuelos**: Tanto en planeador como en avión a motor. El sistema te guiará para completar todos los datos necesarios.
+- **Ver el historial de tus vuelos**: Accede a un listado detallado de todos tus vuelos registrados, con filtros por fecha.
+- **Exportar tu historial**: Genera un PDF con tus vuelos para tus registros personales.
 
-# Para macOS o Linux
-rm -rf nombre-carpeta/.git
-```
+### ➤ Pilotos
+Consulta un listado completo de todos los pilotos del aeroclub, sus categorías y el estado de su psicofísico.
 
-Una vez ejecutado, puedes volver a intentar el comando `git add .` desde la raíz de tu proyecto principal:
+### ➤ Aeronaves
+Visualiza el estado de toda la flota. Podrás ver:
+- Si una aeronave está **en servicio** o **fuera de servicio**.
+- **Vencimientos** de seguro y revisión anual.
+- **Horas de motor** desde el último cambio de aceite (para aviones).
 
-```bash
-git add .
-# Ahora debería funcionar sin errores.
-git commit -m "Eliminar repositorio anidado y continuar con el commit"
-git push
-```
+### ➤ Tarifas
+Consulta el listado de precios vigentes para horas de vuelo, remolques y otros conceptos. Puedes exportar este listado a PDF.
 
-#### Error: `src refspec main does not match any`
+---
 
-Este error significa que Git no puede encontrar la rama `main` para subirla. Esto puede ocurrir si tu rama local tiene otro nombre (como `master`) o si el repositorio local está en un estado inconsistente. Si los comandos estándar no funcionan, la solución más segura es reiniciar la configuración de Git local.
+## 2. Funcionalidades Exclusivas para Administradores
 
-**Solución Definitiva (Plan de Reseteo Nuclear):**
+Además de todas las funciones anteriores, los usuarios con rol de **Administrador** tienen acceso a herramientas de gestión avanzadas.
 
-Este método **NO BORRARÁ TU CÓDIGO**. Solo reiniciará la configuración de Git.
+### ➤ Gestión de Pilotos
+- **Crear, editar y eliminar** perfiles de pilotos.
+- **Asignar categorías** (Instructor, Remolcador, etc.).
+- **Vincular un perfil de piloto** a una cuenta de usuario registrada.
+- **Marcar a un usuario como administrador**.
 
-1.  **Elimina la configuración actual de Git**. Abre una terminal en la carpeta raíz de tu proyecto y ejecuta el siguiente comando. Esto eliminará la carpeta `.git` oculta.
-    ```bash
-    # Para Windows (usando Command Prompt)
-    rmdir /s /q .git
+### ➤ Gestión de Aeronaves
+- **Añadir nuevas aeronaves** a la flota.
+- **Editar datos** como fechas de vencimiento de seguro o revisión anual.
+- **Poner una aeronave fuera de servicio** y especificar el motivo.
 
-    # Para Windows (usando PowerShell)
-    Remove-Item -Recurse -Force .git
+### ➤ Gestión de Categorías
+- **Crear, modificar o eliminar** las categorías de los pilotos (Ej: "Piloto de Planeador", "Instructor de Avión").
 
-    # Para macOS o Linux
-    rm -rf .git
-    ```
+### ➤ Panel de Administración
+Desde esta sección central, los administradores pueden:
+- **Gestionar Tarifas**: Crear, editar o eliminar los precios de todos los servicios del aeroclub.
+- **Generar Informes de Facturación**: Crear un reporte detallado de los vuelos a facturar para un piloto específico en un rango de fechas. Este informe se puede exportar a PDF y CSV.
 
-2.  **Ahora, inicializa un repositorio limpio desde cero** y sigue los pasos para subirlo como si fuera la primera vez.
-    ```bash
-    # 1. Iniciar un nuevo repositorio de Git
-    git init
+---
 
-    # 2. (Opcional, pero recomendado) Crear y cambiarse a la rama 'main'
-    git checkout -b main
-    
-    # 3. Añadir todos tus archivos
-    git add .
+## 3. Cómo Exportar Información (PDF / CSV)
 
-    # 4. Crear el primer commit (el guardado inicial)
-    git commit -m "Versión inicial del proyecto (reseteo)"
+Muchas secciones de la aplicación te permiten exportar la información en formato PDF para imprimir o guardar. Algunas también ofrecen exportación a CSV.
 
-    # 5. Conectar con tu repositorio en GitHub (reemplaza la URL)
-    git remote add origin https://github.com/tu-usuario/nombre-del-repositorio.git
+- **¿Qué es PDF?**: Un formato de documento estándar, ideal para imprimir o compartir sin que se modifique el diseño.
+- **¿Qué es CSV?**: Un archivo de texto plano que puedes abrir con programas como Microsoft Excel o Google Sheets. Es útil para trabajar con los datos en una hoja de cálculo.
 
-    # 6. Subir tus archivos a GitHub
-    git push -u origin HEAD
-    ```
-
-Este proceso de "borrón y cuenta nueva" para la configuración de Git debería resolver cualquier estado inconsistente y permitirte subir tu proyecto exitosamente.
+Busca los botones **"Exportar a PDF"** o **"Exportar a CSV"** en las secciones de historiales de vuelo, informes o listados para descargar la información que necesites.
