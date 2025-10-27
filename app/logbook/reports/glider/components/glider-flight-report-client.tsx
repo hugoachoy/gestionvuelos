@@ -208,7 +208,7 @@ export function GliderFlightReportClient() {
                 flight.departure_time,
                 flight.arrival_time,
                 flight.flight_duration_decimal.toFixed(1),
-                `"${getPurposeName(flight.flight_purpose_id)}"`
+                `"${getPurposeName(flight.flight_purpose_id)}"`,
                 '1',
                 '1',
                 `"${(flight.notes || '-').replace(/"/g, '""')}"`,
