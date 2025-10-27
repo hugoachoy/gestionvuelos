@@ -1,0 +1,9 @@
+{
+  "name": "Turnos de Vuelo",
+  "short_name": "TurnoVuelo",
+  "description": "Gestión de Turnos de Vuelo a Vela para el Aeroclub 9 de Julio.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F0F8FF",
+  "theme_color": "#87CEEB"
+}
