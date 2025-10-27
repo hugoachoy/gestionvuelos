@@ -9,9 +9,8 @@ export async function GET(request: Request) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  // Telegram logic has been removed. 
   // This cron job now only logs a message.
-  const summaryMessage = "Cron job executed successfully (Telegram reporting logic removed).";
+  const summaryMessage = "Cron job executed successfully.";
   console.log(summaryMessage);
   return NextResponse.json({ success: true, message: summaryMessage });
 }
