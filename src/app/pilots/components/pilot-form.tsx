@@ -121,7 +121,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
 
   useEffect(() => {
     if (open) {
-      const initialFormValues = pilot
+      const defaultValues = pilot
         ? {
             first_name: pilot.first_name || '',
             last_name: pilot.last_name || '',
@@ -146,7 +146,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             email: null,
             phone: null,
           };
-      form.reset(initialFormValues);
+      form.reset(defaultValues);
     }
   }, [open, pilot, form.reset]);
 
