@@ -153,7 +153,9 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
 
   const handleSubmit = (data: PilotFormData) => {
     const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
-        ...data,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        category_ids: data.category_ids, // Use directly from form data
         medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
         birth_date: data.birth_date ? format(data.birth_date, 'yyyy-MM-dd') : null,
         email: data.email || null,
