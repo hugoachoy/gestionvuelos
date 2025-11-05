@@ -152,7 +152,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
 
 
   const handleSubmit = (data: PilotFormData) => {
-    // This is the corrected logic. It only uses data from the form.
     const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
       first_name: data.first_name,
       last_name: data.last_name,
@@ -161,10 +160,9 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
       address: data.address || null,
       email: data.email || null,
       phone: data.phone || null,
-      category_ids: data.category_ids, // Correctly use the form's category IDs
+      category_ids: data.category_ids,
       medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
       is_admin: data.is_admin ?? false,
-      // Preserve the link to the auth user if it exists
       auth_user_id: pilot?.auth_user_id || null, 
     };
 
