@@ -148,7 +148,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
           };
       form.reset(initialFormValues);
     }
-  }, [open, pilot, form, pilotSchema]);
+  }, [open, pilot, form.reset]);
 
 
   const handleSubmit = (data: PilotFormData) => {
