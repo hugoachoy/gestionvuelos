@@ -103,26 +103,39 @@ export function usePilotsStore() {
   }, [fetchPilots]);
 
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
-    setError(null);
     setLoading(true);
-    const { id, created_at, ...updatePayload } = updatedPilotData;
+    setError(null);
+    try {
+      const { id, created_at, ...updatePayload } = updatedPilotData;
 
-    const { error: supabaseUpdateError } = await supabase
-      .from('pilots')
-      .update(updatePayload)
-      .eq('id', id);
-
-    if (supabaseUpdateError) {
-      logSupabaseError('Error updating pilot (during Supabase update operation)', supabaseUpdateError);
-      setError(supabaseUpdateError);
-      setLoading(false);
+      const { data: updatedPilot, error: supabaseUpdateError } = await supabase
+        .from('pilots')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+  
+      if (supabaseUpdateError) {
+        logSupabaseError('Error updating pilot (during Supabase update operation)', supabaseUpdateError);
+        throw supabaseUpdateError;
+      }
+  
+      if (updatedPilot) {
+        setPilots(prevPilots => 
+          prevPilots.map(p => p.id === updatedPilot.id ? updatedPilot : p)
+        );
+        return updatedPilot;
+      } else {
+        throw new Error("No se recibieron datos del piloto actualizado de la base de datos.");
+      }
+    } catch (e) {
+      setError(e);
       return null;
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    await fetchPilots();
-    setLoading(false);
-    return updatedPilotData;
-  }, [fetchPilots]);
 
   const deletePilot = useCallback(async (pilotId: string) => {
     setError(null);

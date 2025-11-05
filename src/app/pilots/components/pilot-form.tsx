@@ -118,9 +118,8 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
   const [isBirthDateCalendarOpen, setIsBirthDateCalendarOpen] = useState(false);
   const [isUnlinkConfirmOpen, setIsUnlinkConfirmOpen] = useState(false);
 
-
-  useEffect(() => {
-    if (open) {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
       const defaultValues = pilot
         ? {
             first_name: pilot.first_name || '',
@@ -148,7 +147,8 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
           };
       form.reset(defaultValues);
     }
-  }, [open, pilot, form.reset]);
+    onOpenChange(isOpen);
+  };
 
 
   const handleSubmit = (data: PilotFormData) => {
@@ -196,7 +196,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
 
   return (
     <>
-    <Dialog open={open} onOpenChange={(isOpen) => { onOpenChange(isOpen); }}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{pilot ? 'Editar Piloto' : 'Agregar Piloto'}</DialogTitle>
