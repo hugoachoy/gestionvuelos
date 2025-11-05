@@ -1,4 +1,3 @@
-
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -24,27 +23,18 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
 # local env files
 .env*.local
-*.tsbuildinfo
+.env
 
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
-tsconfig.tsbuildinfo
+next-env.d.ts
 
-# editor folders
+# studio
+.idx
 .vscode/
-.idea/
-
-# Firebase
-.firebase/
-firebase-debug.log
-database-debug.log
-
-# IDX
-.idx/
