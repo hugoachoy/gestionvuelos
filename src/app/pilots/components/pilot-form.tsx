@@ -35,21 +35,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon, ChevronsUpDown, AlertTriangle } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
 import { cn } from "@/lib/utils";
-<<<<<<< HEAD
 import { format, parseISO, isValid, startOfDay, isBefore } from 'date-fns';
-=======
-import { format, parseISO, parse, isValid, startOfDay, isBefore } from 'date-fns';
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
 import { es } from 'date-fns/locale';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DeleteDialog } from '@/components/common/delete-dialog';
 
-<<<<<<< HEAD
-=======
-type PilotFormData = z.infer<ReturnType<typeof createPilotSchema>>;
-
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
 const createPilotSchema = (originalMedicalExpiryDateString?: string | null) => {
   const originalExpiryDate = originalMedicalExpiryDateString && isValid(parseISO(originalMedicalExpiryDateString)) 
     ? startOfDay(parseISO(originalMedicalExpiryDateString)) 
@@ -90,11 +81,7 @@ const createPilotSchema = (originalMedicalExpiryDateString?: string | null) => {
   });
 };
 
-<<<<<<< HEAD
 type PilotFormData = z.infer<ReturnType<typeof createPilotSchema>>;
-
-=======
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
 
 interface PilotFormProps {
   open: boolean;
@@ -130,16 +117,10 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
   const [isBirthDateCalendarOpen, setIsBirthDateCalendarOpen] = useState(false);
   const [isUnlinkConfirmOpen, setIsUnlinkConfirmOpen] = useState(false);
 
-<<<<<<< HEAD
-  const handleOpenChange = (isOpen: boolean) => {
-    if (isOpen) {
-      const defaultValues = pilot
-=======
 
   useEffect(() => {
     if (open) {
       const initialFormValues = pilot
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
         ? {
             first_name: pilot.first_name || '',
             last_name: pilot.last_name || '',
@@ -164,35 +145,13 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
             email: null,
             phone: null,
           };
-<<<<<<< HEAD
-      form.reset(defaultValues);
-    }
-    onOpenChange(isOpen);
-  };
-=======
       form.reset(initialFormValues);
     }
-  }, [open, pilot, form, pilotSchema]);
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
+  }, [open, pilot, form.reset]);
 
 
   const handleSubmit = (data: PilotFormData) => {
     const dataToSubmit: Omit<Pilot, 'id' | 'created_at'> = {
-<<<<<<< HEAD
-      first_name: data.first_name,
-      last_name: data.last_name,
-      dni: data.dni || null,
-      birth_date: data.birth_date ? format(data.birth_date, 'yyyy-MM-dd') : null,
-      address: data.address || null,
-      email: data.email || null,
-      phone: data.phone || null,
-      category_ids: data.category_ids,
-      medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
-      is_admin: data.is_admin ?? false,
-      auth_user_id: pilot?.auth_user_id || null, 
-    };
-
-=======
         ...data,
         medical_expiry: format(data.medical_expiry, 'yyyy-MM-dd'),
         birth_date: data.birth_date ? format(data.birth_date, 'yyyy-MM-dd') : null,
@@ -203,7 +162,6 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
         is_admin: data.is_admin ?? false, 
         auth_user_id: pilot?.auth_user_id 
     };
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
     onSubmit(dataToSubmit, pilot?.id);
     onOpenChange(false);
   };
@@ -211,27 +169,11 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
   const handleUnlinkUser = () => {
     if (!pilot || !pilot.auth_user_id) return;
 
-<<<<<<< HEAD
-    // Create a payload that is essentially the current pilot but with auth_user_id set to null
-    const unlinkedData: Omit<Pilot, 'id' | 'created_at'> = {
-        first_name: pilot.first_name,
-        last_name: pilot.last_name,
-        dni: pilot.dni,
-        birth_date: pilot.birth_date, // Already in string format from DB
-        address: pilot.address,
-        email: pilot.email,
-        phone: pilot.phone,
-        category_ids: pilot.category_ids,
-        medical_expiry: pilot.medical_expiry, // Already in string format from DB
-        is_admin: pilot.is_admin,
-        auth_user_id: null, // The only change
-=======
     const unlinkedData: Omit<Pilot, 'id' | 'created_at'> = {
       ...pilot,
       medical_expiry: pilot.medical_expiry ? format(parseISO(pilot.medical_expiry), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       birth_date: pilot.birth_date ? format(parseISO(pilot.birth_date), 'yyyy-MM-dd') : null,
       auth_user_id: null,
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
     };
     
     onSubmit(unlinkedData, pilot.id);
@@ -242,11 +184,7 @@ export function PilotForm({ open, onOpenChange, onSubmit, pilot, categories, all
 
   return (
     <>
-<<<<<<< HEAD
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-=======
-    <Dialog open={open} onOpenChange={(isOpen) => { onOpenChange(isOpen); }}>
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{pilot ? 'Editar Piloto' : 'Agregar Piloto'}</DialogTitle>
