@@ -103,37 +103,6 @@ export function usePilotsStore() {
   }, [fetchPilots]);
 
   const updatePilot = useCallback(async (updatedPilotData: Pilot) => {
-<<<<<<< HEAD
-    setLoading(true);
-    setError(null);
-    try {
-      const { id, created_at, ...updatePayload } = updatedPilotData;
-
-      const { error: supabaseUpdateError } = await supabase
-        .from('pilots')
-        .update(updatePayload)
-        .eq('id', id);
-  
-      if (supabaseUpdateError) {
-        logSupabaseError('Error updating pilot (during Supabase update operation)', supabaseUpdateError);
-        throw supabaseUpdateError;
-      }
-  
-      // Optimistic update
-      setPilots(prevPilots => 
-        prevPilots.map(p => p.id === id ? { ...p, ...updatedPilotData } : p)
-      );
-
-      return updatedPilotData;
-    } catch (e) {
-      setError(e);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-=======
     setError(null);
     setLoading(true);
     const { id, created_at, ...updatePayload } = updatedPilotData;
@@ -154,7 +123,6 @@ export function usePilotsStore() {
     setLoading(false);
     return updatedPilotData;
   }, [fetchPilots]);
->>>>>>> 2c2a288181c172d4e02b3a93e19a70323683fb14
 
   const deletePilot = useCallback(async (pilotId: string) => {
     setError(null);

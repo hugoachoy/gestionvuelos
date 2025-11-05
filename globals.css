@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Removed explicit body font-family: Arial, Helvetica, sans-serif; */
+/* Tailwind will now handle the default font based on tailwind.config.ts */
+
+@layer base {
+  :root {
+    --background: 210 30% 92%; /* Was: 208 100% 97% (AliceBlue) - Now: Light Steel Blue / Greyish Blue */
+    --foreground: 222.2 84% 4.9%; /* Kept dark for contrast */
+
+    --card: 210 30% 90%; /* Was: 208 100% 95% - Now: Slightly darker than new background */
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 210 30% 90%; /* Was: 208 100% 95% - Consistent with card */
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 205 65% 60%; /* Was: 197 71% 73% (SkyBlue) - Now: A richer, deeper blue */
+    --primary-foreground: 210 40% 98%; /* White for better contrast on new primary */
+
+    --secondary: 210 30% 90%; /* Was: 210 40% 96.1% - Consistent with card background */
+    --secondary-foreground: 210 40% 9.8%; /* Kept dark */
+
+    --muted: 210 30% 88%; /* Was: 210 40% 96.1% */
+    --muted-foreground: 210 25% 40%; /* Was: 210 30% 45.1% - Slightly darker muted text */
+
+    --accent: 130 50% 65%; /* Was: 120 93% 79% (PaleGreen) - Now: A slightly deeper, more muted green */
+    --accent-foreground: 130 40% 9.8%; /* Dark green for contrast */
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 210 25% 80%; /* Was: 208 50% 90% */
+    --input: 210 25% 80%; /* Was: 208 50% 90% */
+    --ring: 205 65% 60%; /* Matches new primary */
+
+    --radius: 0.5rem;
+
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Sidebar specific colors */
+    --sidebar-background: 210 30% 94%; /* Was: 208 100% 98% - Slightly lighter than main background */
+    --sidebar-foreground: 222.2 84% 4.9%; /* Stays dark */
+    --sidebar-primary: 205 65% 55%; /* Was: 197 71% 65% - A bit darker than main primary */
+    --sidebar-primary-foreground: 210 40% 98%; /* White for contrast */
+    --sidebar-accent: 130 50% 70%; /* Was: 120 93% 85% - Slightly lighter/more muted accent for sidebar */
+    --sidebar-accent-foreground: 130 40% 9.8%; /* Dark */
+    --sidebar-border: 210 25% 82%; /* Was: 208 50% 88% */
+    --sidebar-ring: 205 65% 55%; /* Matches sidebar primary */
+  }
+
+  .dark {
+    /* Dark mode remains unchanged for now, focused on making the light theme "a bit darker" */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 6.9%; 
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 6.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 197 71% 73%; 
+    --primary-foreground: 197 71% 10%; 
+
+    --secondary: 210 40% 12.9%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 210 40% 12.9%;
+    --muted-foreground: 210 40% 60%;
+
+    --accent: 120 93% 79%; 
+    --accent-foreground: 120 93% 15%; 
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 210 40% 14.9%;
+    --input: 210 40% 14.9%;
+    --ring: 197 71% 60%; 
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar-background: 222.2 84% 5.9%;
+    --sidebar-foreground: 210 40% 95%;
+    --sidebar-primary: 197 71% 65%;
+    --sidebar-primary-foreground: 197 71% 10%;
+    --sidebar-accent: 120 93% 70%;
+    --sidebar-accent-foreground: 120 93% 15%;
+    --sidebar-border: 210 40% 13.9%;
+    --sidebar-ring: 197 71% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
