@@ -64,14 +64,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    setLoading(true);
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      fetchUserProfile(session);
-    });
+    const getInitialSession = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      await fetchUserProfile(initialSession);
+      setLoading(false);
+    };
+
+    getInitialSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      setLoading(true); 
-      fetchUserProfile(currentSession);
+      await fetchUserProfile(currentSession);
+      setLoading(false);
     });
 
     return () => {
@@ -83,22 +86,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     await fetchUserProfile(currentSession);
-    setLoading(false);
   }
 
   const login = async (credentials: SignInWithPasswordCredentials) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword(credentials);
-    // onAuthStateChange will handle setting loading to false and updating user
     if (error) setLoading(false);
+    // onAuthStateChange will handle user state update
     return { error };
   };
 
   const logout = async () => {
     setLoading(true);
     const { error } = await supabase.auth.signOut();
-    // onAuthStateChange will handle setting loading to false and clearing user
     if (error) setLoading(false);
+    // onAuthStateChange will clear user state
     return { error };
   };
 
